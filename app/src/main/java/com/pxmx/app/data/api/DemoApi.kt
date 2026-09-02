@@ -189,9 +189,12 @@ class DemoApi : ProxmoxApi {
     override suspend fun createTicket(username: String, password: String): PveResponse<TicketData> {
         val userOnly = username.substringBefore('@')
         if (userOnly.equals("tfa-user", ignoreCase = true)) {
-            val errorBody = "{\"data\":{\"ticket\":\"PVE:tfa-user@pam:TFA-PARTIAL-DEMO-TICKET\",\"NeedTFA\":1}}"
-                .toResponseBody("application/json".toMediaType())
-            throw HttpException(Response.error<TicketData>(401, errorBody))
+            return PveResponse(data = TicketData(
+                ticket = "PVE:tfa-user@pam!tfa!DEMO-PARTIAL",
+                csrfPreventionToken = "demo-csrf-partial",
+                username = username,
+                needTfa = 1,
+            ))
         }
         return PveResponse(data = TicketData(
             ticket = "demo-ticket",
@@ -200,15 +203,15 @@ class DemoApi : ProxmoxApi {
         ))
     }
 
-    override suspend fun accessTfa(password: String, otp: String): PveResponse<TicketData> {
-        if (otp.trim() == "123456") {
+    override suspend fun createTicketTfa(username: String, password: String, tfaChallenge: String): PveResponse<TicketData> {
+        if (password.trim() == "totp:123456") {
             return PveResponse(data = TicketData(
                 ticket = "demo-ticket-tfa-verified",
                 csrfPreventionToken = "demo-csrf",
-                username = "tfa-user@pam",
+                username = username,
             ))
         } else {
-            val errorBody = "{\"errors\":{\"otp\":\"Invalid one-time password\"},\"message\":\"authentication failure\"}"
+            val errorBody = "{\"errors\":{\"password\":\"Invalid one-time password\"},\"message\":\"authentication failure\"}"
                 .toResponseBody("application/json".toMediaType())
             throw HttpException(Response.error<TicketData>(401, errorBody))
         }

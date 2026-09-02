@@ -110,28 +110,23 @@ class DemoApiTest {
     }
 
     @Test
-    fun tfaFlow_createTicketRequiresTfa_andAccessTfaVerifies() = runBlocking {
+    fun tfaFlow_createTicketRequiresTfa_andCreateTicketTfaVerifies() = runBlocking {
         // 1. Regular user gets ticket directly
         val normalTicket = demoApi.createTicket("root@pam", "password")
         assertEquals("demo-ticket", normalTicket.data?.ticket)
 
-        // 2. tfa-user triggers 401 with NeedTFA challenge
-        try {
-            demoApi.createTicket("tfa-user@pam", "password")
-            fail("Expected HttpException 401 for tfa-user")
-        } catch (e: HttpException) {
-            assertEquals(401, e.code())
-            val errorBody = e.response()?.errorBody()?.string() ?: ""
-            assertTrue(errorBody.contains("NeedTFA") && errorBody.contains("TFA-PARTIAL-DEMO-TICKET"))
-        }
+        // 2. tfa-user gets a 200 with NeedTFA and a partial ticket
+        val partial = demoApi.createTicket("tfa-user@pam", "password")
+        assertEquals(1, partial.data?.needTfa)
+        assertEquals("PVE:tfa-user@pam!tfa!DEMO-PARTIAL", partial.data?.ticket)
 
-        // 3. Valid OTP completes TFA
-        val tfaSuccess = demoApi.accessTfa("TFA-PARTIAL-DEMO-TICKET", "123456")
+        // 3. Valid TOTP completes TFA via the second access/ticket call
+        val tfaSuccess = demoApi.createTicketTfa("tfa-user@pam", "totp:123456", "PVE:tfa-user@pam!tfa!DEMO-PARTIAL")
         assertEquals("demo-ticket-tfa-verified", tfaSuccess.data?.ticket)
 
-        // 4. Invalid OTP rejects with 401
+        // 4. Invalid TOTP rejects with 401
         try {
-            demoApi.accessTfa("TFA-PARTIAL-DEMO-TICKET", "999999")
+            demoApi.createTicketTfa("tfa-user@pam", "totp:999999", "PVE:tfa-user@pam!tfa!DEMO-PARTIAL")
             fail("Expected HttpException 401 for wrong OTP")
         } catch (e: HttpException) {
             assertEquals(401, e.code())

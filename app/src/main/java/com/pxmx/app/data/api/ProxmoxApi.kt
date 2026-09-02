@@ -38,10 +38,11 @@ interface ProxmoxApi {
     ): PveResponse<TicketData>
 
     @FormUrlEncoded
-    @POST("access/tfa")
-    suspend fun accessTfa(
+    @POST("access/ticket")
+    suspend fun createTicketTfa(
+        @Field("username") username: String,
         @Field("password") password: String,
-        @Field("otp") otp: String,
+        @Field("tfa-challenge") tfaChallenge: String,
     ): PveResponse<TicketData>
 
     @GET("version")

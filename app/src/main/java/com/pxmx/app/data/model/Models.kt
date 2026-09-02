@@ -18,6 +18,7 @@ data class TicketData(
     @SerialName("CSRFPreventionToken") val csrfPreventionToken: String? = null,
     val username: String? = null,
     val cap: Map<String, @Contextual Any>? = null,
+    @SerialName("NeedTFA") val needTfa: Int? = null,
     @SerialName("clustername") val clusterName: String? = null,
 )
 

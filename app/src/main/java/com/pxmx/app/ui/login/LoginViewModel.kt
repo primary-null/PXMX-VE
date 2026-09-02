@@ -708,7 +708,7 @@ class LoginViewModel(
                 password = "demo",
                 apiToken = "",
                 trustSelfSigned = false,
-                saveCredentials = true,
+                saveCredentials = false,
                 autoConnect = it.autoConnect,
                 activeProfileId = null,
                 error = null,

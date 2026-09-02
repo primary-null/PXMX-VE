@@ -82,8 +82,8 @@ class FakeTourApi : ProxmoxApi {
         ))
     }
 
-    override suspend fun accessTfa(password: String, otp: String): PveResponse<TicketData> {
-        if (otp.trim() == "123456") {
+    override suspend fun createTicketTfa(username: String, password: String, tfaChallenge: String): PveResponse<TicketData> {
+        if (password.trim() == "totp:123456") {
             return PveResponse(data = TicketData(
                 ticket = "fake-tfa-verified-ticket",
                 csrfPreventionToken = "fake-csrf",

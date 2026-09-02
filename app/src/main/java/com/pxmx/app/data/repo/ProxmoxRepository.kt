@@ -198,6 +198,7 @@ class ProxmoxRepository(
         enableAutoConnect: Boolean? = null,
         label: String = "",
         forceNewProfile: Boolean = false,
+        silent: Boolean = false,
     ): LoginOutcome {
         return try {
             clientFactory.clear()
@@ -237,7 +238,7 @@ class ProxmoxRepository(
                         ?: return LoginOutcome.Failed(PveException("Login failed: empty ticket response"))
                     val rawTicket = data.ticket
                         ?: return LoginOutcome.Failed(PveException("Login failed: no ticket"))
-                    if (rawTicket.startsWith("PVE:tfa!") || rawTicket.contains("TFA:") || rawTicket.contains("TFA-PARTIAL") || data.cap?.containsKey("NeedTFA") == true) {
+                    if ((data.needTfa ?: 0) != 0 || rawTicket.startsWith("PVE:tfa!") || rawTicket.contains("TFA:") || rawTicket.contains("TFA-PARTIAL") || data.cap?.containsKey("NeedTFA") == true) {
                         return LoginOutcome.NeedsTfa(
                             partialTicket = rawTicket,
                             config = config,
@@ -299,8 +300,10 @@ class ProxmoxRepository(
             LoginOutcome.Success(full)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            sessionStore.clearSession()
-            clientFactory.clear()
+            if (!silent) {
+                sessionStore.clearSession()
+                clientFactory.clear()
+            }
             LoginOutcome.Failed(mapError(e))
         }
     }
@@ -322,7 +325,11 @@ class ProxmoxRepository(
         return try {
             clientFactory.clear()
             val api = clientFactory.apiFor(config)
-            val resp = api.accessTfa(password = partialTicket, otp = otp.trim())
+            val resp = api.createTicketTfa(
+                username = normalizeUsername(config.username, config.realm),
+                password = "totp:${otp.trim()}",
+                tfaChallenge = partialTicket,
+            )
             val data = resp.data
                 ?: return Result.failure(PveException("TFA verification failed: empty response"))
             val ticket = data.ticket
@@ -402,7 +409,7 @@ class ProxmoxRepository(
         AuthMode.API_TOKEN -> this
     }
 
-    suspend fun loginWithProfile(profileId: String): LoginOutcome {
+    suspend fun loginWithProfile(profileId: String, silent: Boolean = false): LoginOutcome {
         val profile = sessionStore.getProfile(profileId)
             ?: return LoginOutcome.Failed(PveException("Profile not found"))
         if (!profile.hasSavedSecret) {
@@ -412,6 +419,7 @@ class ProxmoxRepository(
             config = profile.toServerConfig(includeSecrets = true),
             saveCredentials = profile.saveCredentials,
             profileId = profile.id,
+            silent = silent,
         )
     }
 
@@ -511,7 +519,7 @@ class ProxmoxRepository(
             if (e is CancellationException) throw e
             val latency = SystemClock.elapsedRealtime() - start
             val msg = mapError(e).message ?: "Connection failed"
-            ConnectionTestResult(online = false, error = CertUtils.normalizeFingerprint(msg), latencyMs = latency)
+            ConnectionTestResult(online = false, error = msg, latencyMs = latency)
         }
     }
 
@@ -1061,12 +1069,9 @@ class ProxmoxRepository(
                     ?: throw IOException("Failed to create MediaStore entry")
                 outputStream = context.contentResolver.openOutputStream(uri)
             } else {
-                val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val proxmoxDir = File(downloadDir, "Proxmox")
-                if (!proxmoxDir.exists()) proxmoxDir.mkdirs()
-                val file = File(proxmoxDir, filename)
-                outputStream = FileOutputStream(file)
-                uri = null
+                // Public Downloads needs WRITE_EXTERNAL_STORAGE before Android 10,
+                // which this app does not request. Keep the save path honest.
+                throw PveException("Saving backups to Downloads requires Android 10 or newer")
             }
 
             try {
@@ -1523,7 +1528,7 @@ class ProxmoxRepository(
                         if (renewed != null) {
                             renewed to "renewal"
                         } else if (profile?.hasSavedSecret == true) {
-                            when (val outcome = loginWithProfile(profile.id)) {
+                            when (val outcome = loginWithProfile(profile.id, silent = true)) {
                                 is LoginOutcome.Success -> outcome.session to "profile"
                                 else -> null to null
                             }

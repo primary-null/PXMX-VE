@@ -166,6 +166,16 @@ class SessionStore(
         forceNewProfile: Boolean = false,
         version: String? = null,
     ): SavedProfile {
+        if (config.host.equals("demo", ignoreCase = true)) {
+            // Demo is an in-memory playground. Never persist it as a resumable profile.
+            return SavedProfile.fromConfig(
+                config = config,
+                saveCredentials = false,
+                existingId = null,
+                label = label,
+                lastVersion = version,
+            )
+        }
         val existing = if (forceNewProfile) null else (profileId?.let { getProfile(it) } ?: findMatching(config))
         val profile = SavedProfile.fromConfig(
             config = config,
@@ -187,7 +197,11 @@ class SessionStore(
     }
 
     fun deleteProfile(id: String) {
-        getProfile(id)?.let { removeCertPin(it.host) }
+        val target = getProfile(id)
+        if (target != null) {
+            val hostStillUsed = _profiles.value.any { it.id != id && it.host.equals(target.host, ignoreCase = true) && it.trustSelfSigned }
+            if (!hostStillUsed) removeCertPin(target.host)
+        }
         persistProfiles(_profiles.value.filterNot { it.id == id })
         if (prefs.getString(KEY_LAST_PROFILE_ID, null) == id) {
             prefs.edit { remove(KEY_LAST_PROFILE_ID) }
@@ -321,7 +335,14 @@ class SessionStore(
         prefs.edit().clear().commit()
 
         if (context != null) {
+            // Clear and close the encrypted store BEFORE its key and files go away.
+            runCatching { SecurePrefs.open(context).edit().clear().commit() }
             runCatching { context.deleteSharedPreferences(SecurePrefs.SECURE_PREFS_NAME) }
+            runCatching {
+                val prefsDir = java.io.File(context.applicationInfo.dataDir, "shared_prefs")
+                java.io.File(prefsDir, "${SecurePrefs.SECURE_PREFS_NAME}.xml").delete()
+                java.io.File(prefsDir, "${SecurePrefs.SECURE_PREFS_NAME}.xml.bak").delete()
+            }
             runCatching { context.deleteSharedPreferences(SecurePrefs.LEGACY_PREFS_NAME) }
             runCatching {
                 val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")

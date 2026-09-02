@@ -28,7 +28,7 @@ when a host needs hands-on attention.
 | Nodes | Per-node status: CPU, memory, and disk fills, plus remote state. |
 | Storage | Usage fills across all your datastores. |
 | Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, and a deploy-from-template dialog. |
-| Backups | Start backups and restore from the guest menu. |
+| Backups | Start and delete backups from the guest menu. |
 | Updates | Refresh package lists and apply updates with a live, step-by-step progress view. On Proxmox VE 9, where the API no longer allows remote installs, the app walks you to the node shell command instead. |
 | Console | An interactive SSH console for guests, and a node shell for the host. |
 | Firewall and SDN | Read-only views of cluster firewall rules and SDN zones and vnets. |
@@ -73,10 +73,12 @@ build from the command line:
 
 ## Privacy
 
-- TLS everywhere. The server certificate is pinned on first contact, and a
-  changed identity is refused, never silently re-accepted.
-- Passwords, API tokens, and session tickets are stored in the Android
-  Keystore, encrypted at rest.
+- TLS everywhere. Self-signed hosts get their certificate pinned on first
+  login, and a changed identity is refused, never silently re-accepted.
+  CA-signed hosts use the system trust store.
+- Passwords and API tokens are encrypted at rest with Android
+  EncryptedSharedPreferences, keyed by the Android Keystore. Session tickets
+  live only in memory, never on disk.
 - No accounts, no telemetry, no analytics, no cloud. The app talks only to
   the servers you add, and demo mode touches nothing at all.
 

@@ -82,6 +82,30 @@ class ProxmoxRepositoryTest {
     }
 
     @Test
+    fun login_200NeedTfa_returnsNeedsTfa() = runBlocking {
+        val config = ServerConfig(
+            host = "localhost",
+            authMode = AuthMode.PASSWORD,
+            username = "tfa-user",
+            password = "password"
+        )
+        fakeApi.ticketResponse = PveResponse(
+            data = TicketData(
+                ticket = "PVE:tfa-user@pam!tfa!WRAPPED",
+                csrfPreventionToken = "partial-csrf",
+                username = "tfa-user@pam",
+                needTfa = 1,
+            )
+        )
+
+        val outcome = repository.login(config)
+
+        assertTrue(outcome is LoginOutcome.NeedsTfa)
+        val needsTfa = outcome as LoginOutcome.NeedsTfa
+        assertEquals("PVE:tfa-user@pam!tfa!WRAPPED", needsTfa.partialTicket)
+    }
+
+    @Test
     fun completeTfa_withValidOtp_establishesSession() = runBlocking {
         val config = ServerConfig(
             host = "localhost",
@@ -101,6 +125,7 @@ class ProxmoxRepositoryTest {
         )
 
         assertTrue(result.isSuccess)
+        assertEquals("totp:123456", fakeApi.lastTfaPassword)
         assertEquals("full-tfa-ticket", sessionStore.session.value?.ticket)
         assertEquals("full-csrf", sessionStore.session.value?.csrf)
     }
@@ -149,7 +174,10 @@ class ProxmoxRepositoryTest {
             return ticketResponse
         }
 
-        override suspend fun accessTfa(password: String, otp: String): PveResponse<TicketData> {
+        var lastTfaPassword: String? = null
+
+        override suspend fun createTicketTfa(username: String, password: String, tfaChallenge: String): PveResponse<TicketData> {
+            lastTfaPassword = password
             return tfaResponse
         }
 

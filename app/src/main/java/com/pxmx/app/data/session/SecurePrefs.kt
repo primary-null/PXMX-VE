@@ -18,13 +18,31 @@ object SecurePrefs {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
 
         @Suppress("DEPRECATION")
-        val secure = EncryptedSharedPreferences.create(
-            SECURE_PREFS_NAME,
-            masterKeyAlias,
-            context,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+        val secure = runCatching {
+            EncryptedSharedPreferences.create(
+                SECURE_PREFS_NAME,
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrElse {
+            // Leftover ciphertext from a wiped master key. Drop the file and start fresh.
+            context.deleteSharedPreferences(SECURE_PREFS_NAME)
+            runCatching {
+                val prefsDir = java.io.File(context.applicationInfo.dataDir, "shared_prefs")
+                java.io.File(prefsDir, "$SECURE_PREFS_NAME.xml").delete()
+                java.io.File(prefsDir, "$SECURE_PREFS_NAME.xml.bak").delete()
+            }
+            @Suppress("DEPRECATION")
+            EncryptedSharedPreferences.create(
+                SECURE_PREFS_NAME,
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }
 
         migrateFromLegacy(context, secure)
         return secure

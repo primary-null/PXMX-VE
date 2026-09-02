@@ -23,11 +23,19 @@ class AuthInterceptor(
         val request = chain.request()
         val builder = request.newBuilder()
 
-        // 1. Use active session if it matches this request's host/port.
-        if (session != null && request.url.toString().startsWith(session.config.baseUrl)) {
+        // 1. Probe credentials win while a connection test is running, otherwise
+        //    the live session on the same host would shadow the identity under test.
+        val boundProbe = boundConfig
+            ?.takeIf { request.url.toString().startsWith(it.baseUrl) }
+            ?.let { sessionStore.getProbeAuth(it.baseUrl) }
+        if (boundConfig != null && boundProbe != null) {
+            applyConfig(builder, boundConfig, request)
+        }
+        // 2. Use active session if it matches this request's host/port.
+        else if (session != null && request.url.toString().startsWith(session.config.baseUrl)) {
             applySession(builder, session, request)
-        } 
-        // 2. Fallback to bound config (for probes) if it matches.
+        }
+        // 3. Fallback to bound config (for probes without a live probe ticket).
         else if (boundConfig != null && request.url.toString().startsWith(boundConfig.baseUrl)) {
             applyConfig(builder, boundConfig, request)
         }
