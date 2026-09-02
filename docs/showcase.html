@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PXMX — feature showcase</title>
+<style>
+:root{
+  --hull:#050505; --deck:#141414; --edge:#2E2E2E; --divider:#141414;
+  --amber:#FF9800; --green:#69F0AE; --blue:#42A5F5; --red:#E53935; --mute:#7A7A7A;
+  --fg:#EDEDED; --dim:#9C9C9C;
+  --card:#0C0C0C; --frame:#0F0F0F; --well:#101010;
+  --mono:'Cascadia Mono','JetBrains Mono','Consolas','SF Mono',monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --hull:#F4F2ED; --edge:#D5D2C9; --divider:#D5D2C9;
+    --fg:#1A1C20; --dim:#4B4F58; --mute:#6B6F78;
+    --card:#FDFCF9; --frame:#FFFFFF; --well:#F0EDE6;
+  }
+  .jumpnav{background:rgba(244,242,237,.92)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--hull);color:var(--fg);font-family:var(--mono);font-size:14px;line-height:1.7}
+.wrap{max-width:1440px;margin:0 auto;padding:0 36px}
+.cut{clip-path:polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%)}
+.amber{color:var(--amber)} .green{color:var(--green)} .mute{color:var(--mute)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:1px;margin-right:7px}
+.dot.g{background:var(--green)} .dot.a{background:var(--amber)}
+a{color:inherit;text-decoration:none}
+/* sticky jump nav */
+.jumpnav{position:sticky;top:0;z-index:50;background:rgba(5,5,5,.92);border-bottom:1px solid var(--divider);display:flex;gap:4px;padding:10px 0;overflow-x:auto;backdrop-filter:blur(6px)}
+.jumpnav a{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);padding:7px 14px;border:1px solid transparent;white-space:nowrap}
+.jumpnav a:hover{color:var(--fg)}
+.jumpnav a.on{color:var(--amber);border-color:var(--edge);background:var(--well)}
+/* header */
+.apphead{border:1px solid var(--edge);background:var(--card);padding:42px 46px;margin-top:36px}
+.kicker{font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);margin-bottom:12px}
+.apphead h1{font-size:38px;font-weight:600;letter-spacing:.04em;line-height:1.1}
+.apphead h1 .x{color:var(--amber)}
+.apphead .badge{display:inline-flex;align-items:center;border:1px solid rgba(255,152,0,.5);color:var(--amber);padding:2px 12px;font-size:10px;letter-spacing:.2em;margin-left:14px;vertical-align:7px;background:rgba(255,152,0,.07)}
+.tagline{font-size:16px;color:var(--dim);margin-top:14px}
+.badges{margin-top:14px}
+.badges .badge{display:inline-block;font-size:.72rem;letter-spacing:.1em;border:1px solid var(--edge);border-radius:2px;padding:3px 10px;margin:0 6px 6px 0;color:var(--dim);background:var(--well)}
+.apphead .desc{margin-top:18px;color:var(--dim);font-size:13px;max-width:760px}
+.apphead .btns{display:flex;gap:10px;margin-top:22px}
+.btn{display:inline-block;padding:8px 18px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;border-radius:2px;border:1px solid transparent;cursor:pointer}
+.btn.primary{background:var(--amber);color:#1A1000;font-weight:700;border-color:var(--amber)}
+.btn.ghost{border-color:var(--edge);color:var(--fg)}
+/* sections */
+.sect{display:flex;align-items:center;gap:18px;margin:84px 0 28px;scroll-margin-top:70px}
+.sect .num{color:var(--amber);font-size:14px;font-weight:600}
+.sect .label{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+.sect .bar{flex:1;border-top:1px solid var(--divider)}
+/* frames */
+.frame{background:var(--frame);border:1px solid var(--edge);padding:12px}
+.frame img{display:block;width:100%;background:var(--well)}
+/* two-up: side by side */
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,520px));justify-content:center;gap:28px}
+@media(max-width:1100px){.duo{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.duo{grid-template-columns:1fr}}
+/* single image + copy */
+.scene{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:44px;align-items:start}
+.scene.flip{grid-template-columns:1fr minmax(280px,420px)}
+.scene.flip .frame{order:2}
+.scene.land{grid-template-columns:1fr}
+.scene.land .frame{max-width:860px}
+.duo-body{max-width:880px;margin:26px auto 0;text-align:left}
+.body .lead{font-size:13px;color:var(--dim);max-width:560px}
+.body .spots{margin-top:18px;list-style:none}
+.body .spots li{font-size:12px;color:var(--mute);padding:3px 0 3px 18px;position:relative}
+.body .spots li::before{content:'\25B8';position:absolute;left:0;color:var(--amber);font-size:10px;top:7px}
+/* demo aside */
+.aside{border:1px solid rgba(255,152,0,.35);background:var(--well);padding:18px 22px;margin-top:20px;font-size:12px;color:var(--dim);max-width:560px}
+.aside b{color:var(--amber);font-weight:600}
+/* what it does grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem 2rem;margin-top:26px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.item{padding:.8rem .9rem;border:1px solid var(--edge);border-radius:2px;background:var(--card)}
+.item b{display:block;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:.3rem}
+.item span{font-size:.88rem;color:var(--dim)}
+.strip{border:1px solid var(--edge);background:var(--frame);padding:10px 16px;font-size:11px;display:flex;align-items:center;gap:9px}
+footer{padding:44px 0 100px}
+@media(max-width:860px){.scene,.scene.flip{grid-template-columns:1fr}.scene.flip .frame{order:0}.apphead h1{font-size:28px}}
+</style>
+</head>
+<body>
+
+<nav class="jumpnav" id="jumpnav">
+  <a href="#home" class="on">Home</a>
+  <a href="#console">Console</a>
+  <a href="#deploy">Deploy</a>
+  <a href="#tasks">Tasks</a>
+  <a href="#looks">Appearance</a>
+  <a href="#storage">Storage</a>
+  <a href="#servers">Servers</a>
+  <a href="#demo">Demo</a>
+  <a href="#features">What it does</a>
+</nav>
+
+<div class="wrap">
+
+  <div class="apphead cut">
+    <p class="kicker">Proxmox VE client for Android</p>
+    <h1>P<span class="x">X</span>MX<span class="badge">SHOWCASE</span></h1>
+    <p class="tagline">It talks straight to your server, nothing in between.</p>
+    <p class="badges">
+      <span class="badge">GPL-3.0</span>
+      <span class="badge">ANDROID 8+</span>
+      <span class="badge">NO CLOUD</span>
+    </p>
+    <p class="desc">What you're looking at below is the app itself. Pick an option in the bar above and the page jumps to it.</p>
+    <div class="btns">
+      <span class="btn primary" id="jumpscenes">Jump to scenes &darr;</span>
+      <a class="btn ghost" href="app-guide.html">User guide</a>
+    </div>
+  </div>
+
+  <!-- 01 HOME + GUEST DETAIL -->
+  <div class="sect" id="home"><span class="num">01</span><span class="label">Cluster home &amp; guest detail</span><span class="bar"></span></div>
+  <div class="duo">
+    <div>
+      <div class="frame cut"><img src="screenshots/01-home-all.png" alt="PXMX cluster home, ALL tab"></div>
+    </div>
+    <div>
+      <div class="frame cut"><img src="screenshots/02-guest-detail.png" alt="PXMX guest detail, OPS tab"></div>
+    </div>
+  </div>
+  <div class="body duo-body">
+    <div class="lead">Cluster home lays out every guest, node, and storage pool on one screen. Tap any guest card and you get its detail page.</div>
+    <ul class="spots">
+      <li>Guest cards show CPU, memory, disk, and uptime</li>
+      <li>Tabs switch between guests, nodes, and storage; the latest log line stays pinned at the bottom</li>
+      <li>Detail page: start, stop, reboot, suspend; auto-start on boot</li>
+      <li>Console, hardware, and network tabs</li>
+    </ul>
+  </div>
+
+  <!-- 02 CONSOLE -->
+  <div class="sect" id="console"><span class="num">02</span><span class="label">Guest console</span><span class="bar"></span></div>
+  <div class="scene land">
+    <div class="frame cut"><img src="screenshots/03-guest-console.png" alt="PXMX guest console, fullscreen terminal"></div>
+    <div class="body">
+      <div class="lead">Fullscreen console, straight from the guest detail page. Turn the phone sideways and the terminal takes the whole screen.</div>
+      <ul class="spots">
+        <li>Works for VMs and containers</li>
+        <li>Session menu: resize, reconnect, disconnect</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 03 DEPLOY -->
+  <div class="sect" id="deploy"><span class="num">03</span><span class="label">Deploy from template</span><span class="bar"></span></div>
+  <div class="scene">
+    <div class="frame cut"><img src="screenshots/04-deploy.png" alt="PXMX deploy dialog with template list"></div>
+    <div class="body">
+      <div class="lead">Clone a template into a new VM without a desktop. The dialog suggests the next free VMID and a name, and errors show right where they happen.</div>
+      <ul class="spots">
+        <li>Template picker across the whole cluster</li>
+        <li>Suggested VMID and name, edit in place</li>
+        <li>New VM lands on the cluster ready to start</li>
+        <li>Errors stay visible in the dialog</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 04 TASKS + UPDATES -->
+  <div class="sect" id="tasks"><span class="num">04</span><span class="label">Tasks &amp; updates</span><span class="bar"></span></div>
+  <div class="duo">
+    <div>
+      <div class="frame cut"><img src="screenshots/05-tasks.png" alt="PXMX cluster task log"></div>
+    </div>
+    <div>
+      <div class="frame cut"><img src="screenshots/07-updates.png" alt="PXMX package upgrade in progress"></div>
+    </div>
+  </div>
+  <div class="body duo-body">
+    <div class="lead">Two views of work on the cluster: the task log, and a package upgrade mid-run.</div>
+    <ul class="spots">
+      <li>Backups and updates finish with OK statuses</li>
+      <li>Each task shows its user and start time</li>
+      <li>Updates walk through fetch, install, and cleanup with live progress</li>
+    </ul>
+  </div>
+
+  <!-- 05 APPEARANCE -->
+  <div class="sect" id="looks"><span class="num">05</span><span class="label">Appearance</span><span class="bar"></span></div>
+  <div class="scene flip">
+    <div class="frame cut"><img src="screenshots/06-appearance.png" alt="PXMX appearance settings with theme modes"></div>
+    <div class="body">
+      <div class="lead">OLED dark is the default. Light and follow-system are built in, and theme and accent color are set per profile.</div>
+      <ul class="spots">
+        <li>Three theme modes: OLED dark, light, follow system</li>
+        <li>OLED dark turns unlit pixels fully off</li>
+        <li>Accent color picker</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 06 STORAGE + NODES -->
+  <div class="sect" id="storage"><span class="num">06</span><span class="label">Storage &amp; nodes</span><span class="bar"></span></div>
+  <div class="duo">
+    <div>
+      <div class="frame cut"><img src="screenshots/08-storage.png" alt="PXMX storage usage fills"></div>
+    </div>
+    <div>
+      <div class="frame cut"><img src="screenshots/09-nodes.png" alt="PXMX node memory bars"></div>
+    </div>
+  </div>
+  <div class="body duo-body">
+    <div class="lead">Usage as fills: green, amber, red at a glance. Storage per pool, memory per node.</div>
+    <ul class="spots">
+      <li>Each pool shows used and total, with a fill to match</li>
+      <li>Node cards show memory, CPU, and what's running on them</li>
+      <li>Tapping a row opens the detail page</li>
+    </ul>
+  </div>
+
+  <!-- 07 ALL SERVERS -->
+  <div class="sect" id="servers"><span class="num">07</span><span class="label">All servers</span><span class="bar"></span></div>
+  <div class="scene">
+    <div class="frame cut"><img src="screenshots/10-all-servers.png" alt="PXMX all servers screen, hosts probed at once"></div>
+    <div class="body">
+      <div class="lead">Every saved host probed at once: online state, version, what's running.</div>
+      <ul class="spots">
+        <li>Hosts light up green or drop off the list</li>
+        <li>Real version string per host, not a guess</li>
+        <li>Something else answering on the port stays separate and labeled</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 08 DEMO -->
+  <div class="sect" id="demo"><span class="num">08</span><span class="label">No server handy</span><span class="bar"></span></div>
+  <div class="scene flip">
+    <div class="frame cut"><img src="screenshots/11-login.png" alt="PXMX login screen with demo entry"></div>
+    <div class="body">
+      <div class="lead">The login screen has a demo entry. Tap it and the app opens with a sample cluster loaded, no connection needed.</div>
+      <div class="aside"><b>Demo mode</b> — for people who just want to look at the app without connecting it to anything. Everything in it behaves like a real cluster, nothing is saved, and your own server stays behind the profile menu.</div>
+    </div>
+  </div>
+
+  <!-- 09 WHAT IT DOES -->
+  <div class="sect" id="features"><span class="num">09</span><span class="label">What it does</span><span class="bar"></span></div>
+  <div class="grid">
+    <div class="item"><b>Login</b><span>Password, API token, or 2FA. Self-signed certs are opt-in. Saved profiles keep the host and username, never the secret.</span></div>
+    <div class="item"><b>Cluster</b><span>Guests, nodes, and storage on one screen.</span></div>
+    <div class="item"><b>Power</b><span>Start, stop, reboot, shut down. Tap or long-press. Suspend, resume, reset, and auto-start on boot included.</span></div>
+    <div class="item"><b>Deploy</b><span>Clone from a template in one dialog. Errors show right there.</span></div>
+    <div class="item"><b>Backup</b><span>To the server, or straight to your phone.</span></div>
+    <div class="item"><b>Console</b><span>Full screen, in the app.</span></div>
+    <div class="item"><b>Monitoring</b><span>CPU, memory, disk, uptime: live, per guest.</span></div>
+    <div class="item"><b>Servers</b><span>Every saved host probed at once: online state, version, what's running.</span></div>
+    <div class="item"><b>Logs</b><span>Latest cluster line pinned to the bottom of every screen. Tap for the full log.</span></div>
+    <div class="item"><b>Themes</b><span>OLED dark, light, and follow-system. Accent color per profile.</span></div>
+  </div>
+
+  <footer>
+    <div class="strip cut">
+      <span class="dot g"></span>
+      <span>Created by Primary Null</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// jump nav: smooth scroll + active section highlight
+const links = document.querySelectorAll('.jumpnav a');
+const secs = ['home','console','deploy','tasks','looks','storage','servers','demo','features'];
+document.getElementById('jumpscenes').addEventListener('click', () => {
+  document.getElementById('home').scrollIntoView({behavior:'smooth'});
+});
+window.addEventListener('scroll', () => {
+  let cur = 'home';
+  for (const id of secs) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top <= 120) cur = id;
+  }
+  links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + cur));
+});
+</script>
+</body>
+</html>
