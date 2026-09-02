@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TLS is enforced by OkHttp. Self-signed Proxmox certs are handled in-app
+  when the user opts in (UnsafeTrustManager), not via cleartext.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

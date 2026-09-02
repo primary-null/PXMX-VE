@@ -1,0 +1,42 @@
+# Gradle
+/.gradle/
+/build/
+/app/build/
+/.kotlin/
+*.iml
+.idea/
+.DS_Store
+captures/
+*.apk
+*.ap_
+*.dex
+*.class
+
+# Android local config (SDK path, and signing secrets if you add them here)
+/local.properties
+
+# Secrets & credentials — NEVER commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*secret*
+*credential*
+*.properties.secret
+proxmox.conf
+hosts.local
+
+# Signing
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+code_review.md
+
+# Misc
+*.log
+Thumbs.db
+code_review.md
+CHANGELOG.md
