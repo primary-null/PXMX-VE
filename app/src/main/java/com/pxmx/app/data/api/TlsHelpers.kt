@@ -48,6 +48,39 @@ object CertUtils {
     }
 }
 
+/** Outcome of the TOFU pin decision; pure logic, unit-tested in TlsHelpersTest. */
+sealed interface TofuVerdict {
+    data object DelegateToSystem : TofuVerdict
+    data object Allow : TofuVerdict
+    data class Reject(val reason: String) : TofuVerdict
+}
+
+object TofuDecision {
+    /**
+     * Decides how to handle a presented server certificate.
+     * - trustSelfSigned off -> delegate to standard system CA validation.
+     * - trustSelfSigned on, no pin -> first use, allow (pin saved after login).
+     * - pin present and matching -> allow.
+     * - pin present and mismatching -> reject (MITM protection).
+     */
+    fun evaluate(trustSelfSigned: Boolean, pinnedFp: String?, presentedFp: String): TofuVerdict {
+        if (!trustSelfSigned) return TofuVerdict.DelegateToSystem
+        val pin = pinnedFp
+        if (pin != null) {
+            return if (CertUtils.normalizeFingerprint(presentedFp) == CertUtils.normalizeFingerprint(pin)) {
+                TofuVerdict.Allow
+            } else {
+                TofuVerdict.Reject(
+                    "Certificate changed for this host — possible MITM attack! " +
+                        "(pinned: $pin, presented: $presentedFp)"
+                )
+            }
+        }
+        // First connection with trustSelfSigned: TOFU allows handshake, pin saved upon successful login
+        return TofuVerdict.Allow
+    }
+}
+
 /**
  * Trust-On-First-Use (TOFU) trust manager:
  * - If [trustSelfSigned] is false: delegates fully to standard system CA validation.
@@ -81,22 +114,11 @@ class TofuTrustManager(
         val presentedFp = CertUtils.computeSha256Fingerprint(serverCert)
         onCertCaptured?.invoke(serverCert, presentedFp)
 
-        if (!trustSelfSigned) {
-            defaultTrustManager.checkServerTrusted(chain, authType)
-            return
+        when (val verdict = TofuDecision.evaluate(trustSelfSigned, sessionStore.getCertPin(host), presentedFp)) {
+            TofuVerdict.DelegateToSystem -> defaultTrustManager.checkServerTrusted(chain, authType)
+            TofuVerdict.Allow -> Unit
+            is TofuVerdict.Reject -> throw CertificateException(verdict.reason)
         }
-
-        val pinnedFp = sessionStore.getCertPin(host)
-        if (pinnedFp != null) {
-            if (CertUtils.normalizeFingerprint(presentedFp) == CertUtils.normalizeFingerprint(pinnedFp)) {
-                return
-            } else {
-                throw CertificateException(
-                    "Certificate changed for host $host — possible MITM attack! (pinned: $pinnedFp, presented: $presentedFp)"
-                )
-            }
-        }
-        // First connection with trustSelfSigned: TOFU allows handshake, pin saved upon successful login
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTrustManager.acceptedIssuers

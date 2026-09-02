@@ -291,9 +291,12 @@ class ProxmoxRepository(
                 }
             }
 
-            // Touch profile version now that we know it.
-            sessionStore.lastProfileId()?.let { id ->
-                sessionStore.touchProfile(id, version = version?.display)
+            // Touch profile version now that we know it. Demo sessions touch nothing:
+            // they must not disturb the last real profile or resume state.
+            if (!config.host.equals("demo", ignoreCase = true)) {
+                sessionStore.lastProfileId()?.let { id ->
+                    sessionStore.touchProfile(id, version = version?.display)
+                }
             }
             enableAutoConnect?.let { sessionStore.setAutoConnect(it) }
 
@@ -309,8 +312,8 @@ class ProxmoxRepository(
     }
 
     /**
-     * Completes two-factor login via POST /access/tfa with the in-memory partial ticket
-     * and 6-digit TOTP code. The partial ticket is NEVER persisted.
+     * Completes two-factor login by re-posting /access/ticket with the TFA challenge
+     * and the OTP (password prefixed with totp:). The partial ticket is NEVER persisted.
      */
     suspend fun completeTfa(
         config: ServerConfig,
@@ -430,7 +433,7 @@ class ProxmoxRepository(
         }
 
         return try {
-            val api = clientFactory.apiFor(config)
+            val api = clientFactory.apiForProbe(config)
 
             if (config.authMode == AuthMode.PASSWORD) {
                 val user = normalizeUsername(config.username, config.realm)
@@ -487,7 +490,7 @@ class ProxmoxRepository(
         val start = SystemClock.elapsedRealtime()
         return try {
             val config = profile.toServerConfig(includeSecrets = true)
-            val api = clientFactory.apiFor(config)
+            val api = clientFactory.apiForProbe(config)
             
             // If it's PASSWORD mode, we might need a fresh ticket. 
             // apiCall normally handles this, but here we want to test specifically with this profile.

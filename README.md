@@ -13,8 +13,8 @@ when a host needs hands-on attention.
 
 | Area | What you get |
 | --- | --- |
-| Sign in | Password, API token, or TOTP two-factor. The first connection pins the server's certificate; if the identity ever changes, the app refuses rather than silently re-accepts. |
-| Saved servers | One profile per server. Only the host and username are stored; passwords and tokens live in the Android Keystore. |
+| Sign in | Password, API token, or TOTP two-factor. With "Trust self-signed" on, the first connection pins the server's certificate; if it ever changes, the app refuses rather than silently re-accepts. |
+| Saved servers | One profile per server. Only the host and username are stored; passwords and tokens live in encrypted storage keyed by the Android Keystore. |
 | Network discovery | Scan the local network for Proxmox hosts. Results come back as verified, needs your login, or unknown, and tapping one jumps straight into signing in. |
 | Server check | Test a saved server at any time: online state, version, and latency. |
 | All servers | One screen that probes every saved host and shows what is up. |

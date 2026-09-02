@@ -34,11 +34,15 @@ class ProxmoxClientFactory(
         cachedApi?.let { existing ->
             if (cachedKey == key) return existing
         }
-        return build(config).also {
+        return build(config, preferBoundConfig = false).also {
             cachedKey = key
             cachedApi = it
         }
     }
+
+    @Synchronized
+    override fun apiForProbe(config: ServerConfig): ProxmoxApi =
+        build(config, preferBoundConfig = true)
 
     @Synchronized
     override fun clear() {
@@ -49,7 +53,7 @@ class ProxmoxClientFactory(
     override fun getCapturedFingerprint(host: String): String? =
         capturedFingerprints[host.trim().lowercase()]
 
-    private fun build(config: ServerConfig): ProxmoxApi {
+    private fun build(config: ServerConfig, preferBoundConfig: Boolean): ProxmoxApi {
         val trustManager = TofuTrustManager(
             host = config.host,
             trustSelfSigned = config.trustSelfSigned,
@@ -67,7 +71,7 @@ class ProxmoxClientFactory(
             .writeTimeout(60, TimeUnit.SECONDS)
             .sslSocketFactory(sslSocketFactory, trustManager)
             .hostnameVerifier(hostnameVerifier)
-            .addInterceptor(AuthInterceptor(sessionStore, config))
+            .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig))
 
         // Never log in release — console paths can contain vncticket secrets.
         if (BuildConfig.DEBUG) {

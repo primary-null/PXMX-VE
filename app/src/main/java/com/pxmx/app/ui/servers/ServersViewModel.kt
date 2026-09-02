@@ -49,13 +49,11 @@ class ServersViewModel(
     }
 
     private fun probeAll() {
-        // Publish mode: while the demo session is active (or was the session the
-        // user just switched away from), only the demo profile is probed and shown.
-        // Real profiles stay stored and return for non-demo sessions.
+        // Publish mode: while the demo session is active, only the demo profile
+        // is probed and shown. Real profiles stay stored and return for
+        // non-demo sessions.
         val activeIsDemo = sessionStore.session.value?.config?.host
-            ?.equals("demo", ignoreCase = true) == true ||
-            (sessionStore.previousSession.value?.wasActiveSession == true &&
-                sessionStore.previousSession.value?.hostDisplay?.startsWith("demo") == true)
+            ?.equals("demo", ignoreCase = true) == true
         val profiles = sessionStore.listProfiles().let { all ->
             if (activeIsDemo) all.filter { it.host.equals("demo", ignoreCase = true) } else all
         }

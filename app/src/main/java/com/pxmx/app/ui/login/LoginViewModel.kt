@@ -97,11 +97,9 @@ class LoginViewModel(
         sessionStore.session,
         sessionStore.previousSession,
     ) { profs, sess, prev ->
-        // Publish mode: while the demo session is active (or was the session the
-        // user just switched away from), real saved profiles are hidden from the
-        // list. They stay stored and return for non-demo sessions.
-        val demoActive = sess?.config?.host?.equals("demo", ignoreCase = true) == true ||
-            (prev?.wasActiveSession == true && prev.hostDisplay.startsWith("demo"))
+        // Publish mode: while the demo session is active, real saved profiles are
+        // hidden from the list. They stay stored and return for non-demo sessions.
+        val demoActive = sess?.config?.host?.equals("demo", ignoreCase = true) == true
         if (demoActive) {
             profs.filter { it.host.equals("demo", ignoreCase = true) }
         } else {

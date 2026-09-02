@@ -102,6 +102,9 @@ class SessionStore(
 
     fun snapshotCurrentAsPrevious() {
         val s = _session.value ?: return
+        // Demo sessions never produce a jump-back card: resuming "demo" would
+        // hide the real saved profiles behind a publish-mode filter.
+        if (s.config.host.equals("demo", ignoreCase = true)) return
         val profileId = lastProfileId() ?: return
         val profile = getProfile(profileId)
         val info = SessionResumeInfo(

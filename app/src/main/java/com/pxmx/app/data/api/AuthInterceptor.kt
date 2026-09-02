@@ -10,34 +10,36 @@ import okhttp3.Response
 
 /**
  * Injects authentication headers (PVEAPIToken or PVEAuthCookie).
- * Prioritizes the active [sessionStore] session. If the request URL doesn't match
- * the active session, falls back to the [boundConfig] (used for background probes).
+ *
+ * Probe clients ([preferBoundConfig] = true) always authenticate with their own
+ * bound config, so a connection test never borrows the live session's identity
+ * and a probe ticket never rewrites live session traffic on the same host.
+ *
+ * Live clients prefer the active [sessionStore] session; requests that don't
+ * match the active session fall back to the bound config (background probes).
  */
 class AuthInterceptor(
     private val sessionStore: SessionStore,
     private val boundConfig: ServerConfig? = null,
+    private val preferBoundConfig: Boolean = false,
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val session = sessionStore.session.value
         val request = chain.request()
         val builder = request.newBuilder()
+        val matchesBound = boundConfig != null &&
+            request.url.toString().startsWith(boundConfig.baseUrl)
 
-        // 1. Probe credentials win while a connection test is running, otherwise
-        //    the live session on the same host would shadow the identity under test.
-        val boundProbe = boundConfig
-            ?.takeIf { request.url.toString().startsWith(it.baseUrl) }
-            ?.let { sessionStore.getProbeAuth(it.baseUrl) }
-        if (boundConfig != null && boundProbe != null) {
-            applyConfig(builder, boundConfig, request)
-        }
-        // 2. Use active session if it matches this request's host/port.
-        else if (session != null && request.url.toString().startsWith(session.config.baseUrl)) {
+        if (preferBoundConfig && matchesBound) {
+            // Probe client: the identity under test is the bound config, always.
+            applyConfig(builder, boundConfig!!, request)
+        } else if (session != null && request.url.toString().startsWith(session.config.baseUrl)) {
+            // Live client: the active session wins.
             applySession(builder, session, request)
-        }
-        // 3. Fallback to bound config (for probes without a live probe ticket).
-        else if (boundConfig != null && request.url.toString().startsWith(boundConfig.baseUrl)) {
-            applyConfig(builder, boundConfig, request)
+        } else if (matchesBound) {
+            // Live client with no matching session: fall back to the bound config.
+            applyConfig(builder, boundConfig!!, request)
         }
 
         return chain.proceed(builder.build())
