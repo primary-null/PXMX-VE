@@ -126,12 +126,8 @@ fun ConsoleScreen(
             }
             webView?.apply {
                 stopLoading()
-                webChromeClient = null
-                webViewClient = WebViewClient()
-                removeAllViews()
-                // Don't destroy on config change if activity keeps instance —
-                // still destroy when leaving console route.
-                destroy()
+                // destroy() lives in AndroidView.onRelease so it runs after
+                // the view is detached from the hierarchy.
             }
         }
     }
@@ -321,6 +317,10 @@ fun ConsoleScreen(
                 update = { view ->
                     // Orientation change — re-fit without full reload
                     injectFitScript(view, landscape)
+                },
+                onRelease = { view ->
+                    view.stopLoading()
+                    view.destroy()
                 },
             )
 

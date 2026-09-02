@@ -2,6 +2,7 @@ package com.pxmx.app.data.ssh
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.sftp.SFTPClient
@@ -56,6 +57,7 @@ class SftpDownloader(
                     var offset = 0L
                     
                     while (true) {
+                        ensureActive()
                         read = file.read(offset, buffer, 0, buffer.size)
                         if (read == -1) break
                         

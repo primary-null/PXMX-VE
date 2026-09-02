@@ -536,6 +536,7 @@ class ProxmoxRepository(
         sessionStore.clearSession(rememberAsPrevious = rememberAsPrevious)
         clientFactory.clear()
         clearWebCookies()
+        guestConfigCache.clear()
     }
 
     /** Drop console / noVNC PVEAuthCookie so a later user on this device cannot reuse it. */

@@ -762,8 +762,8 @@ class UpdatesViewModel(
                 updatedProgress[node] = NodeRefreshProgress(
                     node = node,
                     state = NodeRefreshState.IDLE,
-                    detail = if (_ui.value.nodes.find { it.node == node }?.updateCount == 0) "ALL PACKAGES UP TO DATE"
-                    else "${_ui.value.nodes.find { it.node == node }?.updateCount} PACKAGES AVAILABLE",
+                    detail = if (state.nodes.find { it.node == node }?.updateCount == 0) "ALL PACKAGES UP TO DATE"
+                    else "${state.nodes.find { it.node == node }?.updateCount} PACKAGES AVAILABLE",
                 )
             }
             state.copy(progress = updatedProgress)

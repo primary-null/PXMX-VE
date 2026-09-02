@@ -326,11 +326,9 @@ class SessionStore(
             runCatching {
                 val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
                 keyStore.load(null)
-                val aliases = keyStore.aliases()
-                while (aliases.hasMoreElements()) {
-                    val alias = aliases.nextElement()
-                    keyStore.deleteEntry(alias)
-                }
+                // Only the EncryptedSharedPreferences master key belongs to
+                // this app; never delete aliases other libraries may own.
+                keyStore.deleteEntry("_androidx_security_master_key_")
             }
         }
     }
