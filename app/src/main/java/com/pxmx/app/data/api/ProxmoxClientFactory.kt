@@ -2,6 +2,7 @@ package com.pxmx.app.data.api
 
 import com.pxmx.app.BuildConfig
 import com.pxmx.app.data.model.ServerConfig
+import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.data.session.SessionStore
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -10,6 +11,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class ProxmoxClientFactory(
     private val sessionStore: SessionStore,
@@ -41,8 +43,10 @@ class ProxmoxClientFactory(
     }
 
     @Synchronized
-    override fun apiForProbe(config: ServerConfig): ProxmoxApi =
-        build(config, preferBoundConfig = true)
+    override fun apiForProbe(config: ServerConfig): ProbeApi {
+        val slot = AtomicReference<ProbeAuth?>(null)
+        return ProbeApi(build(config, preferBoundConfig = true, probeAuthSlot = slot), slot)
+    }
 
     @Synchronized
     override fun clear() {
@@ -53,7 +57,11 @@ class ProxmoxClientFactory(
     override fun getCapturedFingerprint(host: String): String? =
         capturedFingerprints[host.trim().lowercase()]
 
-    private fun build(config: ServerConfig, preferBoundConfig: Boolean): ProxmoxApi {
+    private fun build(
+        config: ServerConfig,
+        preferBoundConfig: Boolean,
+        probeAuthSlot: AtomicReference<ProbeAuth?>? = null,
+    ): ProxmoxApi {
         val trustManager = TofuTrustManager(
             host = config.host,
             trustSelfSigned = config.trustSelfSigned,
@@ -71,7 +79,7 @@ class ProxmoxClientFactory(
             .writeTimeout(60, TimeUnit.SECONDS)
             .sslSocketFactory(sslSocketFactory, trustManager)
             .hostnameVerifier(hostnameVerifier)
-            .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig))
+            .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig, probeAuthSlot))
 
         // Never log in release — console paths can contain vncticket secrets.
         if (BuildConfig.DEBUG) {

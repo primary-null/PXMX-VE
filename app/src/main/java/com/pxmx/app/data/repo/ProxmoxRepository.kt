@@ -291,14 +291,7 @@ class ProxmoxRepository(
                 }
             }
 
-            // Touch profile version now that we know it. Demo sessions touch nothing:
-            // they must not disturb the last real profile or resume state.
-            if (!config.host.equals("demo", ignoreCase = true)) {
-                sessionStore.lastProfileId()?.let { id ->
-                    sessionStore.touchProfile(id, version = version?.display)
-                }
-            }
-            enableAutoConnect?.let { sessionStore.setAutoConnect(it) }
+            commitLoginSideEffects(config, version, enableAutoConnect)
 
             LoginOutcome.Success(full)
         } catch (e: Exception) {
@@ -369,10 +362,7 @@ class ProxmoxRepository(
                 }
             }
 
-            sessionStore.lastProfileId()?.let { id ->
-                sessionStore.touchProfile(id, version = version?.display)
-            }
-            enableAutoConnect?.let { sessionStore.setAutoConnect(it) }
+            commitLoginSideEffects(config, version, enableAutoConnect)
 
             Result.success(full)
         } catch (e: Exception) {
@@ -381,6 +371,23 @@ class ProxmoxRepository(
             clientFactory.clear()
             Result.failure(mapError(e))
         }
+    }
+
+    /**
+     * Post-login bookkeeping shared by login() and completeTfa() so the demo
+     * skip cannot drift between the two paths. Demo sessions touch no real
+     * profile and set no auto-connect preference.
+     */
+    private fun commitLoginSideEffects(
+        config: ServerConfig,
+        version: VersionInfo?,
+        enableAutoConnect: Boolean?,
+    ) {
+        if (config.host.equals("demo", ignoreCase = true)) return
+        sessionStore.lastProfileId()?.let { id ->
+            sessionStore.touchProfile(id, version = version?.display)
+        }
+        enableAutoConnect?.let { sessionStore.setAutoConnect(it) }
     }
 
     private fun extractTfaTicket(errorBody: String?): String? {
@@ -432,15 +439,16 @@ class ProxmoxRepository(
             return Result.failure(PveException("No saved credentials"))
         }
 
-        return try {
-            val api = clientFactory.apiForProbe(config)
+        val probeApi = clientFactory.apiForProbe(config)
+        val api = probeApi.api
 
+        return try {
             if (config.authMode == AuthMode.PASSWORD) {
                 val user = normalizeUsername(config.username, config.realm)
                 val resp = api.createTicket(user, config.password)
                 val ticket = resp.data?.ticket ?: throw PveException("Login failed")
                 val csrf = resp.data?.csrfPreventionToken
-                sessionStore.setProbeAuth(config.baseUrl, ProbeAuth(ticket, csrf))
+                probeApi.probeAuth.set(ProbeAuth(ticket, csrf))
             }
 
             val version = api.version().data?.display
@@ -471,7 +479,7 @@ class ProxmoxRepository(
             if (e is CancellationException) throw e
             Result.failure(e)
         } finally {
-            sessionStore.removeProbeAuth(config.baseUrl)
+            probeApi.probeAuth.set(null)
         }
     }
 
@@ -488,9 +496,10 @@ class ProxmoxRepository(
         }
         
         val start = SystemClock.elapsedRealtime()
+        val config = profile.toServerConfig(includeSecrets = true)
+        val probeApi = clientFactory.apiForProbe(config)
+        val api = probeApi.api
         return try {
-            val config = profile.toServerConfig(includeSecrets = true)
-            val api = clientFactory.apiForProbe(config)
             
             // If it's PASSWORD mode, we might need a fresh ticket. 
             // apiCall normally handles this, but here we want to test specifically with this profile.
@@ -500,12 +509,12 @@ class ProxmoxRepository(
                 val ticket = ticketResp.data?.ticket ?: throw PveException("Authentication failed")
                 val csrf = ticketResp.data?.csrfPreventionToken
                 
-                // Temporarily store probe auth so the next call uses it
-                sessionStore.setProbeAuth(config.baseUrl, ProbeAuth(ticket, csrf))
+                // The probe client's own slot carries the ticket; live traffic never sees it.
+                probeApi.probeAuth.set(ProbeAuth(ticket, csrf))
                 try {
                     api.version().data
                 } finally {
-                    sessionStore.removeProbeAuth(config.baseUrl)
+                    probeApi.probeAuth.set(null)
                 }
             } else {
                 // API Token mode - just call version()

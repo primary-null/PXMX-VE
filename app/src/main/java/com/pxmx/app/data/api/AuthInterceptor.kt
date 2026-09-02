@@ -3,17 +3,20 @@ package com.pxmx.app.data.api
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
+import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.data.session.SessionStore
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Injects authentication headers (PVEAPIToken or PVEAuthCookie).
  *
  * Probe clients ([preferBoundConfig] = true) always authenticate with their own
- * bound config, so a connection test never borrows the live session's identity
- * and a probe ticket never rewrites live session traffic on the same host.
+ * bound config and their own private ticket slot ([probeAuthSlot]), so a
+ * connection test never borrows the live session's identity and concurrent
+ * probes on the same host never swap tickets.
  *
  * Live clients prefer the active [sessionStore] session; requests that don't
  * match the active session fall back to the bound config (background probes).
@@ -22,6 +25,7 @@ class AuthInterceptor(
     private val sessionStore: SessionStore,
     private val boundConfig: ServerConfig? = null,
     private val preferBoundConfig: Boolean = false,
+    private val probeAuthSlot: AtomicReference<ProbeAuth?>? = null,
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -79,7 +83,7 @@ class AuthInterceptor(
                 }
             }
             AuthMode.PASSWORD -> {
-                val auth = sessionStore.getProbeAuth(config.baseUrl)
+                val auth = probeAuthSlot?.get()
                 if (auth != null && auth.ticket.isNotBlank()) {
                     builder.header("Cookie", "PVEAuthCookie=${auth.ticket}")
                     val method = request.method.uppercase()

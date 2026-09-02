@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class ProbeAuth(val ticket: String, val csrf: String? = null)
@@ -35,8 +34,6 @@ class SessionStore(
 
     private val json = AppJson
     private val prefs: SharedPreferences = injectedPrefs ?: SecurePrefs.open(context!!.applicationContext)
-
-    private val probeAuthMap = ConcurrentHashMap<String, ProbeAuth>()
 
     private val _session = MutableStateFlow<SessionState?>(null)
     val session: StateFlow<SessionState?> = _session.asStateFlow()
@@ -62,22 +59,6 @@ class SessionStore(
         _profiles.value = loadProfiles().sortedByDescending { it.lastUsedEpochMs }
     }
 
-    // ---- probe auth ----
-
-    fun setProbeAuth(baseUrl: String, auth: ProbeAuth) {
-        probeAuthMap[baseUrl] = auth
-    }
-
-    fun getProbeAuth(baseUrl: String): ProbeAuth? = probeAuthMap[baseUrl]
-
-    fun removeProbeAuth(baseUrl: String) {
-        probeAuthMap.remove(baseUrl)
-    }
-
-    fun clearProbeAuth() {
-        probeAuthMap.clear()
-    }
-
     // ---- session ----
 
     fun setSession(state: SessionState) {
@@ -97,7 +78,6 @@ class SessionStore(
             snapshotCurrentAsPrevious()
         }
         _session.value = null
-        clearProbeAuth()
     }
 
     fun snapshotCurrentAsPrevious() {
@@ -128,11 +108,19 @@ class SessionStore(
 
     fun loadPreviousSession(): SessionResumeInfo? {
         val raw = prefs.getString(KEY_PREVIOUS_SESSION, null) ?: return null
-        return try {
+        val info = try {
             json.decodeFromString<SessionResumeInfo>(raw)
         } catch (_: Exception) {
             null
+        } ?: return null
+        // Migration: 0.6.9 could persist a demo jump-back card whose profileId
+        // pointed at a real server while the banner said demo. Drop those as
+        // corrupt (exact host match, not a prefix).
+        if (info.hostDisplay.substringBefore(':').equals("demo", ignoreCase = true)) {
+            prefs.edit { remove(KEY_PREVIOUS_SESSION) }
+            return null
         }
+        return info
     }
 
     /** Last successfully used profile that still has saved credentials (for auto-login / resume). */
