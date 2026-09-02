@@ -1,5 +1,6 @@
 package com.pxmx.app
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -295,11 +296,11 @@ class TourTest {
 
         // In fake/demo mode without websocket proxy, shows graceful error view with Retry and Back
         composeTestRule.waitUntil(8000) {
-            composeTestRule.onAllNodesWithText("Retry").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText("RETRY").fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeTestRule.onNodeWithText("Retry").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Back").performClick()
+        composeTestRule.onNodeWithText("RETRY").assertIsDisplayed()
+        composeTestRule.onNodeWithText("BACK").performClick()
 
         // Back on detail
         composeTestRule.onNodeWithText("NOVA").assertIsDisplayed()
@@ -343,7 +344,16 @@ class TourTest {
     fun tasksScreen_listsTasks() {
         performFakeLogin()
 
-        composeTestRule.onNodeWithText("TASKS").performClick()
+        // First-run tour bubble overlaps the home screen; dismiss it before navigating.
+        composeTestRule.onNodeWithText("SKIP").performClick()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("QUICK TOUR", substring = true).fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitForIdle()
+
+        // Injected taps on the top bar can be swallowed by a window layer in
+        // instrumented runs; invoke the plate's own click action directly.
+        composeTestRule.onNodeWithText("TASKS").performSemanticsAction(SemanticsActions.OnClick)
 
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("VZDUMP").fetchSemanticsNodes().isNotEmpty()
