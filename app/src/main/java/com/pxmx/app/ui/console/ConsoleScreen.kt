@@ -13,6 +13,7 @@ import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -58,6 +59,16 @@ import androidx.core.view.WindowInsetsCompat
 import com.pxmx.app.data.api.CertUtils
 import com.pxmx.app.data.model.ConsoleSession
 import com.pxmx.app.ui.util.findActivity
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.ByteArrayInputStream
+import java.security.SecureRandom
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 /**
  * Proxmox noVNC / xterm.js console with mobile fit:
@@ -83,6 +94,48 @@ fun ConsoleScreen(
     val allowedHost = remember(session.cookieHostUrl) {
         val h = Uri.parse(session.cookieHostUrl).host
         if (h.isNullOrBlank() || h.equals("demo", ignoreCase = true)) "demo" else h
+    }
+
+    // Fetches the console host's traffic through the app's own TLS stack.
+    // The WebView never dials TLS for the console host itself, which avoids
+    // the WebView's SSL-proceed path (it breaks ES module script execution,
+    // and noVNC 1.7+ ships as a module). The same pin policy as the API layer
+    // is enforced inside the trust manager below.
+    val fetchClient = remember(session.cookieHostUrl, trustSelfSigned, expectedCertPin) {
+        val defaultTm = javax.net.ssl.TrustManagerFactory
+            .getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
+            .apply { init(null as java.security.KeyStore?) }
+            .trustManagers.filterIsInstance<X509TrustManager>().first()
+        val tm = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) =
+                defaultTm.checkClientTrusted(chain, authType)
+
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                if (trustSelfSigned) {
+                    val leaf = chain?.firstOrNull() ?: throw CertificateException("Empty certificate chain")
+                    val pin = expectedCertPin
+                    if (pin != null &&
+                        CertUtils.normalizeFingerprint(CertUtils.computeSha256Fingerprint(leaf)) !=
+                        CertUtils.normalizeFingerprint(pin)
+                    ) {
+                        throw CertificateException("Certificate changed for host — possible MITM attack!")
+                    }
+                    // Unpinned: first use of a self-signed host; login already authorized it.
+                } else {
+                    defaultTm.checkServerTrusted(chain, authType)
+                }
+            }
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTm.acceptedIssuers
+        }
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, arrayOf<TrustManager>(tm), SecureRandom())
+        OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, tm)
+            .hostnameVerifier { hostname, _ -> hostname.equals(allowedHost, ignoreCase = true) }
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
     }
 
     val context = LocalContext.current
@@ -265,6 +318,7 @@ fun ConsoleScreen(
                                 handler: SslErrorHandler?,
                                 errorSsl: SslError?,
                             ) {
+                                // Guard for any direct load the interceptor did not cover.
                                 val sslCert = errorSsl?.certificate
                                 val x509Cert = sslCert?.let { CertUtils.getX509Certificate(it) }
                                 val presentedFp = x509Cert?.let { CertUtils.computeSha256Fingerprint(it) }
@@ -291,10 +345,116 @@ fun ConsoleScreen(
                                 request: WebResourceRequest?,
                             ): Boolean {
                                 val url = request?.url
-                                if (url != null && url.scheme != "data" && url.host != allowedHost && allowedHost != "demo") {
-                                    return true // Block
+                                return url != null && url.scheme != "data" && url.host != allowedHost && allowedHost != "demo"
+                            }
+
+                            override fun shouldInterceptRequest(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): WebResourceResponse? {
+                                val reqUrl = request?.url ?: return null
+                                val reqStr = reqUrl.toString()
+                                if (reqUrl.scheme != "https" || !reqStr.startsWith(session.cookieHostUrl)) {
+                                    return null
                                 }
-                                return false
+                                // WebResourceRequest does not expose request bodies, so POSTs
+                                // cannot be proxied; let the WebView send them natively (the
+                                // SSL-proceed path handles the self-signed handshake).
+                                if (request.method != "GET" && request.method != "HEAD") {
+                                    return null
+                                }
+                                return try {
+                                    val rb = Request.Builder().url(reqStr)
+                                    request.requestHeaders.forEach { (k, v) ->
+                                        if (!k.equals("Cookie", ignoreCase = true)) rb.addHeader(k, v)
+                                    }
+                                    rb.addHeader("Cookie", "PVEAuthCookie=${session.pveAuthCookie}")
+                                    fetchClient.newCall(rb.build()).execute().use { resp ->
+                                        val rawBody = resp.body?.bytes() ?: byteArrayOf()
+                                        val contentType = resp.header("Content-Type")
+                                        val mime = contentType?.substringBefore(';') ?: "application/octet-stream"
+                                        val encoding = contentType?.substringAfter("charset=", "")?.ifBlank { null }
+                                        val isMainHtml = request.isForMainFrame &&
+                                            mime.equals("text/html", ignoreCase = true)
+
+                                        // The console page boots noVNC through an ES module import
+                                        // whose scripts did not execute reliably through the
+                                        // self-signed TLS path. Rewrite the served HTML with a
+                                        // classic bootstrap: strip the page's module boot (so it
+                                        // is the single start path) and start the bundle manually.
+                                        val body = if (isMainHtml) {
+                                            var html = String(rawBody, Charsets.UTF_8)
+                                            // Remove the page's own ES module boot; our classic
+                                            // bootstrap below is the single start path.
+                                            html = Regex("<script[^>]*type\\s*=\\s*[\"']?module[\"']?[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE).replace(html, "")
+                                            val ver = Regex("error-handler\\.js\\?ver=([^\"']+)")
+                                                .find(html)?.groupValues?.get(1) ?: "1.7.0-2"
+                                            val boot = """
+                                                <script>
+                                                (function(){
+                                                  if (window.__pxmxBoot) return; window.__pxmxBoot = true;
+                                                  function boot(){
+                                                    fetch('/novnc/app.js?ver=${ver}')
+                                                      .then(function(r){return r.text()})
+                                                      .then(function(t){
+                                                        var classic = t.replace(/export\s*\{[^}]*\};?/g, '');
+                                                        classic = classic.replace(/var ui_default = UI;/, 'var ui_default = UI; window.__UI = UI;');
+                                                        var s = document.createElement('script');
+                                                        s.textContent = classic;
+                                                        document.head.appendChild(s);
+                                                        var tries = 0;
+                                                        var iv = setInterval(function(){
+                                                          tries++;
+                                                          if (window.__UI) {
+                                                            clearInterval(iv);
+                                                            try {
+                                                              // The noVNC fork mints fresh console tickets
+                                                              // itself via POST (sent natively, since
+                                                              // intercepted POSTs cannot carry a body);
+                                                              // its reconnect path relies on that.
+                                                              window.__UI.start({settings:{defaults:{},mandatory:{}}});
+                                                            } catch(e) {}
+                                                          } else if (tries > 100) { clearInterval(iv); }
+                                                        }, 100);
+                                                      });
+                                                  }
+                                                  if (document.readyState === 'loading') {
+                                                    document.addEventListener('DOMContentLoaded', boot);
+                                                  } else { boot(); }
+                                                })();
+                                                </script>
+                                            """.trimIndent()
+                                            val injected = if (html.contains("</body>")) {
+                                                html.replace("</body>", "$boot</body>")
+                                            } else {
+                                                html + boot
+                                            }
+                                            injected.toByteArray(Charsets.UTF_8)
+                                        } else {
+                                            rawBody
+                                        }
+                                        val headers = mutableMapOf<String, String>()
+                                        resp.headers.forEach { pair ->
+                                            val name = pair.first
+                                            if (!name.equals("Content-Encoding", ignoreCase = true) &&
+                                                !name.equals("Content-Length", ignoreCase = true) &&
+                                                !name.equals("Transfer-Encoding", ignoreCase = true)
+                                            ) {
+                                                headers[name] = pair.second
+                                            }
+                                        }
+                                        WebResourceResponse(
+                                            mime,
+                                            encoding,
+                                            resp.code,
+                                            resp.message,
+                                            headers,
+                                            ByteArrayInputStream(body),
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    null
+                                }
                             }
                         }
 
