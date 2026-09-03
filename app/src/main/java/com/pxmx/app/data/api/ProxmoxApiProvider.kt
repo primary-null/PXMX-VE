@@ -12,8 +12,12 @@ data class ProbeApi(
 
 interface ProxmoxApiProvider {
     fun apiFor(config: ServerConfig): ProxmoxApi
-    /** Probe client: bypasses the cache, always authenticates with its own bound config. */
-    fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(apiFor(config))
+    /**
+     * Probe client: bypasses the cache, always authenticates with its own bound
+     * config. Abstract on purpose: every HTTP provider must wire the same
+     * ticket slot into both the handle and its interceptor.
+     */
+    fun apiForProbe(config: ServerConfig): ProbeApi
     fun clear()
     fun getCapturedFingerprint(host: String): String? = null
 }

@@ -2,6 +2,7 @@ package com.pxmx.app
 
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
@@ -26,6 +27,7 @@ class TestProxmoxApp : ProxmoxApp() {
 
     private class FakeApiProvider(private val api: ProxmoxApi) : ProxmoxApiProvider {
         override fun apiFor(config: ServerConfig): ProxmoxApi = api
+        override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(api)
         override fun clear() = Unit
     }
 }

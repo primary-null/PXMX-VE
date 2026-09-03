@@ -3,6 +3,7 @@ package com.pxmx.app.data.repo
 import androidx.test.core.app.ApplicationProvider
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.model.*
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.runBlocking
@@ -148,9 +149,10 @@ class ProxmoxRepositoryTest {
         assertEquals("AA:BB:CC:DD:EE:FF:11:22:33:44", sessionStore.getCertPin("192.0.2.100"))
     }
 
-    private class FakeApiProvider(val api: ProxmoxApi) : ProxmoxApiProvider {
+    private class FakeApiProvider(private val api: ProxmoxApi) : ProxmoxApiProvider {
         var fingerprintToReturn: String? = null
         override fun apiFor(config: ServerConfig): ProxmoxApi = api
+        override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(api)
         override fun clear() {}
         override fun getCapturedFingerprint(host: String): String? = fingerprintToReturn
     }
