@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -111,6 +113,16 @@ object TechColors {
     @Composable
     fun current(): TechPalette = LocalTechColors.current
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun techTopAppBarColors() = TopAppBarDefaults.topAppBarColors(
+    containerColor = TechColors.Hull,
+    scrolledContainerColor = TechColors.Hull,
+    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+    titleContentColor = MaterialTheme.colorScheme.onSurface,
+    actionIconContentColor = MaterialTheme.colorScheme.primary,
+)
 
 /** Paper-cut on bottom-right — same language as home guest cards. */
 val TechPlateShape = CutCornerShape(

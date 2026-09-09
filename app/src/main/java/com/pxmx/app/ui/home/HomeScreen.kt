@@ -82,6 +82,7 @@ import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
+import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechStatusPlate
 import com.pxmx.app.ui.guest.detail.CreateBackupDialog
 import com.pxmx.app.ui.guest.detail.availableActions
@@ -216,6 +217,7 @@ fun HomeScreen(
         },
         topBar = {
             TopAppBar(
+                colors = com.pxmx.app.ui.components.techTopAppBarColors(),
                 title = {
                     Column(
                         modifier = Modifier
@@ -566,6 +568,8 @@ fun HomeScreen(
     if (state.showThemePicker) {
         AlertDialog(
             onDismissRequest = { viewModel.showThemePicker(false) },
+            shape = TechPlateShape,
+            containerColor = TechColors.Hull,
             title = { Text("Appearance") },
             text = {
                 Column {
@@ -601,6 +605,8 @@ fun HomeScreen(
     if (state.showAccounts) {
         AlertDialog(
             onDismissRequest = { viewModel.showAccounts(false) },
+            shape = TechPlateShape,
+            containerColor = TechColors.Hull,
             title = { Text("Saved connections") },
             text = {
                 Column {

@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pxmx.app.data.model.ClusterResource
+import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +38,8 @@ fun DeployDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = TechPlateShape,
+        containerColor = TechColors.Hull,
         title = { Text("Deploy from template") },
         text = {
             Column(
