@@ -28,5 +28,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: PXMX-v*-debug.apk
-          generate_release_notes: true
+          # Body is written after publish: user-visible changes only.
+          generate_release_notes: false
           fail_on_unmatched_files: true
