@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -58,6 +59,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.pxmx.app.data.api.CertUtils
 import com.pxmx.app.data.model.ConsoleSession
+import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.techTopAppBarColors
 import com.pxmx.app.ui.util.findActivity
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -203,6 +206,7 @@ fun ConsoleScreen(
         topBar = {
             if (!immersive) {
                 TopAppBar(
+                    colors = techTopAppBarColors(),
                     title = {
                         Column {
                             Text("Console · ${session.name}")
@@ -216,6 +220,7 @@ fun ConsoleScreen(
                                     append(if (landscape) " · landscape" else " · portrait")
                                 },
                                 style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
