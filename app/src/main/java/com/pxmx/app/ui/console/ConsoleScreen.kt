@@ -140,6 +140,15 @@ fun ConsoleScreen(
 
     val context = LocalContext.current
     val view = LocalView.current
+    var userOrientation by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(userOrientation) {
+        runCatching {
+            val activity = context.findActivity() ?: view.context.findActivity()
+            activity?.requestedOrientation = userOrientation ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        }
+    }
+
     DisposableEffect(Unit) {
         runCatching {
             val activity = context.findActivity() ?: view.context.findActivity()
@@ -147,7 +156,7 @@ fun ConsoleScreen(
             if (window != null) {
                 WindowCompat.getInsetsController(window, view).hide(WindowInsetsCompat.Type.systemBars())
             }
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
         }
         onDispose {
             runCatching {
@@ -217,6 +226,15 @@ fun ConsoleScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = {
+                            userOrientation = if (landscape) {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                            } else {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            }
+                        }) {
+                            Icon(Icons.Default.ScreenRotation, contentDescription = "Rotate Screen")
+                        }
                         IconButton(onClick = { immersive = !immersive }) {
                             Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen")
                         }
@@ -242,9 +260,22 @@ fun ConsoleScreen(
                         .align(Alignment.TopEnd)
                         .padding(4.dp),
                 ) {
-                    IconButton(onClick = { immersive = false }) {
+                    IconButton(onClick = {
+                        userOrientation = if (landscape) {
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        } else {
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        }
+                    }) {
                         Icon(
                             Icons.Default.ScreenRotation,
+                            contentDescription = "Rotate Screen",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    IconButton(onClick = { immersive = false }) {
+                        Icon(
+                            Icons.Default.Fullscreen,
                             contentDescription = "Show toolbar",
                             tint = MaterialTheme.colorScheme.primary,
                         )
@@ -371,85 +402,21 @@ fun ConsoleScreen(
                                     rb.addHeader("Cookie", "PVEAuthCookie=${session.pveAuthCookie}")
                                     fetchClient.newCall(rb.build()).execute().use { resp ->
                                         val rawBody = resp.body?.bytes() ?: byteArrayOf()
-                                        val contentType = resp.header("Content-Type")
-                                        val mime = contentType?.substringBefore(';') ?: "application/octet-stream"
-                                        val encoding = contentType?.substringAfter("charset=", "")?.ifBlank { null }
-                                        val isMainHtml = request.isForMainFrame &&
-                                            mime.equals("text/html", ignoreCase = true)
-
-                                        // The console page boots noVNC through an ES module import
-                                        // whose scripts did not execute reliably through the
-                                        // self-signed TLS path. Rewrite the served HTML with a
-                                        // classic bootstrap: strip the page's module boot (so it
-                                        // is the single start path) and start the bundle manually.
-                                        val body = if (isMainHtml) {
-                                            var html = String(rawBody, Charsets.UTF_8)
-                                            // Remove the page's own ES module boot; our classic
-                                            // bootstrap below is the single start path.
-                                            html = Regex("<script[^>]*type\\s*=\\s*[\"']?module[\"']?[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE).replace(html, "")
-                                            val ver = Regex("error-handler\\.js\\?ver=([^\"']+)")
-                                                .find(html)?.groupValues?.get(1) ?: "1.7.0-2"
-                                            val boot = """
-                                                <script>
-                                                (function(){
-                                                  if (window.__pxmxBoot) return; window.__pxmxBoot = true;
-                                                  function boot(){
-                                                    fetch('/novnc/app.js?ver=${ver}')
-                                                      .then(function(r){return r.text()})
-                                                      .then(function(t){
-                                                        var classic = t.replace(/export\s*\{[^}]*\};?/g, '');
-                                                        classic = classic.replace(/var ui_default = UI;/, 'var ui_default = UI; window.__UI = UI;');
-                                                        var s = document.createElement('script');
-                                                        s.textContent = classic;
-                                                        document.head.appendChild(s);
-                                                        var tries = 0;
-                                                        var iv = setInterval(function(){
-                                                          tries++;
-                                                          if (window.__UI) {
-                                                            clearInterval(iv);
-                                                            try {
-                                                              // The noVNC fork mints fresh console tickets
-                                                              // itself via POST (sent natively, since
-                                                              // intercepted POSTs cannot carry a body);
-                                                              // its reconnect path relies on that.
-                                                              window.__UI.start({settings:{defaults:{},mandatory:{}}});
-                                                            } catch(e) {}
-                                                          } else if (tries > 100) { clearInterval(iv); }
-                                                        }, 100);
-                                                      });
-                                                  }
-                                                  if (document.readyState === 'loading') {
-                                                    document.addEventListener('DOMContentLoaded', boot);
-                                                  } else { boot(); }
-                                                })();
-                                                </script>
-                                            """.trimIndent()
-                                            val injected = if (html.contains("</body>")) {
-                                                html.replace("</body>", "$boot</body>")
-                                            } else {
-                                                html + boot
-                                            }
-                                            injected.toByteArray(Charsets.UTF_8)
-                                        } else {
-                                            rawBody
-                                        }
-                                        val headers = mutableMapOf<String, String>()
-                                        resp.headers.forEach { pair ->
-                                            val name = pair.first
-                                            if (!name.equals("Content-Encoding", ignoreCase = true) &&
-                                                !name.equals("Content-Length", ignoreCase = true) &&
-                                                !name.equals("Transfer-Encoding", ignoreCase = true)
-                                            ) {
-                                                headers[name] = pair.second
-                                            }
-                                        }
+                                        val rawContentType = resp.header("Content-Type")
+                                        val mime = ConsoleMimeUtils.coerceMimeType(reqStr, rawContentType)
+                                        val encoding = ConsoleMimeUtils.extractCharset(rawContentType)
+                                        val headers = ConsoleMimeUtils.buildResponseHeaders(
+                                            resp.headers.map { it.first to it.second },
+                                            mime,
+                                            encoding,
+                                        )
                                         WebResourceResponse(
                                             mime,
                                             encoding,
                                             resp.code,
-                                            resp.message,
+                                            resp.message.ifBlank { "OK" },
                                             headers,
-                                            ByteArrayInputStream(body),
+                                            ByteArrayInputStream(rawBody),
                                         )
                                     }
                                 } catch (e: Exception) {
