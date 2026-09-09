@@ -177,12 +177,14 @@ fun GuestDetailScreen(
         },
         topBar = {
             TopAppBar(
+                colors = com.pxmx.app.ui.components.techTopAppBarColors(),
                 title = {
                     Column {
                         Text(state.name, maxLines = 1)
                         Text(
                             text = "${state.guestType.label} ${state.vmid} · ${state.node}",
                             style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
