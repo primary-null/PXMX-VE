@@ -15,6 +15,7 @@ import com.pxmx.app.data.api.DemoShell
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.ui.util.Toasts
+import com.pxmx.app.data.console.ConsoleUrlBuilder
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -1163,34 +1164,17 @@ class ProxmoxRepository(
 
         val cfg = session.config
         val hostPort = cfg.displayHost // host:port
-        val cookieHostUrl = "https://$hostPort"
-        val typePath = guestType.path
-        val ticketEnc = URLEncoder.encode(vncticket, StandardCharsets.UTF_8.toString())
-        val rawPath = if (guestType == GuestType.NODE) {
-            "api2/json/nodes/$node/vncwebsocket?port=$port&vncticket=$ticketEnc"
-        } else {
-            "api2/json/nodes/$node/$typePath/$vmid/vncwebsocket?port=$port&vncticket=$ticketEnc"
-        }
-        val pathEnc = URLEncoder.encode(rawPath, StandardCharsets.UTF_8.toString())
-        val consoleKind = if (guestType == GuestType.NODE) {
-            if (cmd == "upgrade") "upgrade" else if (cmd == "login") "login" else "shell"
-        } else if (guestType == GuestType.QEMU) "kvm" else "lxc"
-        val uiParam = if (guestType == GuestType.NODE) "xtermjs=1" else "novnc=1"
-        // scale = fit remote desktop to browser viewport (better on phones)
-        val pageUrl = if (isDemo) {
-            DemoShell.generateHtml(node, guestType, vmid, name)
-        } else {
-            "$cookieHostUrl/?console=$consoleKind&$uiParam&vmid=$vmid&node=$node&resize=scale&path=$pathEnc"
-        }
-
-        ConsoleSession(
-            pageUrl = pageUrl,
-            cookieHostUrl = cookieHostUrl,
-            pveAuthCookie = authCookie,
-            guestType = guestType,
+        ConsoleUrlBuilder.buildSession(
+            hostPort = hostPort,
+            authCookie = authCookie,
             node = node,
+            guestType = guestType,
             vmid = vmid,
+            port = port,
+            vncticket = vncticket,
             name = name,
+            cmd = cmd,
+            isDemo = isDemo,
         )
     }
 
