@@ -92,6 +92,7 @@ fun SettingsScreen(
     onThemeMode: (ThemeMode) -> Unit,
     onSwitchAccount: () -> Unit,
     onCleanSlate: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     var showTheme by remember { mutableStateOf(false) }
 
@@ -104,6 +105,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 colors = techTopAppBarColors(),

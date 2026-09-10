@@ -4,6 +4,7 @@ import com.pxmx.app.data.console.ConsoleUrlBuilder
 import com.pxmx.app.data.model.GuestType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -84,6 +85,38 @@ class AdaptiveLayoutTest {
             TabletopIntent.NONE,
             tabletopIntent(isTabletop = false, consoleOpen = true, consoleIsNode = true),
         )
+    }
+
+    @Test
+    fun testParseSettingsPaneSelection() {
+        assertEquals(SettingsPaneSelection.NETWORK, parseSettingsPaneSelection("network"))
+        assertEquals(SettingsPaneSelection.NETWORK, parseSettingsPaneSelection("NETWORK"))
+        assertEquals(SettingsPaneSelection.SDN, parseSettingsPaneSelection("sdn"))
+        assertEquals(SettingsPaneSelection.SDN, parseSettingsPaneSelection("SDN"))
+        assertEquals(SettingsPaneSelection.FIREWALL, parseSettingsPaneSelection("firewall"))
+        assertEquals(SettingsPaneSelection.FIREWALL, parseSettingsPaneSelection("FIREWALL"))
+        assertEquals(SettingsPaneSelection.UPDATES, parseSettingsPaneSelection("updates"))
+        assertEquals(SettingsPaneSelection.UPDATES, parseSettingsPaneSelection("UPDATES"))
+        assertEquals(SettingsPaneSelection.LOG, parseSettingsPaneSelection("log"))
+        assertEquals(SettingsPaneSelection.LOG, parseSettingsPaneSelection("LOG"))
+        assertNull(parseSettingsPaneSelection("permissions"))
+        assertNull(parseSettingsPaneSelection("invalid"))
+        assertNull(parseSettingsPaneSelection(null))
+    }
+
+    @Test
+    fun testFormatLogPriority() {
+        assertEquals("EMERG", formatLogPriority(0))
+        assertEquals("ALERT", formatLogPriority(1))
+        assertEquals("CRIT", formatLogPriority(2))
+        assertEquals("ERR", formatLogPriority(3))
+        assertEquals("WARNING", formatLogPriority(4))
+        assertEquals("NOTICE", formatLogPriority(5))
+        assertEquals("INFO", formatLogPriority(6))
+        assertEquals("DEBUG", formatLogPriority(7))
+        assertEquals("UNKNOWN", formatLogPriority(null))
+        assertEquals("PRI 8", formatLogPriority(8))
+        assertEquals("PRI 42", formatLogPriority(42))
     }
 
     @Test

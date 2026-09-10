@@ -77,6 +77,7 @@ import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.adaptive.isOperatorTwoPane
 import com.pxmx.app.ui.adaptive.isTabletop
+import com.pxmx.app.ui.adaptive.SettingsPaneSelection
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.collectFoldingFeaturesAsState
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -202,9 +203,18 @@ fun ProxmoxNavGraph() {
         mutableStateOf<DetailPaneSelection?>(null)
     }
 
+    var selectedSettingsPane by rememberSaveable {
+        mutableStateOf<SettingsPaneSelection?>(null)
+    }
+
     // Back handler on two-pane: clear the pane selection first before popping Home
     BackHandler(enabled = isTwoPane && selectedDetail != null) {
         selectedDetail = null
+    }
+
+    // Back handler on two-pane Settings: clear tool selection first before popping Settings
+    BackHandler(enabled = isTwoPane && selectedSettingsPane != null && navController.currentDestination?.route == Routes.SETTINGS) {
+        selectedSettingsPane = null
     }
 
     // If folding back down to compact while a detail was selected in two-pane, push it onto nav stack
@@ -216,6 +226,18 @@ fun ProxmoxNavGraph() {
                 is DetailPaneSelection.Guest -> navController.navigate(Routes.guest(sel.node, sel.type, sel.vmid, sel.name))
                 is DetailPaneSelection.Node -> navController.navigate(Routes.node(sel.node))
                 is DetailPaneSelection.Storage -> navController.navigate(Routes.storage(sel.node, sel.storage))
+                null -> Unit
+            }
+        }
+        if (!isTwoPane && selectedSettingsPane != null && navController.currentDestination?.route == Routes.SETTINGS) {
+            val pane = selectedSettingsPane
+            selectedSettingsPane = null
+            when (pane) {
+                SettingsPaneSelection.NETWORK -> navController.navigate(Routes.NETWORK)
+                SettingsPaneSelection.SDN -> navController.navigate(Routes.SDN)
+                SettingsPaneSelection.FIREWALL -> navController.navigate(Routes.FIREWALL)
+                SettingsPaneSelection.UPDATES -> navController.navigate(Routes.UPDATES)
+                SettingsPaneSelection.LOG -> navController.navigate(Routes.LOG)
                 null -> Unit
             }
         }
@@ -480,33 +502,186 @@ fun ProxmoxNavGraph() {
             val uiState by vm.ui.collectAsStateWithLifecycle()
             val session by app.sessionStore.session.collectAsStateWithLifecycle()
             val themeMode by app.sessionStore.themeMode.collectAsStateWithLifecycle()
-            SettingsScreen(
-                hostDisplay = session?.config?.displayHost ?: "—",
-                versionDisplay = session?.version?.display ?: "—",
-                themeMode = themeMode,
-                uiState = uiState,
-                onBack = { navController.popBackStack() },
-                onOpenNetwork = { navController.navigate(Routes.NETWORK) },
-                onOpenSdn = { navController.navigate(Routes.SDN) },
-                onOpenFirewall = { navController.navigate(Routes.FIREWALL) },
-                onOpenUpdates = { navController.navigate(Routes.UPDATES) },
-                onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
-                onOpenLogs = { navController.navigate(Routes.LOG) },
-                onThemeMode = { app.sessionStore.setThemeMode(it) },
-                onSwitchAccount = {
-                    app.repository.logout(rememberAsPrevious = true)
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
+
+            if (isTwoPane) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    SettingsScreen(
+                        hostDisplay = session?.config?.displayHost ?: "—",
+                        versionDisplay = session?.version?.display ?: "—",
+                        themeMode = themeMode,
+                        uiState = uiState,
+                        onBack = {
+                            if (selectedSettingsPane != null) selectedSettingsPane = null
+                            else navController.popBackStack()
+                        },
+                        onOpenNetwork = { selectedSettingsPane = SettingsPaneSelection.NETWORK },
+                        onOpenSdn = { selectedSettingsPane = SettingsPaneSelection.SDN },
+                        onOpenFirewall = { selectedSettingsPane = SettingsPaneSelection.FIREWALL },
+                        onOpenUpdates = { selectedSettingsPane = SettingsPaneSelection.UPDATES },
+                        onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                        onOpenLogs = { selectedSettingsPane = SettingsPaneSelection.LOG },
+                        onThemeMode = { app.sessionStore.setThemeMode(it) },
+                        onSwitchAccount = {
+                            app.repository.logout(rememberAsPrevious = true)
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        },
+                        onCleanSlate = {
+                            app.sessionStore.purgeAll(app)
+                            android.os.Process.killProcess(android.os.Process.myPid())
+                        },
+                        modifier = Modifier.width(360.dp).fillMaxHeight(),
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .fillMaxHeight()
+                            .background(TechColors.Edge),
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) {
+                        when (selectedSettingsPane) {
+                            SettingsPaneSelection.NETWORK -> {
+                                val netVm: NetworkViewModel = viewModel(
+                                    key = "pane-network",
+                                    factory = NetworkViewModel.Factory(app.repository),
+                                )
+                                NetworkScreen(
+                                    viewModel = netVm,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
+                            SettingsPaneSelection.SDN -> {
+                                val sdnVm: SdnViewModel = viewModel(
+                                    key = "pane-sdn",
+                                    factory = SdnViewModel.Factory(app.repository),
+                                )
+                                SdnScreen(
+                                    viewModel = sdnVm,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
+                            SettingsPaneSelection.FIREWALL -> {
+                                val fwVm: FirewallViewModel = viewModel(
+                                    key = "pane-firewall",
+                                    factory = FirewallViewModel.Factory(app.repository),
+                                )
+                                FirewallScreen(
+                                    viewModel = fwVm,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
+                            SettingsPaneSelection.UPDATES -> {
+                                val updatesVm: UpdatesViewModel = viewModel(
+                                    key = "pane-updates",
+                                    factory = UpdatesViewModel.Factory(app.repository),
+                                )
+                                UpdatesScreen(
+                                    viewModel = updatesVm,
+                                    onBack = { selectedSettingsPane = null },
+                                    onOpenNode = { node ->
+                                        navController.navigate(Routes.node(node))
+                                    },
+                                    onOpenNodeShell = { node ->
+                                        navController.navigate(
+                                            Routes.console(node, GuestType.NODE.path, 0L, node, "login"),
+                                        )
+                                    },
+                                )
+                            }
+                            SettingsPaneSelection.LOG -> {
+                                val logVm: LogViewModel = viewModel(
+                                    key = "pane-log",
+                                    factory = LogViewModel.Factory(app.repository),
+                                )
+                                LogScreen(
+                                    viewModel = logVm,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
+                            null -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(TechColors.Hull)
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    TechPlate(
+                                        railColor = MaterialTheme.colorScheme.primary,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        ) {
+                                            Text(
+                                                text = "CLUSTER TOOLS",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                text = "Select a cluster tool to configure.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                },
-                onCleanSlate = {
-                    app.sessionStore.purgeAll(app)
-                    android.os.Process.killProcess(android.os.Process.myPid())
-                },
-            )
+                }
+            } else {
+                SettingsScreen(
+                    hostDisplay = session?.config?.displayHost ?: "—",
+                    versionDisplay = session?.version?.display ?: "—",
+                    themeMode = themeMode,
+                    uiState = uiState,
+                    onBack = { navController.popBackStack() },
+                    onOpenNetwork = { navController.navigate(Routes.NETWORK) },
+                    onOpenSdn = { navController.navigate(Routes.SDN) },
+                    onOpenFirewall = { navController.navigate(Routes.FIREWALL) },
+                    onOpenUpdates = { navController.navigate(Routes.UPDATES) },
+                    onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                    onOpenLogs = { navController.navigate(Routes.LOG) },
+                    onThemeMode = { app.sessionStore.setThemeMode(it) },
+                    onSwitchAccount = {
+                        app.repository.logout(rememberAsPrevious = true)
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onCleanSlate = {
+                        app.sessionStore.purgeAll(app)
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         composable(Routes.LOG) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (popped) {
+                        selectedSettingsPane = SettingsPaneSelection.LOG
+                    }
+                }
+            }
+            if (isTwoPane && selectedSettingsPane == SettingsPaneSelection.LOG) return@composable
+
             val vm: LogViewModel = viewModel(
                 factory = LogViewModel.Factory(app.repository),
             )
@@ -562,6 +737,17 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.NETWORK) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    selectedSettingsPane = SettingsPaneSelection.NETWORK
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.SETTINGS)
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val vm: NetworkViewModel = viewModel(
                 factory = NetworkViewModel.Factory(app.repository),
             )
@@ -572,6 +758,17 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.SDN) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    selectedSettingsPane = SettingsPaneSelection.SDN
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.SETTINGS)
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val vm: SdnViewModel = viewModel(
                 factory = SdnViewModel.Factory(app.repository),
             )
@@ -582,6 +779,17 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.FIREWALL) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    selectedSettingsPane = SettingsPaneSelection.FIREWALL
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.SETTINGS)
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val vm: FirewallViewModel = viewModel(
                 factory = FirewallViewModel.Factory(app.repository),
             )
@@ -592,6 +800,16 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.UPDATES) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (popped) {
+                        selectedSettingsPane = SettingsPaneSelection.UPDATES
+                    }
+                }
+            }
+            if (isTwoPane && selectedSettingsPane == SettingsPaneSelection.UPDATES) return@composable
+
             val vm: UpdatesViewModel = viewModel(
                 factory = UpdatesViewModel.Factory(app.repository),
             )
