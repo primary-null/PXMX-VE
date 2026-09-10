@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,6 +47,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +65,7 @@ import com.pxmx.app.data.model.AptPackageUpdate
 import com.pxmx.app.data.model.AptPackageVersion
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeUpdateSnapshot
+import com.pxmx.app.ui.adaptive.isOperatorTwoPane
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
@@ -106,21 +109,12 @@ fun UpdatesScreen(
     onBack: () -> Unit,
     onOpenNode: (String) -> Unit,
     onOpenNodeShell: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     var nodeToUpgrade by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var nodeToUpgradeSsh by remember { mutableStateOf<Pair<String, Int>?>(null) }
-
-    // Back handling: close upgrade confirmation dialogs first if open, else navigate back
-    BackHandler(enabled = nodeToUpgrade != null) {
-        nodeToUpgrade = null
-    }
-    BackHandler(enabled = nodeToUpgradeSsh != null) {
-        nodeToUpgradeSsh = null
-    }
-    BackHandler(enabled = nodeToUpgrade == null && nodeToUpgradeSsh == null) {
-        onBack()
-    }
+    var selectedNode by rememberSaveable { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
         viewModel.setScreenActive(true)
@@ -130,6 +124,7 @@ fun UpdatesScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -169,133 +164,354 @@ fun UpdatesScreen(
             return@Scaffold
         }
 
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = { viewModel.refresh() },
-            modifier = Modifier.fillMaxSize().padding(padding),
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
         ) {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                state.error?.let { err ->
-                    item {
-                        TechPlate(railColor = MaterialTheme.colorScheme.error) {
-                            Text(
-                                text = err.uppercase(Locale.US),
-                                color = MaterialTheme.colorScheme.error,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(14.dp),
-                            )
-                        }
-                    }
-                }
+            val isTwoPane = isOperatorTwoPane(maxWidth.value.toInt())
 
-                // If cluster has 0 pending packages and no jobs running
-                if (state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
-                    item(key = "zero-state") {
-                        TechPlate(railColor = TechColors.Edge) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text(
-                                    "ALL NODES CURRENT",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.2.sp,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = TechColors.LinkGreen,
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "No package updates pending across cluster",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            BackHandler(enabled = nodeToUpgrade != null) {
+                nodeToUpgrade = null
+            }
+            BackHandler(enabled = nodeToUpgradeSsh != null) {
+                nodeToUpgradeSsh = null
+            }
+            BackHandler(enabled = isTwoPane && selectedNode != null && nodeToUpgrade == null && nodeToUpgradeSsh == null) {
+                selectedNode = null
+            }
+            BackHandler(enabled = nodeToUpgrade == null && nodeToUpgradeSsh == null && (!isTwoPane || selectedNode == null)) {
+                onBack()
+            }
+
+            if (isTwoPane) {
+                PullToRefreshBox(
+                    isRefreshing = state.refreshing,
+                    onRefresh = { viewModel.refresh() },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .width(360.dp)
+                                .fillMaxHeight(),
+                        ) {
+                            state.error?.let { err ->
+                                item(key = "two-pane-error") {
+                                    TechPlate(railColor = MaterialTheme.colorScheme.error) {
+                                        Text(
+                                            text = err.uppercase(Locale.US),
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(14.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                                item(key = "two-pane-zero-state") {
+                                    TechPlate(railColor = TechColors.Edge) {
+                                        Column(Modifier.padding(16.dp)) {
+                                            Text(
+                                                "ALL NODES CURRENT",
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.2.sp,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = TechColors.LinkGreen,
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                "No package updates pending across cluster",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            items(
+                                items = state.nodes,
+                                key = { "node-card-${it.node}" },
+                            ) { snap ->
+                                UpdateNodePlate(
+                                    snap = snap,
+                                    progress = state.progress[snap.node],
+                                    isSelected = snap.node == selectedNode,
+                                    onClick = { selectedNode = snap.node },
                                 )
                             }
+
+                            item { Spacer(Modifier.height(24.dp)) }
                         }
-                    }
-                }
 
-                // Per-node sections
-                state.nodes.forEach { snap ->
-                    val progress = state.progress[snap.node]
-                    val nodeStatus = state.nodeStatuses[snap.node]
-                    val isUpgrading = progress?.state == NodeRefreshState.UPGRADING
-
-                    item(key = "node-rect-${snap.node}") {
-                        NodeStatusRectangle(
-                            snap = snap,
-                            progress = progress,
-                            nodeStatus = nodeStatus,
-                            serverHost = state.serverHost,
-                            pveVersion = state.pveVersion,
-                            isRemoteUpgradeRemoved = state.isRemoteUpgradeRemoved(snap.node),
-                            sshAvailability = state.sshAvailability,
-                            anyJobActive = state.anyJobActive,
-                            onRefreshApt = { viewModel.refreshAptDb(snap.node) },
-                            onInstallUpdates = {
-                                nodeToUpgrade = snap.node to snap.updateCount
-                            },
-                            onInstallViaSsh = {
-                                nodeToUpgradeSsh = snap.node to snap.updateCount
-                            },
-                            onOpenNodeShell = { onOpenNodeShell(snap.node) },
-                            onClick = { onOpenNode(snap.node) },
-                            onDismiss = { viewModel.dismissProgress(snap.node) },
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(TechColors.Edge),
                         )
-                    }
 
-                    if (snap.updates.isNotEmpty()) {
-                        item(key = "pend-header-${snap.node}") {
-                            TechSectionLabel(
-                                title = "PENDING (${snap.updateCount})",
-                                accent = if (isUpgrading) TechColors.Mute else TechColors.Amber,
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        ) {
+                            val selectedSnap = state.nodes.firstOrNull { it.node == selectedNode }
+                            if (selectedSnap != null) {
+                                val progress = state.progress[selectedSnap.node]
+                                val nodeStatus = state.nodeStatuses[selectedSnap.node]
+                                val isUpgrading = progress?.state == NodeRefreshState.UPGRADING
 
-                        itemsIndexed(
-                            items = snap.updates,
-                            key = { index, upd -> "${snap.node}-u-${upd.packageName}-$index" },
-                        ) { index, upd ->
-                            val isActive = (progress?.state == NodeRefreshState.PARSING || progress?.state == NodeRefreshState.UPGRADING) &&
-                                progress.activePackageIndex == index
-                            
-                            // Task 1: During UPGRADING, completed rows drop away.
-                            if (isUpgrading && progress != null && index < progress.activePackageIndex) {
-                                return@itemsIndexed
+                                LazyColumn(
+                                    contentPadding = PaddingValues(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    item(key = "pane-node-rect-${selectedSnap.node}") {
+                                        NodeStatusRectangle(
+                                            snap = selectedSnap,
+                                            progress = progress,
+                                            nodeStatus = nodeStatus,
+                                            serverHost = state.serverHost,
+                                            pveVersion = state.pveVersion,
+                                            isRemoteUpgradeRemoved = state.isRemoteUpgradeRemoved(selectedSnap.node),
+                                            sshAvailability = state.sshAvailability,
+                                            anyJobActive = state.anyJobActive,
+                                            onRefreshApt = { viewModel.refreshAptDb(selectedSnap.node) },
+                                            onInstallUpdates = {
+                                                nodeToUpgrade = selectedSnap.node to selectedSnap.updateCount
+                                            },
+                                            onInstallViaSsh = {
+                                                nodeToUpgradeSsh = selectedSnap.node to selectedSnap.updateCount
+                                            },
+                                            onOpenNodeShell = { onOpenNodeShell(selectedSnap.node) },
+                                            onClick = { onOpenNode(selectedSnap.node) },
+                                            onDismiss = { viewModel.dismissProgress(selectedSnap.node) },
+                                        )
+                                    }
+
+                                    if (selectedSnap.updates.isNotEmpty()) {
+                                        item(key = "pane-pend-header-${selectedSnap.node}") {
+                                            TechSectionLabel(
+                                                title = "PENDING (${selectedSnap.updateCount})",
+                                                accent = if (isUpgrading) TechColors.Mute else TechColors.Amber,
+                                            )
+                                        }
+
+                                        itemsIndexed(
+                                            items = selectedSnap.updates,
+                                            key = { index, upd -> "pane-${selectedSnap.node}-u-${upd.packageName}-$index" },
+                                        ) { index, upd ->
+                                            val isActive = (progress?.state == NodeRefreshState.PARSING || progress?.state == NodeRefreshState.UPGRADING) &&
+                                                progress.activePackageIndex == index
+
+                                            if (isUpgrading && progress != null && index < progress.activePackageIndex) {
+                                                return@itemsIndexed
+                                            }
+
+                                            PackageUpdateRow(
+                                                upd = upd,
+                                                node = selectedSnap.node,
+                                                isActive = isActive,
+                                                isUpgrading = isUpgrading,
+                                            )
+                                        }
+                                    }
+
+                                    val keyPkgs = selectedSnap.versions.filter { v ->
+                                        val n = v.packageName.orEmpty().lowercase(Locale.US)
+                                        n.contains("pve") || n.contains("proxmox") || n.contains("qemu") ||
+                                            n.contains("lxc") || n.contains("kernel")
+                                    }.ifEmpty { selectedSnap.versions.take(6) }
+
+                                    if (keyPkgs.isNotEmpty()) {
+                                        item(key = "pane-stack-header-${selectedSnap.node}") {
+                                            TechSectionLabel(
+                                                title = "INSTALLED STACK",
+                                                accent = TechColors.Edge,
+                                            )
+                                        }
+                                        items(keyPkgs, key = { "pane-${selectedSnap.node}-v-${it.packageName}" }) { ver ->
+                                            VersionCard(ver)
+                                        }
+                                    }
+
+                                    item { Spacer(Modifier.height(24.dp)) }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(TechColors.Hull)
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    TechPlate(
+                                        railColor = MaterialTheme.colorScheme.primary,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        ) {
+                                            Text(
+                                                text = "SELECT A NODE",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                text = "Select a node to inspect pending packages and live updates.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                             }
-
-                            PackageUpdateRow(
-                                upd = upd,
-                                node = snap.node,
-                                isActive = isActive,
-                                isUpgrading = isUpgrading,
-                            )
-                        }
-                    }
-
-                    val keyPkgs = snap.versions.filter { v ->
-                        val n = v.packageName.orEmpty().lowercase(Locale.US)
-                        n.contains("pve") || n.contains("proxmox") || n.contains("qemu") ||
-                            n.contains("lxc") || n.contains("kernel")
-                    }.ifEmpty { snap.versions.take(6) }
-
-                    if (keyPkgs.isNotEmpty()) {
-                        item(key = "stack-header-${snap.node}") {
-                            TechSectionLabel(
-                                title = "INSTALLED STACK",
-                                accent = TechColors.Edge,
-                            )
-                        }
-                        items(keyPkgs, key = { "${snap.node}-v-${it.packageName}" }) { ver ->
-                            VersionCard(ver)
                         }
                     }
                 }
+            } else {
+                PullToRefreshBox(
+                    isRefreshing = state.refreshing,
+                    onRefresh = { viewModel.refresh() },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        state.error?.let { err ->
+                            item {
+                                TechPlate(railColor = MaterialTheme.colorScheme.error) {
+                                    Text(
+                                        text = err.uppercase(Locale.US),
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(14.dp),
+                                    )
+                                }
+                            }
+                        }
 
-                item { Spacer(Modifier.height(24.dp)) }
+                        // If cluster has 0 pending packages and no jobs running
+                        if (state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                            item(key = "zero-state") {
+                                TechPlate(railColor = TechColors.Edge) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text(
+                                            "ALL NODES CURRENT",
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.2.sp,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = TechColors.LinkGreen,
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            "No package updates pending across cluster",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Per-node sections
+                        state.nodes.forEach { snap ->
+                            val progress = state.progress[snap.node]
+                            val nodeStatus = state.nodeStatuses[snap.node]
+                            val isUpgrading = progress?.state == NodeRefreshState.UPGRADING
+
+                            item(key = "node-rect-${snap.node}") {
+                                NodeStatusRectangle(
+                                    snap = snap,
+                                    progress = progress,
+                                    nodeStatus = nodeStatus,
+                                    serverHost = state.serverHost,
+                                    pveVersion = state.pveVersion,
+                                    isRemoteUpgradeRemoved = state.isRemoteUpgradeRemoved(snap.node),
+                                    sshAvailability = state.sshAvailability,
+                                    anyJobActive = state.anyJobActive,
+                                    onRefreshApt = { viewModel.refreshAptDb(snap.node) },
+                                    onInstallUpdates = {
+                                        nodeToUpgrade = snap.node to snap.updateCount
+                                    },
+                                    onInstallViaSsh = {
+                                        nodeToUpgradeSsh = snap.node to snap.updateCount
+                                    },
+                                    onOpenNodeShell = { onOpenNodeShell(snap.node) },
+                                    onClick = { onOpenNode(snap.node) },
+                                    onDismiss = { viewModel.dismissProgress(snap.node) },
+                                )
+                            }
+
+                            if (snap.updates.isNotEmpty()) {
+                                item(key = "pend-header-${snap.node}") {
+                                    TechSectionLabel(
+                                        title = "PENDING (${snap.updateCount})",
+                                        accent = if (isUpgrading) TechColors.Mute else TechColors.Amber,
+                                    )
+                                }
+
+                                itemsIndexed(
+                                    items = snap.updates,
+                                    key = { index, upd -> "${snap.node}-u-${upd.packageName}-$index" },
+                                ) { index, upd ->
+                                    val isActive = (progress?.state == NodeRefreshState.PARSING || progress?.state == NodeRefreshState.UPGRADING) &&
+                                        progress.activePackageIndex == index
+                                    
+                                    // Task 1: During UPGRADING, completed rows drop away.
+                                    if (isUpgrading && progress != null && index < progress.activePackageIndex) {
+                                        return@itemsIndexed
+                                    }
+
+                                    PackageUpdateRow(
+                                        upd = upd,
+                                        node = snap.node,
+                                        isActive = isActive,
+                                        isUpgrading = isUpgrading,
+                                    )
+                                }
+                            }
+
+                            val keyPkgs = snap.versions.filter { v ->
+                                val n = v.packageName.orEmpty().lowercase(Locale.US)
+                                n.contains("pve") || n.contains("proxmox") || n.contains("qemu") ||
+                                    n.contains("lxc") || n.contains("kernel")
+                            }.ifEmpty { snap.versions.take(6) }
+
+                            if (keyPkgs.isNotEmpty()) {
+                                item(key = "stack-header-${snap.node}") {
+                                    TechSectionLabel(
+                                        title = "INSTALLED STACK",
+                                        accent = TechColors.Edge,
+                                    )
+                                }
+                                items(keyPkgs, key = { "${snap.node}-v-${it.packageName}" }) { ver ->
+                                    VersionCard(ver)
+                                }
+                            }
+                        }
+
+                        item { Spacer(Modifier.height(24.dp)) }
+                    }
+                }
             }
         }
     }
@@ -324,6 +540,95 @@ fun UpdatesScreen(
                 viewModel.installViaSsh(node)
             },
         )
+    }
+}
+
+@Composable
+private fun UpdateNodePlate(
+    snap: NodeUpdateSnapshot,
+    progress: NodeRefreshProgress?,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state = progress?.state ?: NodeRefreshState.IDLE
+
+    val railColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        state == NodeRefreshState.PARSING || state == NodeRefreshState.UPGRADING -> TechColors.Amber
+        state == NodeRefreshState.ERROR -> MaterialTheme.colorScheme.error
+        snap.updateCount > 0 -> TechColors.Amber
+        else -> TechColors.LinkGreen
+    }
+
+    val tagText = when (state) {
+        NodeRefreshState.IDLE -> if (snap.updateCount > 0) "${snap.updateCount} PENDING" else "CURRENT"
+        NodeRefreshState.PARSING -> "PARSING"
+        NodeRefreshState.UPGRADING -> "UPGRADING"
+        NodeRefreshState.COMPLETE -> "COMPLETE"
+        NodeRefreshState.ERROR -> "FAILED"
+    }
+
+    val tagColor = when (state) {
+        NodeRefreshState.IDLE -> if (snap.updateCount > 0) TechColors.Amber else TechColors.LinkGreen
+        NodeRefreshState.PARSING, NodeRefreshState.UPGRADING -> TechColors.Amber
+        NodeRefreshState.COMPLETE -> TechColors.LinkGreen
+        NodeRefreshState.ERROR -> MaterialTheme.colorScheme.error
+    }
+
+    val shape = TechPlateShape
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(TechColors.Hull)
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else TechColors.Edge,
+                shape = shape,
+            )
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(railColor),
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(14.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = snap.node.uppercase(Locale.US),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    StatusTag(text = tagText, color = tagColor)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (snap.updateCount > 0) "${snap.updateCount} package updates available" else "All packages up to date",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
