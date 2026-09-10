@@ -36,6 +36,8 @@ fun ConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = com.pxmx.app.ui.components.TechPlateShape,
+        containerColor = com.pxmx.app.ui.components.TechColors.Hull,
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },

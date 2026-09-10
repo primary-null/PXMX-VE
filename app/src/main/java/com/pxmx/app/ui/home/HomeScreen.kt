@@ -80,6 +80,9 @@ import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.TechDropdownMenu
+import com.pxmx.app.ui.components.TechMenuHeader
+import com.pxmx.app.ui.components.TechMenuItem
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechStatusPlate
@@ -287,43 +290,16 @@ fun HomeScreen(
                             emphasized = menuOpen,
                         )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        // Sort block — options depend on the active tab (Guests / Storage / …)
-                        Text(
-                            text = "SORT · ${state.filter.label.uppercase()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
+                    TechDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        TechMenuHeader("SORT · ${state.filter.label}")
                         ResourceSort.optionsFor(state.filter).forEach { mode ->
                             val selected = state.activeSort == mode
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(
-                                            mode.label,
-                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (selected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurface,
-                                        )
-                                        Text(
-                                            mode.menuHint,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        sortIcon(mode),
-                                        contentDescription = null,
-                                        tint = if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                },
-                                trailingIcon = {
+                            TechMenuItem(
+                                label = mode.label,
+                                hint = mode.menuHint,
+                                selected = selected,
+                                leadingIcon = sortIcon(mode),
+                                trailing = {
                                     RadioButton(
                                         selected = selected,
                                         onClick = null,
@@ -336,59 +312,64 @@ fun HomeScreen(
                             )
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text("Updates") },
-                            leadingIcon = { Icon(Icons.Default.SystemUpdate, null) },
+                        TechMenuItem(
+                            label = "Updates",
+                            hint = "packages on this node",
+                            leadingIcon = Icons.Default.SystemUpdate,
                             onClick = {
                                 menuOpen = false
                                 onOpenUpdates()
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Open in browser") },
-                            leadingIcon = { Icon(Icons.Default.Language, null) },
+                        TechMenuItem(
+                            label = "Open in browser",
+                            hint = "Proxmox web UI",
+                            leadingIcon = Icons.Default.Language,
                             onClick = {
                                 menuOpen = false
-                                val url = state.session?.config?.let { "https://${it.displayHost}" } ?: return@DropdownMenuItem
+                                val url = state.session?.config?.let { "https://${it.displayHost}" } ?: return@TechMenuItem
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                 context.startActivity(intent)
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Appearance") },
-                            leadingIcon = { Icon(Icons.Default.DarkMode, null) },
+                        TechMenuItem(
+                            label = "Appearance",
+                            hint = "OLED / light / system",
+                            leadingIcon = Icons.Default.DarkMode,
                             onClick = {
                                 menuOpen = false
                                 viewModel.showThemePicker(true)
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Deploy from template") },
-                            leadingIcon = { Icon(Icons.Default.PlayArrow, null) },
+                        TechMenuItem(
+                            label = "Deploy from template",
+                            hint = "clone or CT container",
+                            leadingIcon = Icons.Default.PlayArrow,
                             onClick = {
                                 menuOpen = false
                                 viewModel.showDeployDialog(true)
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("All servers") },
-                            leadingIcon = { Icon(Icons.Default.Storage, null) },
+                        TechMenuItem(
+                            label = "All servers",
+                            leadingIcon = Icons.Default.Storage,
                             onClick = {
                                 menuOpen = false
                                 onOpenServers()
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Saved connections") },
-                            leadingIcon = { Icon(Icons.Default.SwapHoriz, null) },
+                        TechMenuItem(
+                            label = "Saved connections",
+                            leadingIcon = Icons.Default.SwapHoriz,
                             onClick = {
                                 menuOpen = false
                                 viewModel.showAccounts(true)
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Switch account") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
+                        TechMenuItem(
+                            label = "Switch account",
+                            hint = "sign out this profile",
+                            leadingIcon = Icons.AutoMirrored.Filled.Logout,
                             onClick = {
                                 menuOpen = false
                                 viewModel.logout()
@@ -1094,25 +1075,28 @@ private fun ResourceCard(
                                 icon = Icons.Default.SaveAlt,
                                 emphasized = backupMenu
                             )
-                            DropdownMenu(
+                            TechDropdownMenu(
                                 expanded = backupMenu,
                                 onDismissRequest = { backupMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Back up on server") },
-                                    leadingIcon = { Icon(Icons.Default.Storage, null) },
+                                TechMenuHeader("BACKUP")
+                                TechMenuItem(
+                                    label = "On server",
+                                    hint = "PVE backup job",
+                                    leadingIcon = Icons.Default.Storage,
                                     onClick = {
                                         backupMenu = false
                                         onBackupOnServer()
-                                    }
+                                    },
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Back up to device") },
-                                    leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
+                                TechMenuItem(
+                                    label = "To device",
+                                    hint = "download to this phone",
+                                    leadingIcon = Icons.Default.SaveAlt,
                                     onClick = {
                                         backupMenu = false
                                         onBackupToDevice()
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -1206,42 +1190,41 @@ private fun GuestQuickActions(
                 val guestType = GuestType.fromResourceType(resource.type) ?: GuestType.QEMU
                 val actions = availableActions(guestType, running, resource.status)
 
-                DropdownMenu(
+                TechDropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = {
                         menuOpen = false
                         com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
                     }
                 ) {
+                    TechMenuHeader("PWR · ${(resource.status ?: "?").uppercase()}")
                     actions.forEach { action ->
-                        DropdownMenuItem(
-                            text = { Text(action.label) },
+                        TechMenuItem(
+                            label = action.label,
+                            danger = action == GuestAction.STOP || action == GuestAction.RESET,
+                            leadingIcon = when (action) {
+                                GuestAction.START -> Icons.Default.PlayArrow
+                                GuestAction.SHUTDOWN -> Icons.Default.PowerSettingsNew
+                                GuestAction.STOP -> Icons.Default.Stop
+                                GuestAction.REBOOT -> Icons.Default.RestartAlt
+                                GuestAction.SUSPEND -> Icons.Default.Pause
+                                GuestAction.RESUME -> Icons.Default.PlayArrow
+                                GuestAction.RESET -> Icons.Default.Refresh
+                            },
                             onClick = {
                                 menuOpen = false
                                 com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
                                 onGuestAction(action)
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = when (action) {
-                                        GuestAction.START -> Icons.Default.PlayArrow
-                                        GuestAction.SHUTDOWN -> Icons.Default.PowerSettingsNew
-                                        GuestAction.STOP -> Icons.Default.Stop
-                                        GuestAction.REBOOT -> Icons.Default.RestartAlt
-                                        GuestAction.SUSPEND -> Icons.Default.Pause
-                                        GuestAction.RESUME -> Icons.Default.PlayArrow
-                                        GuestAction.RESET -> Icons.Default.Refresh
-                                    },
-                                    contentDescription = null
-                                )
-                            }
                         )
                     }
                     if (resource.onboot != null) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text("Auto-start on boot") },
-                            trailingIcon = {
+                        TechMenuItem(
+                            label = "Auto-start",
+                            hint = "onboot",
+                            selected = resource.onboot == 1,
+                            trailing = {
                                 Checkbox(
                                     checked = resource.onboot == 1,
                                     onCheckedChange = null
@@ -1252,7 +1235,7 @@ private fun GuestQuickActions(
                                 com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
                                 com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.AUTO_BUTTON)
                                 onOnbootToggle(resource.onboot != 1)
-                            }
+                            },
                         )
                     }
                 }
