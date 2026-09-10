@@ -320,8 +320,25 @@ interface ProxmoxApi {
         @Query("limit") limit: Int? = 30,
     ): PveResponse<List<Map<String, @Contextual Any>>>
 
+    @PUT("cluster/sdn")
+    suspend fun applySdn(): PveResponse<String?>
+
+    @GET("nodes/{node}/syslog")
+    suspend fun nodeSyslog(
+        @Path("node") node: String,
+        @Query("start") start: Int? = null,
+        @Query("limit") limit: Int? = null,
+    ): PveResponse<List<Map<String, @Contextual Any>>>
+
     @GET("cluster/firewall/options")
     suspend fun clusterFirewallOptions(): PveResponse<Map<String, @Contextual Any>>
+
+    @FormUrlEncoded
+    @PUT("cluster/firewall/options")
+    suspend fun setClusterFirewallOptions(
+        @Field("enable") enable: Int,
+        @Field("digest") digest: String? = null,
+    ): PveResponse<String?>
 
     @GET("cluster/firewall/rules")
     suspend fun clusterFirewallRules(): PveResponse<List<Map<String, @Contextual Any>>>
@@ -333,6 +350,14 @@ interface ProxmoxApi {
     suspend fun nodeFirewallOptions(
         @Path("node") node: String,
     ): PveResponse<Map<String, @Contextual Any>>
+
+    @FormUrlEncoded
+    @PUT("nodes/{node}/firewall/options")
+    suspend fun setNodeFirewallOptions(
+        @Path("node") node: String,
+        @Field("enable") enable: Int,
+        @Field("digest") digest: String? = null,
+    ): PveResponse<String?>
 
     @GET("nodes/{node}/firewall/rules")
     suspend fun nodeFirewallRules(

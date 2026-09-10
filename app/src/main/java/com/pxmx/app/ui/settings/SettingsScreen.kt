@@ -67,6 +67,7 @@ import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
+import com.pxmx.app.ui.components.techTopAppBarColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -80,6 +81,7 @@ fun SettingsScreen(
     hostDisplay: String,
     versionDisplay: String,
     themeMode: ThemeMode,
+    uiState: SettingsUiState = SettingsUiState(),
     onBack: () -> Unit,
     onOpenNetwork: () -> Unit,
     onOpenSdn: () -> Unit,
@@ -104,6 +106,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = techTopAppBarColors(),
                 title = {
                     Column {
                         Text("Settings")
@@ -144,28 +147,28 @@ fun SettingsScreen(
             item {
                 SettingsRow(
                     title = "SDN",
-                    subtitle = "Software-defined zones, vnets, and status",
+                    subtitle = uiState.sdnSubtitle,
                     onClick = onOpenSdn,
                 )
             }
             item {
                 SettingsRow(
                     title = "Firewall",
-                    subtitle = "Datacenter and node rules (read-only)",
+                    subtitle = uiState.firewallSubtitle,
                     onClick = onOpenFirewall,
                 )
             }
             item {
                 SettingsRow(
                     title = "Updates",
-                    subtitle = "Pending packages with live apt job status",
+                    subtitle = uiState.updatesSubtitle,
                     onClick = onOpenUpdates,
                 )
             }
             item {
                 SettingsRow(
                     title = "Logs",
-                    subtitle = "Cluster syslog and event feed",
+                    subtitle = uiState.logsSubtitle,
                     onClick = onOpenLogs,
                 )
             }
@@ -235,7 +238,7 @@ fun SettingsScreen(
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Network & Updates are read-first. Destructive actions stay on guest cards and power menus.",
+                            "Firewall enable and SDN apply write to the cluster; guest power stays on guest cards.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

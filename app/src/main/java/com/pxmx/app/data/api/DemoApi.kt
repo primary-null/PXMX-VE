@@ -756,8 +756,15 @@ class DemoApi : ProxmoxApi {
 
     private var aptUpgradeTaskStart: Long = 0L
     private var demoUpgraded: Boolean = false
+    private var sdnApplyTaskStart: Long = 0L
 
     override suspend fun taskStatus(node: String, upid: String): PveResponse<TaskStatus> {
+        if (upid.contains("sdnreload") || upid.contains("sdn")) {
+            val isRunning = sdnApplyTaskStart != 0L && now() - sdnApplyTaskStart < 2_500L
+            val status = if (isRunning) "running" else "stopped"
+            val exitstatus = if (!isRunning) "OK" else null
+            return PveResponse(data = TaskStatus(status = status, exitstatus = exitstatus))
+        }
         if (upid.contains("aptupdate")) {
             val isRunning = aptTaskStart != 0L && now() - aptTaskStart < 2_500L
             val status = if (isRunning) "running" else "stopped"
@@ -777,7 +784,27 @@ class DemoApi : ProxmoxApi {
     }
 
     override suspend fun taskLog(node: String, upid: String, start: Int?, limit: Int?): PveResponse<List<Map<String, Any>>> {
-        val lines = if (upid.contains("aptupgrade")) {
+        val lines = if (upid.contains("sdnreload") || upid.contains("sdn")) {
+            val elapsed = if (sdnApplyTaskStart == 0L) 5_000L else now() - sdnApplyTaskStart
+            when {
+                elapsed < 800L -> listOf(
+                    mapOf("n" to 1, "t" to "Applying SDN configuration..."),
+                    mapOf("n" to 2, "t" to "Reloading networking..."),
+                )
+                elapsed < 1600L -> listOf(
+                    mapOf("n" to 1, "t" to "Applying SDN configuration..."),
+                    mapOf("n" to 2, "t" to "Reloading networking..."),
+                    mapOf("n" to 3, "t" to "Configuring zones and vnets..."),
+                )
+                else -> listOf(
+                    mapOf("n" to 1, "t" to "Applying SDN configuration..."),
+                    mapOf("n" to 2, "t" to "Reloading networking..."),
+                    mapOf("n" to 3, "t" to "Configuring zones and vnets..."),
+                    mapOf("n" to 4, "t" to "SDN configuration applied successfully."),
+                    mapOf("n" to 5, "t" to "TASK OK"),
+                )
+            }
+        } else if (upid.contains("aptupgrade")) {
             val elapsed = if (aptUpgradeTaskStart == 0L) 10_000L else now() - aptUpgradeTaskStart
             when {
                 elapsed < 800L -> listOf(
@@ -1017,22 +1044,65 @@ class DemoApi : ProxmoxApi {
         )
     )
 
-    override suspend fun sdnStatus(): PveResponse<List<Map<String, Any>>> = PveResponse(
-        data = listOf(
-            mapOf("zone" to "localnet", "type" to "zone", "status" to "ok", "state" to "ok"),
-            mapOf("zone" to "vlan10", "type" to "zone", "status" to "ok", "state" to "ok"),
-            mapOf("zone" to "vxlan-mesh", "type" to "zone", "status" to "ok", "state" to "ok", "controller" to "evpn-ctrl"),
+    private var demoClusterFirewallEnable: Int = 1
+    private var demoClusterFirewallDigest: String = "4f53c8a91b"
+    private val demoNodeFirewallEnable = mutableMapOf<String, Int>()
+    private val demoNodeFirewallDigest = mutableMapOf<String, String>()
+
+    override suspend fun applySdn(): PveResponse<String?> {
+        sdnApplyTaskStart = now()
+        return PveResponse(data = "UPID:alpha:00003001:00000000:66D1B010:sdnreload::root@pam:")
+    }
+
+    override suspend fun nodeSyslog(
+        node: String,
+        start: Int?,
+        limit: Int?,
+    ): PveResponse<List<Map<String, Any>>> {
+        val nowSec = now() / 1000L
+        val lines = listOf(
+            mapOf("n" to 1, "t" to "systemd[1]: Starting Proxmox VE replication runner...", "time" to nowSec - 120, "pri" to 6, "tag" to "systemd"),
+            mapOf("n" to 2, "t" to "pvesr[4120]: trying to acquire cfs lock 'file-replication_cfg'", "time" to nowSec - 110, "pri" to 6, "tag" to "pvesr"),
+            mapOf("n" to 3, "t" to "pvesr[4120]: update job states successful", "time" to nowSec - 90, "pri" to 6, "tag" to "pvesr"),
+            mapOf("n" to 4, "t" to "pvedaemon[1204]: <root@pam> successful auth for user 'root@pam'", "time" to nowSec - 60, "pri" to 6, "tag" to "pvedaemon"),
+            mapOf("n" to 5, "t" to "pvestatd[1188]: status update: cpu=1.2% mem=24.5%", "time" to nowSec - 30, "pri" to 6, "tag" to "pvestatd"),
+            mapOf("n" to 6, "t" to "pmxcfs[875]: notice: cluster configuration synchronized", "time" to nowSec - 15, "pri" to 5, "tag" to "pmxcfs"),
+            mapOf("n" to 7, "t" to "pve-firewall[920]: rules updated: 5 rules loaded", "time" to nowSec - 10, "pri" to 6, "tag" to "pve-firewall"),
+            mapOf("n" to 8, "t" to "corosync[740]: [TOTEM ] Retransmit List: 0", "time" to nowSec - 5, "pri" to 6, "tag" to "corosync"),
+            mapOf("n" to 9, "t" to "systemd[1]: Finished Proxmox VE cluster logger.", "time" to nowSec - 1, "pri" to 6, "tag" to "systemd"),
         )
-    )
+        val l = limit ?: lines.size
+        return PveResponse(data = lines.take(l))
+    }
+
+    override suspend fun sdnStatus(): PveResponse<List<Map<String, Any>>> {
+        val isPending = sdnApplyTaskStart != 0L && now() - sdnApplyTaskStart < 2_500L
+        return PveResponse(
+            data = listOf(
+                mapOf("zone" to "localnet", "type" to "zone", "status" to (if (isPending) "pending" else "ok"), "state" to (if (isPending) "pending" else "ok")),
+                mapOf("zone" to "vlan10", "type" to "zone", "status" to "ok", "state" to "ok"),
+                mapOf("zone" to "vxlan-mesh", "type" to "zone", "status" to "ok", "state" to "ok", "controller" to "evpn-ctrl"),
+            )
+        )
+    }
 
     override suspend fun clusterFirewallOptions(): PveResponse<Map<String, Any>> = PveResponse(
         data = mapOf(
-            "enable" to 1,
+            "enable" to demoClusterFirewallEnable,
             "policy_in" to "DROP",
             "policy_out" to "ACCEPT",
             "log_ratelimit" to "1/second",
+            "digest" to demoClusterFirewallDigest,
         )
     )
+
+    override suspend fun setClusterFirewallOptions(enable: Int, digest: String?): PveResponse<String?> {
+        demoClusterFirewallEnable = enable
+        if (!digest.isNullOrBlank()) {
+            demoClusterFirewallDigest = digest
+        }
+        return PveResponse(data = null)
+    }
 
     override suspend fun clusterFirewallRules(): PveResponse<List<Map<String, Any>>> = PveResponse(
         data = listOf(
@@ -1053,11 +1123,20 @@ class DemoApi : ProxmoxApi {
 
     override suspend fun nodeFirewallOptions(node: String): PveResponse<Map<String, Any>> = PveResponse(
         data = mapOf(
-            "enable" to 1,
+            "enable" to (demoNodeFirewallEnable[node] ?: 1),
             "policy_in" to "ACCEPT",
             "policy_out" to "ACCEPT",
+            "digest" to (demoNodeFirewallDigest[node] ?: "node_${node}_digest"),
         )
     )
+
+    override suspend fun setNodeFirewallOptions(node: String, enable: Int, digest: String?): PveResponse<String?> {
+        demoNodeFirewallEnable[node] = enable
+        if (!digest.isNullOrBlank()) {
+            demoNodeFirewallDigest[node] = digest
+        }
+        return PveResponse(data = null)
+    }
 
     override suspend fun nodeFirewallRules(node: String): PveResponse<List<Map<String, Any>>> = PveResponse(
         data = listOf(

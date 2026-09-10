@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class LogUiState(
+    val selectedScope: String = "cluster", // "cluster" or node name
+    val nodeNames: List<String> = emptyList(),
     val logs: List<ClusterLogEntry> = emptyList(),
     val loading: Boolean = true,
     val refreshing: Boolean = false,
@@ -44,14 +46,55 @@ class LogViewModel(
         initialValue = _uiState.value,
     )
 
+    init {
+        loadNodes()
+    }
+
+    private fun loadNodes() {
+        viewModelScope.launch {
+            repository.listNodeNames().onSuccess { nodes ->
+                _uiState.update { it.copy(nodeNames = nodes) }
+            }
+        }
+    }
+
+    fun selectScope(scope: String) {
+        if (_uiState.value.selectedScope == scope) return
+        _uiState.update {
+            it.copy(
+                selectedScope = scope,
+                logs = emptyList(),
+                loading = true,
+                error = null,
+            )
+        }
+        viewModelScope.launch {
+            fetchLogs(isInitial = true)
+        }
+    }
+
     fun refresh() {
         _uiState.update { it.copy(refreshing = true, error = null) }
-        viewModelScope.launch { fetchLogs(isInitial = false) }
+        viewModelScope.launch {
+            if (_uiState.value.nodeNames.isEmpty()) {
+                repository.listNodeNames().onSuccess { nodes ->
+                    _uiState.update { it.copy(nodeNames = nodes) }
+                }
+            }
+            fetchLogs(isInitial = false)
+        }
     }
 
     private suspend fun fetchLogs(isInitial: Boolean) {
+        val scope = _uiState.value.selectedScope
         try {
-            repository.logHistory(max = 200).fold(
+            val result = if (scope == "cluster") {
+                repository.logHistory(max = 200)
+            } else {
+                repository.nodeSyslog(node = scope, start = 0, limit = 200)
+            }
+
+            result.fold(
                 onSuccess = { list ->
                     _uiState.update {
                         it.copy(
@@ -67,7 +110,7 @@ class LogViewModel(
                         it.copy(
                             loading = false,
                             refreshing = false,
-                            error = if (isInitial || it.logs.isEmpty()) e.message ?: "Failed to load cluster log" else it.error,
+                            error = if (isInitial || it.logs.isEmpty()) e.message ?: "Failed to load log" else it.error,
                         )
                     }
                 }
@@ -79,7 +122,7 @@ class LogViewModel(
                 it.copy(
                     loading = false,
                     refreshing = false,
-                    error = e.message ?: "Failed to load cluster log",
+                    error = e.message ?: "Failed to load log",
                 )
             }
         }

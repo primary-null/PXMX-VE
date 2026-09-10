@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,10 +36,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -59,6 +64,8 @@ import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
 import com.pxmx.app.ui.components.TechStatusPlate
+import com.pxmx.app.ui.components.techTopAppBarColors
+import com.pxmx.app.ui.guest.detail.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,17 +74,75 @@ fun FirewallScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var showRefusalDialog by remember { mutableStateOf(false) }
 
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = showConfirmDialog || showRefusalDialog) {
+        showConfirmDialog = false
+        showRefusalDialog = false
+    }
+    BackHandler(enabled = !showConfirmDialog && !showRefusalDialog, onBack = onBack)
+
+    val currentSnap = state.currentSnapshot
+
+    if (showRefusalDialog) {
+        AlertDialog(
+            onDismissRequest = { showRefusalDialog = false },
+            title = { Text("Firewall Refusal") },
+            text = { Text(FirewallViewModel.REFUSAL_EMPTY_FIREWALL_MESSAGE) },
+            confirmButton = {
+                TextButton(onClick = { showRefusalDialog = false }) {
+                    Text("CLOSE")
+                }
+            },
+        )
+    }
+
+    if (showConfirmDialog && currentSnap != null) {
+        val isEnabling = !currentSnap.enabled
+        val isCluster = state.selectedTarget == "cluster"
+        val title = if (isEnabling) {
+            if (isCluster) "Enable Datacenter Firewall" else "Enable Node Firewall"
+        } else {
+            if (isCluster) "Disable Datacenter Firewall" else "Disable Node Firewall"
+        }
+        val body = if (isEnabling) {
+            if (isCluster) {
+                "Warning: Without an ACCEPT rule for 8006, this PUT can drop the API and block management traffic. Ensure management access rules are in place before enabling."
+            } else {
+                "Enable firewall on node '${state.selectedTarget}'? Traffic will be filtered according to cluster and node rules."
+            }
+        } else {
+            if (isCluster) {
+                "Disable datacenter firewall for the cluster?"
+            } else {
+                "Disable firewall on node '${state.selectedTarget}'?"
+            }
+        }
+        val confirm = if (isEnabling) "ENABLE" else "DISABLE"
+
+        ConfirmDialog(
+            title = title,
+            body = body,
+            confirm = confirm,
+            onDismiss = { showConfirmDialog = false },
+            onConfirm = {
+                showConfirmDialog = false
+                viewModel.setFirewallEnabled(isEnabling)
+            },
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = techTopAppBarColors(),
                 title = {
                     Column {
                         Text("Firewall")
                         Text(
-                            "DC RULES · NODE RULES · READ-ONLY",
+                            if (state.selectedTarget == "cluster") "DATACENTER RULES · OPTIONS"
+                            else "NODE ${state.selectedTarget.uppercase()} RULES · OPTIONS",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 0.8.sp,
@@ -91,7 +156,10 @@ fun FirewallScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
+                    IconButton(
+                        onClick = { viewModel.refresh() },
+                        enabled = !state.loading && !state.isApplying,
+                    ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
@@ -141,6 +209,82 @@ fun FirewallScreen(
                     }
                 }
 
+                // Applying / Error job plates
+                if (state.isApplying) {
+                    item(key = "applying-plate") {
+                        TechPlate(railColor = TechColors.Amber) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = TechColors.Amber,
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        "APPLYING FIREWALL CHANGE",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TechColors.Amber,
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        "Updating ${state.selectedTarget.uppercase()} firewall options...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                state.actionError?.let { err ->
+                    item(key = "action-error-plate") {
+                        TechPlate(railColor = MaterialTheme.colorScheme.error) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.clearActionError() }
+                                    .padding(14.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "FIREWALL ERROR",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        "[DISMISS]",
+                                        fontFamily = FontFamily.Monospace,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                }
+
                 state.error?.let { err ->
                     item(key = "error-plate") {
                         TechPlate(railColor = MaterialTheme.colorScheme.error) {
@@ -154,10 +298,24 @@ fun FirewallScreen(
                     }
                 }
 
-                val currentSnap = state.currentSnapshot
                 if (currentSnap != null) {
                     item(key = "header-${currentSnap.scope}") {
-                        FirewallHeader(currentSnap)
+                        FirewallHeader(
+                            snap = currentSnap,
+                            isApplying = state.isApplying,
+                            onToggle = {
+                                val isEnabling = !currentSnap.enabled
+                                val isCluster = state.selectedTarget == "cluster"
+                                val hasEnabledAcceptRule = currentSnap.rules.any {
+                                    it.enable && it.action.equals("ACCEPT", ignoreCase = true)
+                                }
+                                if (isEnabling && isCluster && !hasEnabledAcceptRule) {
+                                    showRefusalDialog = true
+                                } else {
+                                    showConfirmDialog = true
+                                }
+                            },
+                        )
                     }
 
                     if (state.selectedTarget == "cluster" && currentSnap.aliases.isNotEmpty()) {
@@ -224,33 +382,6 @@ fun FirewallScreen(
                     }
                 }
 
-                // Read-only info note
-                item(key = "readonly-note") {
-                    Spacer(Modifier.height(4.dp))
-                    TechPlate(railColor = TechColors.Mute) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = TechColors.Mute,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "Firewall rules are read-only in PXMX.",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-
                 item { Spacer(Modifier.height(20.dp)) }
             }
         }
@@ -283,7 +414,11 @@ private fun ScopeTab(
 }
 
 @Composable
-private fun FirewallHeader(snap: FirewallSnapshot) {
+private fun FirewallHeader(
+    snap: FirewallSnapshot,
+    isApplying: Boolean,
+    onToggle: () -> Unit,
+) {
     TechPlate(
         railColor = if (snap.enabled) TechColors.LinkGreen else TechColors.Mute,
     ) {
@@ -310,7 +445,27 @@ private fun FirewallHeader(snap: FirewallSnapshot) {
                     ).joinToString(" · ").ifBlank { "—" },
                 )
             }
-            TechStatusPlate(status = if (snap.enabled) "enabled" else "disabled")
+            Column(horizontalAlignment = Alignment.End) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable(enabled = !isApplying, onClick = onToggle),
+                ) {
+                    TechStatusPlate(status = if (snap.enabled) "enabled" else "disabled")
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (snap.enabled) "[DISABLE]" else "[ENABLE]",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (snap.enabled) TechColors.Mute else TechColors.LinkGreen,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(2.dp))
+                        .clickable(enabled = !isApplying, onClick = onToggle)
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                )
+            }
         }
     }
 }
