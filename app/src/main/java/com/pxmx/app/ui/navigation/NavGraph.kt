@@ -74,6 +74,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.ui.components.TechPlate
+import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.adaptive.isOperatorTwoPane
+import com.pxmx.app.ui.adaptive.isTabletop
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.collectFoldingFeaturesAsState
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 object Routes {
@@ -121,11 +135,91 @@ object Routes {
     }
 }
 
+sealed interface DetailPaneSelection {
+    data class Guest(val node: String, val type: String, val vmid: Long, val name: String) : DetailPaneSelection
+    data class Node(val node: String) : DetailPaneSelection
+    data class Storage(val node: String, val storage: String) : DetailPaneSelection
+}
+
+val DetailPaneSelectionSaver: Saver<DetailPaneSelection?, Any> = Saver(
+    save = { sel ->
+        when (sel) {
+            is DetailPaneSelection.Guest -> mapOf(
+                "kind" to "guest",
+                "node" to sel.node,
+                "type" to sel.type,
+                "vmid" to sel.vmid,
+                "name" to sel.name,
+            )
+            is DetailPaneSelection.Node -> mapOf(
+                "kind" to "node",
+                "node" to sel.node,
+            )
+            is DetailPaneSelection.Storage -> mapOf(
+                "kind" to "storage",
+                "node" to sel.node,
+                "storage" to sel.storage,
+            )
+            null -> emptyMap<String, Any>()
+        }
+    },
+    restore = { value ->
+        val map = value as? Map<*, *> ?: return@Saver null
+        when (map["kind"] as? String) {
+            "guest" -> DetailPaneSelection.Guest(
+                node = map["node"] as String,
+                type = map["type"] as String,
+                vmid = (map["vmid"] as Number).toLong(),
+                name = map["name"] as String,
+            )
+            "node" -> DetailPaneSelection.Node(
+                node = map["node"] as String,
+            )
+            "storage" -> DetailPaneSelection.Storage(
+                node = map["node"] as String,
+                storage = map["storage"] as String,
+            )
+            else -> null
+        }
+    }
+)
+
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun ProxmoxNavGraph() {
     val navController = rememberNavController()
     val app = LocalContext.current.applicationContext as ProxmoxApp
     var splashStatus by remember { mutableStateOf("Starting…") }
+
+    // Adaptive window info and posture
+    val adaptiveInfo = currentWindowAdaptiveInfoV2()
+    val configuration = LocalConfiguration.current
+    val isTwoPane = isOperatorTwoPane(configuration.screenWidthDp)
+    val foldingFeatures = collectFoldingFeaturesAsState().value
+    val isTabletop = foldingFeatures.any { isTabletop(it.state.toString(), it.orientation.toString()) }
+
+    var selectedDetail by rememberSaveable(stateSaver = DetailPaneSelectionSaver) {
+        mutableStateOf<DetailPaneSelection?>(null)
+    }
+
+    // Back handler on two-pane: clear the pane selection first before popping Home
+    BackHandler(enabled = isTwoPane && selectedDetail != null) {
+        selectedDetail = null
+    }
+
+    // If folding back down to compact while a detail was selected in two-pane, push it onto nav stack
+    LaunchedEffect(isTwoPane) {
+        if (!isTwoPane && selectedDetail != null && navController.currentDestination?.route == Routes.HOME) {
+            val sel = selectedDetail
+            selectedDetail = null
+            when (sel) {
+                is DetailPaneSelection.Guest -> navController.navigate(Routes.guest(sel.node, sel.type, sel.vmid, sel.name))
+                is DetailPaneSelection.Node -> navController.navigate(Routes.node(sel.node))
+                is DetailPaneSelection.Storage -> navController.navigate(Routes.storage(sel.node, sel.storage))
+                null -> Unit
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -186,43 +280,197 @@ fun ProxmoxNavGraph() {
             val vm: HomeViewModel = viewModel(
                 factory = HomeViewModel.Factory(app.repository, app.sessionStore),
             )
-            HomeScreen(
-                viewModel = vm,
-                onOpenGuest = { node, type, vmid, name ->
-                    navController.navigate(Routes.guest(node, type, vmid, name))
-                },
-                onOpenStorage = { node, storage ->
-                    navController.navigate(Routes.storage(node, storage))
-                },
-                onOpenNode = { node ->
-                    navController.navigate(Routes.node(node))
-                },
-                onOpenSettings = {
-                    navController.navigate(Routes.SETTINGS)
-                },
-                onOpenTasks = {
-                    navController.navigate(Routes.TASKS)
-                },
-                onOpenLogs = {
-                    navController.navigate(Routes.LOG)
-                },
-                onOpenServers = {
-                    navController.navigate(Routes.SERVERS)
-                },
-                onOpenUpdates = {
-                    navController.navigate(Routes.UPDATES)
-                },
-                onLogout = {
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
+            if (isTwoPane) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    HomeScreen(
+                        viewModel = vm,
+                        onOpenGuest = { node, type, vmid, name ->
+                            selectedDetail = DetailPaneSelection.Guest(node, type, vmid, name)
+                        },
+                        onOpenStorage = { node, storage ->
+                            selectedDetail = DetailPaneSelection.Storage(node, storage)
+                        },
+                        onOpenNode = { node ->
+                            selectedDetail = DetailPaneSelection.Node(node)
+                        },
+                        onOpenSettings = {
+                            navController.navigate(Routes.SETTINGS)
+                        },
+                        onOpenTasks = {
+                            navController.navigate(Routes.TASKS)
+                        },
+                        onOpenLogs = {
+                            navController.navigate(Routes.LOG)
+                        },
+                        onOpenServers = {
+                            navController.navigate(Routes.SERVERS)
+                        },
+                        onOpenUpdates = {
+                            navController.navigate(Routes.UPDATES)
+                        },
+                        onLogout = {
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        },
+                        onSwitchAccount = {
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        },
+                        canOfferNodeShell = isTabletop,
+                        onOpenNodeShell = { node ->
+                            navController.navigate(
+                                Routes.console(node, GuestType.NODE.path, 0L, node, "shell"),
+                            )
+                        },
+                        modifier = Modifier.width(360.dp).fillMaxHeight(),
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .fillMaxHeight()
+                            .background(TechColors.Edge),
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) {
+                        when (val sel = selectedDetail) {
+                            is DetailPaneSelection.Guest -> {
+                                val guestType = remember(sel.type) {
+                                    GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                                }
+                                val detailVm: GuestDetailViewModel = viewModel(
+                                    key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
+                                    factory = GuestDetailViewModel.Factory(
+                                        app.repository,
+                                        sel.node,
+                                        guestType,
+                                        sel.vmid,
+                                        sel.name,
+                                    ),
+                                )
+                                GuestDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                    onOpenConsole = {
+                                        navController.navigate(
+                                            Routes.console(sel.node, sel.type, sel.vmid, sel.name),
+                                        )
+                                    },
+                                    onOpenLogs = {
+                                        navController.navigate(Routes.LOG)
+                                    },
+                                )
+                            }
+                            is DetailPaneSelection.Node -> {
+                                val detailVm: NodeDetailViewModel = viewModel(
+                                    key = "pane-node-${sel.node}",
+                                    factory = NodeDetailViewModel.Factory(app.repository, sel.node),
+                                )
+                                NodeDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                    onOpenConsole = { cmd ->
+                                        navController.navigate(
+                                            Routes.console(sel.node, GuestType.NODE.path, 0L, sel.node, cmd ?: "shell"),
+                                        )
+                                    },
+                                )
+                            }
+                            is DetailPaneSelection.Storage -> {
+                                val detailVm: StorageDetailViewModel = viewModel(
+                                    key = "pane-storage-${sel.node}-${sel.storage}",
+                                    factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
+                                )
+                                StorageDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                )
+                            }
+                            null -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(TechColors.Hull)
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    TechPlate(
+                                        railColor = MaterialTheme.colorScheme.primary,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        ) {
+                                            Text(
+                                                text = "OPERATOR PANE",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                text = "Select a guest, node, or storage to view details.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                },
-                onSwitchAccount = {
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-            )
+                }
+            } else {
+                HomeScreen(
+                    viewModel = vm,
+                    onOpenGuest = { node, type, vmid, name ->
+                        navController.navigate(Routes.guest(node, type, vmid, name))
+                    },
+                    onOpenStorage = { node, storage ->
+                        navController.navigate(Routes.storage(node, storage))
+                    },
+                    onOpenNode = { node ->
+                        navController.navigate(Routes.node(node))
+                    },
+                    onOpenSettings = {
+                        navController.navigate(Routes.SETTINGS)
+                    },
+                    onOpenTasks = {
+                        navController.navigate(Routes.TASKS)
+                    },
+                    onOpenLogs = {
+                        navController.navigate(Routes.LOG)
+                    },
+                    onOpenServers = {
+                        navController.navigate(Routes.SERVERS)
+                    },
+                    onOpenUpdates = {
+                        navController.navigate(Routes.UPDATES)
+                    },
+                    onLogout = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onSwitchAccount = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    canOfferNodeShell = false,
+                    onOpenNodeShell = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         composable(Routes.SETTINGS) {
@@ -374,6 +622,19 @@ fun ProxmoxNavGraph() {
             ),
         ) { entry ->
             val node = entry.arguments?.getString("node") ?: return@composable
+            LaunchedEffect(isTwoPane, node) {
+                if (isTwoPane) {
+                    selectedDetail = DetailPaneSelection.Node(node)
+                    val popped = navController.popBackStack(Routes.HOME, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val vm: NodeDetailViewModel = viewModel(
                 factory = NodeDetailViewModel.Factory(app.repository, node),
             )
@@ -397,6 +658,19 @@ fun ProxmoxNavGraph() {
         ) { entry ->
             val node = entry.arguments?.getString("node") ?: return@composable
             val storage = entry.arguments?.getString("storage") ?: return@composable
+            LaunchedEffect(isTwoPane, node, storage) {
+                if (isTwoPane) {
+                    selectedDetail = DetailPaneSelection.Storage(node, storage)
+                    val popped = navController.popBackStack(Routes.HOME, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val vm: StorageDetailViewModel = viewModel(
                 factory = StorageDetailViewModel.Factory(app.repository, node, storage),
             )
@@ -419,6 +693,19 @@ fun ProxmoxNavGraph() {
             val type = entry.arguments?.getString("type") ?: return@composable
             val vmid = entry.arguments?.getLong("vmid") ?: return@composable
             val name = entry.arguments?.getString("name").orEmpty()
+            LaunchedEffect(isTwoPane, node, type, vmid, name) {
+                if (isTwoPane) {
+                    selectedDetail = DetailPaneSelection.Guest(node, type, vmid, name)
+                    val popped = navController.popBackStack(Routes.HOME, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
             val guestType = remember(type) {
                 GuestType.fromResourceType(type) ?: GuestType.QEMU
             }
@@ -494,6 +781,7 @@ fun ProxmoxNavGraph() {
                         trustSelfSigned = state.trustSelfSigned,
                         expectedCertPin = state.certPin,
                         onBack = { navController.popBackStack() },
+                        isTabletop = isTabletop,
                     )
                 }
                 else -> {
