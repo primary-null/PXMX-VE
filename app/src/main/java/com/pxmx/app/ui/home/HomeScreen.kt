@@ -61,7 +61,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -92,7 +91,7 @@ import com.pxmx.app.ui.util.formatEpoch
 import com.pxmx.app.ui.util.formatPercent
 import com.pxmx.app.ui.util.formatUptime
 import kotlinx.coroutines.launch
-import kotlin.math.min
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,16 +188,14 @@ fun HomeScreen(
 
     val visibleRows by remember(state.listRows, collapsed.value) {
         derivedStateOf {
-            val list = mutableListOf<Pair<HomeListRow, Int>>()
+            val list = mutableListOf<HomeListRow>()
             var currentSectionCollapsed = false
-            var batchIndex = 0
             for (row in state.listRows) {
                 if (row is HomeListRow.Section) {
                     currentSectionCollapsed = collapsed.value.contains(row.title)
-                    batchIndex = 0
-                    list.add(row to 0)
+                    list.add(row)
                 } else if (!currentSectionCollapsed) {
-                    list.add(row to batchIndex++)
+                    list.add(row)
                 }
             }
             list
@@ -472,7 +469,7 @@ fun HomeScreen(
                             }
                             items(
                                 visibleRows,
-                                key = { (row, _) ->
+                                key = { row ->
                                     when (row) {
                                         is HomeListRow.Section -> "sec-${row.title}-${row.count}"
                                         is HomeListRow.Item ->
@@ -480,11 +477,10 @@ fun HomeScreen(
                                                 ?: "${row.resource.type}-${row.resource.vmid}-${row.resource.node}"
                                     }
                                 },
-                            ) { (row, batchIndex) ->
-                                val stagger = min(batchIndex * 28, 224)
+                            ) { row ->
                                 Box(
                                     modifier = Modifier.animateItem(
-                                        fadeInSpec = tween(220, delayMillis = stagger),
+                                        fadeInSpec = tween(220, delayMillis = 0),
                                         fadeOutSpec = tween(160),
                                         placementSpec = tween(220)
                                     )
@@ -1121,11 +1117,6 @@ private fun GuestQuickActions(
     onOnbootToggle: (Boolean) -> Unit,
 ) {
     val running = resource.isRunning
-    val powerScale by animateFloatAsState(
-        targetValue = if (running) 1.04f else 1f,
-        animationSpec = tween(180),
-        label = "powerScale",
-    )
     val divider = TechColors.Divider
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -1139,7 +1130,6 @@ private fun GuestQuickActions(
             Box(
                 modifier = Modifier
                     .size(width = 48.dp, height = 44.dp)
-                    .scale(powerScale)
                     .combinedClickable(
                         enabled = !busy,
                         onClick = {

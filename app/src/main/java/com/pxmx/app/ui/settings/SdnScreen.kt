@@ -2,6 +2,7 @@ package com.pxmx.app.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,10 +30,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -44,10 +49,13 @@ import com.pxmx.app.data.model.SdnStatusInfo
 import com.pxmx.app.data.model.SdnVnetInfo
 import com.pxmx.app.data.model.SdnZoneInfo
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.TechDeck
 import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
 import com.pxmx.app.ui.components.TechStatusPlate
+import com.pxmx.app.ui.components.techTopAppBarColors
+import com.pxmx.app.ui.guest.detail.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,17 +64,35 @@ fun SdnScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    var showApplyConfirm by remember { mutableStateOf(false) }
 
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = showApplyConfirm) {
+        showApplyConfirm = false
+    }
+    BackHandler(enabled = !showApplyConfirm, onBack = onBack)
+
+    if (showApplyConfirm) {
+        ConfirmDialog(
+            title = "Apply SDN Configuration",
+            body = "Apply pending SDN configuration across the cluster? This will reload networking configuration on all cluster nodes.",
+            confirm = "APPLY",
+            onDismiss = { showApplyConfirm = false },
+            onConfirm = {
+                showApplyConfirm = false
+                viewModel.applySdn()
+            },
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = techTopAppBarColors(),
                 title = {
                     Column {
                         Text("SDN")
                         Text(
-                            "ZONES · VNETS · STATUS · READ-ONLY",
+                            "ZONES · VNETS · STATUS",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 0.8.sp,
@@ -80,14 +106,28 @@ fun SdnScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.refresh() }, enabled = !state.loading) {
+                    TextButton(
+                        onClick = { showApplyConfirm = true },
+                        enabled = !state.loading && !state.isApplying,
+                    ) {
+                        Text(
+                            "APPLY",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!state.loading && !state.isApplying) TechColors.Amber else TechColors.Mute,
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.refresh() },
+                        enabled = !state.loading && !state.isApplying,
+                    ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
             )
         },
     ) { padding ->
-        if (state.loading && state.zones.isEmpty() && state.vnets.isEmpty()) {
+        if (state.loading && state.zones.isEmpty() && state.vnets.isEmpty() && state.statuses.isEmpty() && state.error == null) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -109,15 +149,159 @@ fun SdnScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                state.error?.let { err ->
-                    item(key = "error-item") {
+                // Applying Job Plate
+                if (state.isApplying) {
+                    item(key = "sdn-applying-plate") {
+                        TechPlate(railColor = TechColors.Amber) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = TechColors.Amber,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        state.jobStatus ?: "APPLYING SDN CONFIGURATION",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TechColors.Amber,
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                }
+                                if (state.taskLogLines.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    TechDeck {
+                                        Column(Modifier.padding(8.dp)) {
+                                            state.taskLogLines.takeLast(6).forEach { line ->
+                                                Text(
+                                                    text = line,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Action Error Plate
+                state.actionError?.let { err ->
+                    item(key = "sdn-action-error-plate") {
                         TechPlate(railColor = MaterialTheme.colorScheme.error) {
-                            Text(
-                                text = err,
-                                color = MaterialTheme.colorScheme.error,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(14.dp),
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.clearActionError() }
+                                    .padding(14.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "SDN APPLY ERROR",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        "[DISMISS]",
+                                        fontFamily = FontFamily.Monospace,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // API Error Plate (501 SDN unused, 403, etc.)
+                state.error?.let { err ->
+                    val is501 = err.contains("501") || err.contains("Method not implemented", ignoreCase = true) || err.contains("not configured", ignoreCase = true)
+                    val is403 = err.contains("403") || err.contains("permission check failed", ignoreCase = true)
+                    item(key = "error-item") {
+                        TechPlate(railColor = if (is501) TechColors.Mute else MaterialTheme.colorScheme.error) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    text = when {
+                                        is501 -> "SDN NOT CONFIGURED (501)"
+                                        is403 -> "PERMISSION DENIED (403)"
+                                        else -> "SDN API ERROR"
+                                    },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (is501) TechColors.Mute else MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (is501) "Software-Defined Networking is not configured or enabled on this cluster."
+                                    else err,
+                                    color = if (is501) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Any SdnStatusInfo !isOk is an issue plate (not a silent empty list)
+                if (state.issueStatuses.isNotEmpty()) {
+                    item(key = "sdn-issues-plate") {
+                        TechPlate(railColor = TechColors.Amber) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    "SDN STATUS ISSUES / PENDING (${state.issueStatuses.size})",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TechColors.Amber,
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                state.issueStatuses.forEach { issue ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "${issue.name.uppercase()} (${issue.type ?: "zone"})",
+                                            fontFamily = FontFamily.Monospace,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Text(
+                                            text = (issue.status ?: "PENDING").uppercase(),
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TechColors.Amber,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -164,33 +348,6 @@ fun SdnScreen(
                 } else {
                     items(state.statuses, key = { "s-${it.name}-${it.type}" }) { status ->
                         SdnStatusCard(status)
-                    }
-                }
-
-                // Read-only note
-                item(key = "readonly-note") {
-                    Spacer(Modifier.height(4.dp))
-                    TechPlate(railColor = TechColors.Mute) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = TechColors.Mute,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "SDN zones, vnets, and status are read-only in PXMX.",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
                     }
                 }
 

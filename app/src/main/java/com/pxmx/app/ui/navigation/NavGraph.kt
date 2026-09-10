@@ -40,6 +40,7 @@ import com.pxmx.app.ui.settings.NetworkViewModel
 import com.pxmx.app.ui.settings.SdnScreen
 import com.pxmx.app.ui.settings.SdnViewModel
 import com.pxmx.app.ui.settings.SettingsScreen
+import com.pxmx.app.ui.settings.SettingsViewModel
 import com.pxmx.app.ui.settings.UpdatesScreen
 import com.pxmx.app.ui.settings.UpdatesViewModel
 import com.pxmx.app.ui.permissions.PermissionsScreen
@@ -225,12 +226,17 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.SETTINGS) {
+            val vm: SettingsViewModel = viewModel(
+                factory = SettingsViewModel.Factory(app.repository),
+            )
+            val uiState by vm.ui.collectAsStateWithLifecycle()
             val session by app.sessionStore.session.collectAsStateWithLifecycle()
             val themeMode by app.sessionStore.themeMode.collectAsStateWithLifecycle()
             SettingsScreen(
                 hostDisplay = session?.config?.displayHost ?: "—",
                 versionDisplay = session?.version?.display ?: "—",
                 themeMode = themeMode,
+                uiState = uiState,
                 onBack = { navController.popBackStack() },
                 onOpenNetwork = { navController.navigate(Routes.NETWORK) },
                 onOpenSdn = { navController.navigate(Routes.SDN) },

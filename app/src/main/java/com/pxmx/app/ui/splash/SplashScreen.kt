@@ -1,7 +1,5 @@
 package com.pxmx.app.ui.splash
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,24 +13,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.BuildConfig
-import kotlinx.coroutines.delay
 
 /**
  * Cold-start splash. Pure black + Proxmox orange mark.
- * Runs [bootstrap] (e.g. auto-connect), keeps splash ≥900ms, then [onFinished].
+ * Runs [bootstrap] (e.g. auto-connect) without artificial delay, then leaves immediately upon completion.
  */
 @Composable
 fun SplashScreen(
@@ -40,19 +32,8 @@ fun SplashScreen(
     bootstrap: suspend () -> Boolean,
     onFinished: (autoConnected: Boolean) -> Unit,
 ) {
-    var visible by remember { mutableStateOf(false) }
-    val alpha by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(450),
-        label = "splashAlpha",
-    )
-
     LaunchedEffect(Unit) {
-        visible = true
-        val start = System.currentTimeMillis()
         val ok = runCatching { bootstrap() }.getOrDefault(false)
-        val elapsed = System.currentTimeMillis() - start
-        if (elapsed < 900) delay(900 - elapsed)
         onFinished(ok)
     }
 
@@ -64,7 +45,6 @@ fun SplashScreen(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.alpha(alpha),
         ) {
             Box(
                 modifier = Modifier

@@ -1319,11 +1319,9 @@ class ProxmoxRepository(
         }
     }
 
-    /** Optional SDN zones; empty if SDN is not configured. */
+    /** Optional SDN zones (may fail with 501 if SDN is not configured). */
     suspend fun listSdnZones(): Result<List<SdnZoneInfo>> = apiCall { api ->
-        runCatching {
-            api.sdnZones().data.orEmpty().map { SdnZoneInfo.fromMap(it) }
-        }.getOrDefault(emptyList())
+        api.sdnZones().data.orEmpty().map { SdnZoneInfo.fromMap(it) }
     }
 
     /** Pending apt updates + key package versions per node. */
@@ -1445,21 +1443,20 @@ class ProxmoxRepository(
     }
 
     suspend fun listSdnVnets(): Result<List<SdnVnetInfo>> = apiCall { api ->
-        runCatching {
-            api.sdnVnets().data.orEmpty().map { SdnVnetInfo.fromMap(it) }
-        }.getOrDefault(emptyList())
+        api.sdnVnets().data.orEmpty().map { SdnVnetInfo.fromMap(it) }
     }
 
     suspend fun listSdnStatus(): Result<List<SdnStatusInfo>> = apiCall { api ->
-        runCatching {
-            api.sdnStatus().data.orEmpty().map { SdnStatusInfo.fromMap(it) }
-        }.getOrDefault(emptyList())
+        api.sdnStatus().data.orEmpty().map { SdnStatusInfo.fromMap(it) }
     }
 
-    /** Datacenter firewall options + rules (read-only). */
+    suspend fun applySdn(): Result<String> = apiCall { api ->
+        api.applySdn().data ?: "OK"
+    }
+
+    /** Datacenter firewall options + rules. */
     suspend fun loadClusterFirewall(): Result<FirewallSnapshot> = apiCall { api ->
-        val options = runCatching { api.clusterFirewallOptions().data.orEmpty() }
-            .getOrDefault(emptyMap())
+        val options = api.clusterFirewallOptions().data.orEmpty()
         val rules = runCatching { api.clusterFirewallRules().data.orEmpty() }
             .getOrDefault(emptyList())
             .map { FirewallRule.fromMap(it) }
@@ -1469,13 +1466,38 @@ class ProxmoxRepository(
         FirewallSnapshot(scope = "cluster", options = options, rules = rules, aliases = aliases)
     }
 
+    suspend fun setClusterFirewallEnable(
+        enable: Boolean,
+        digest: String? = null,
+    ): Result<Unit> = apiCall { api ->
+        api.setClusterFirewallOptions(if (enable) 1 else 0, digest)
+        Unit
+    }
+
     suspend fun loadNodeFirewall(node: String): Result<FirewallSnapshot> = apiCall { api ->
-        val options = runCatching { api.nodeFirewallOptions(node).data.orEmpty() }
-            .getOrDefault(emptyMap())
+        val options = api.nodeFirewallOptions(node).data.orEmpty()
         val rules = runCatching { api.nodeFirewallRules(node).data.orEmpty() }
             .getOrDefault(emptyList())
             .map { FirewallRule.fromMap(it) }
         FirewallSnapshot(scope = "node/$node", options = options, rules = rules, aliases = emptyList())
+    }
+
+    suspend fun setNodeFirewallEnable(
+        node: String,
+        enable: Boolean,
+        digest: String? = null,
+    ): Result<Unit> = apiCall { api ->
+        api.setNodeFirewallOptions(node, if (enable) 1 else 0, digest)
+        Unit
+    }
+
+    suspend fun nodeSyslog(
+        node: String,
+        start: Int? = null,
+        limit: Int? = null,
+    ): Result<List<ClusterLogEntry>> = apiCall { api ->
+        val rows = api.nodeSyslog(node, start, limit).data.orEmpty()
+        rows.map { ClusterLogEntry.fromSyslogMap(node, it) }
     }
 
     private suspend fun <T> apiCall(block: suspend (com.pxmx.app.data.api.ProxmoxApi) -> T): Result<T> {

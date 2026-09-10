@@ -2,6 +2,9 @@ package com.pxmx.app.ui.log
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -33,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +49,7 @@ import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.logSeverityColor
+import com.pxmx.app.ui.components.techTopAppBarColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,12 +67,15 @@ fun LogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = techTopAppBarColors(),
                 title = {
+                    val scopeLabel = if (state.selectedScope == "cluster") "CLUSTER SYSLOG"
+                    else "NODE ${state.selectedScope.uppercase()} SYSLOG"
                     Column {
                         Text("Logs")
                         Text(
-                            if (state.logs.isEmpty()) "CLUSTER SYSLOG"
-                            else "${state.logs.size} ENTRIES · CLUSTER SYSLOG",
+                            if (state.logs.isEmpty()) scopeLabel
+                            else "${state.logs.size} ENTRIES · $scopeLabel",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 0.8.sp,
@@ -113,6 +123,30 @@ fun LogScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                // Scope selector (CLUSTER / NODES)
+                item(key = "scope-selector") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val isClusterSelected = state.selectedScope == "cluster"
+                        ScopeTab(
+                            label = "CLUSTER",
+                            selected = isClusterSelected,
+                            onClick = { viewModel.selectScope("cluster") },
+                        )
+                        state.nodeNames.forEach { nodeName ->
+                            val isNodeSelected = state.selectedScope == nodeName
+                            ScopeTab(
+                                label = "NODE: ${nodeName.uppercase()}",
+                                selected = isNodeSelected,
+                                onClick = { viewModel.selectScope(nodeName) },
+                            )
+                        }
+                    }
+                }
                 state.error?.let { err ->
                     item(key = "error-header") {
                         TechPlate(railColor = MaterialTheme.colorScheme.error) {
@@ -239,4 +273,29 @@ private fun formatLogTime(epochSec: Long?): String {
     if (epochSec == null || epochSec <= 0) return "—"
     val sdf = SimpleDateFormat("HH:mm:ss", Locale.US)
     return sdf.format(Date(epochSec * 1000L))
+}
+
+@Composable
+private fun ScopeTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = CutCornerShape(bottomEnd = 8.dp)
+    val border = if (selected) MaterialTheme.colorScheme.primary else TechColors.Edge
+    val bg = if (selected) TechColors.Deck else TechColors.Hull
+    Text(
+        text = label,
+        style = MaterialTheme.typography.titleSmall,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, border, shape)
+            .background(bg, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
 }

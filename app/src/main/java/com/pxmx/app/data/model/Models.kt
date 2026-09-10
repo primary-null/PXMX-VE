@@ -384,4 +384,21 @@ data class ClusterLogEntry(
 ) {
     val stableKey: String
         get() = id ?: "${time ?: 0}_${node.orEmpty()}_${pid ?: 0}_${tag.orEmpty()}_${msg.orEmpty().hashCode()}"
+
+    companion object {
+        fun fromSyslogMap(node: String, m: Map<String, Any>): ClusterLogEntry {
+            val line = MapParse.str(m, "t", "msg") ?: ""
+            val n = MapParse.long(m, "n")
+            return ClusterLogEntry(
+                id = n?.let { "${node}_$it" },
+                node = node,
+                msg = line,
+                time = MapParse.long(m, "time"),
+                pri = MapParse.int(m, "pri"),
+                tag = MapParse.str(m, "tag"),
+                user = MapParse.str(m, "user"),
+                pid = MapParse.long(m, "pid"),
+            )
+        }
+    }
 }
