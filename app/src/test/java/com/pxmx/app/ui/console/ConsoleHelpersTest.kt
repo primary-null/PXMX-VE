@@ -277,4 +277,13 @@ class ConsoleHelpersTest {
         assertFalse(headers.containsKey("Content-Length"))
         assertFalse(headers.containsKey("Transfer-Encoding"))
     }
+
+    @Test
+    fun testBuildFitScriptWideAndTall() {
+        val wideScript = ConsoleMimeUtils.buildFitScript(wide = true)
+        assertTrue(wideScript.contains("height: 100vh !important;"))
+
+        val tallScript = ConsoleMimeUtils.buildFitScript(wide = false)
+        assertTrue(tallScript.contains("height: 92vh !important;"))
+    }
 }

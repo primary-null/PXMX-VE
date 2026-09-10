@@ -107,6 +107,9 @@ fun HomeScreen(
     onOpenUpdates: () -> Unit = {},
     onLogout: () -> Unit,
     onSwitchAccount: () -> Unit,
+    canOfferNodeShell: Boolean = false,
+    onOpenNodeShell: ((node: String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
@@ -203,6 +206,7 @@ fun HomeScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         bottomBar = {
             SystemLogStrip(
                 entry = latestLog,
@@ -458,6 +462,50 @@ fun HomeScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
+                            if (canOfferNodeShell && onOpenNodeShell != null) {
+                                val firstNode = state.resources.firstOrNull { it.type == "node" }?.node
+                                    ?: state.resources.firstOrNull { it.node != null }?.node
+                                    ?: state.site?.nodeName
+                                if (firstNode != null) {
+                                    item(key = "tabletop-node-shell") {
+                                        TechPlate(
+                                            railColor = TechColors.CoolBlue,
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { onOpenNodeShell(firstNode) }
+                                                    .padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                                    Text(
+                                                        text = "TABLETOP · NODE SHELL",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.sp,
+                                                        color = TechColors.CoolBlue,
+                                                    )
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = "Open $firstNode host terminal (xterm.js)",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                                TechActionPlate(
+                                                    label = "Open",
+                                                    onClick = { onOpenNodeShell(firstNode) },
+                                                    emphasized = true,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if (visibleRows.isEmpty() && !state.loading) {
                                 item {
                                     Text(

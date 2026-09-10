@@ -59,8 +59,19 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.pxmx.app.data.api.CertUtils
 import com.pxmx.app.data.model.ConsoleSession
+import com.pxmx.app.ui.adaptive.isWideViewport
+import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.TechDeck
+import com.pxmx.app.ui.components.TechPlate
+import com.pxmx.app.ui.components.TechStatusPlate
 import com.pxmx.app.ui.components.techTopAppBarColors
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.util.findActivity
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -86,14 +97,14 @@ fun ConsoleScreen(
     trustSelfSigned: Boolean,
     expectedCertPin: String? = null,
     onBack: () -> Unit,
+    isTabletop: Boolean = false,
 ) {
     val configuration = LocalConfiguration.current
-    val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isWide = isWideViewport(configuration.screenWidthDp, configuration.screenHeightDp)
     var immersive by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
-    var webView by remember { mutableStateOf<WebView?>(null) }
     val allowedHost = remember(session.cookieHostUrl) {
         val h = Uri.parse(session.cookieHostUrl).host
         if (h.isNullOrBlank() || h.equals("demo", ignoreCase = true)) "demo" else h
@@ -182,278 +193,183 @@ fun ConsoleScreen(
         onBack()
     }
 
-    DisposableEffect(Unit) {
+    // Allocate one WebView instance per ConsoleScreen session to survive recompositions and layout switches.
+    val webViewInstance = remember(session) {
+        WebView(context).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            setBackgroundColor(Color.BLACK)
+            settings.javaScriptEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.domStorageEnabled = true
+            settings.databaseEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            // Console is always HTTPS to the same PVE host; never allow cleartext mix-in.
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
+            settings.setSupportZoom(true)
+            // Let remote desktop scale; pinch still available
+            settings.defaultZoom = WebSettings.ZoomDensity.FAR
+            @Suppress("DEPRECATION")
+            settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+
+            val cm = CookieManager.getInstance()
+            cm.setAcceptCookie(true)
+            cm.setAcceptThirdPartyCookies(this, false)
+            cm.setCookie(
+                session.cookieHostUrl,
+                "PVEAuthCookie=${session.pveAuthCookie}; Path=/; Secure",
+            )
+            cm.flush()
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    progress = newProgress / 100f
+                    loading = newProgress < 100
+                }
+            }
+            webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    loading = true
+                    errorText = null
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    loading = false
+                    view?.let { injectFitScript(it, isWide) }
+                }
+
+                @SuppressLint("WebViewClientOnReceivedSslError")
+                override fun onReceivedSslError(
+                    view: WebView?,
+                    handler: SslErrorHandler?,
+                    errorSsl: SslError?,
+                ) {
+                    // Guard for any direct load the interceptor did not cover.
+                    val sslCert = errorSsl?.certificate
+                    val x509Cert = sslCert?.let { CertUtils.getX509Certificate(it) }
+                    val presentedFp = x509Cert?.let { CertUtils.computeSha256Fingerprint(it) }
+
+                    if (trustSelfSigned && presentedFp != null && expectedCertPin != null &&
+                        CertUtils.normalizeFingerprint(presentedFp) == CertUtils.normalizeFingerprint(expectedCertPin)
+                    ) {
+                        handler?.proceed()
+                    } else {
+                        handler?.cancel()
+                        loading = false
+                        errorText = when {
+                            !trustSelfSigned -> "TLS error: untrusted certificate (enable Trust self-signed on login)"
+                            expectedCertPin == null -> "TLS error: certificate pin not found for host"
+                            presentedFp != null && CertUtils.normalizeFingerprint(presentedFp) != CertUtils.normalizeFingerprint(expectedCertPin) ->
+                                "Certificate changed for host — possible MITM attack! (pinned: $expectedCertPin, presented: $presentedFp)"
+                            else -> "TLS error: ${errorSsl?.primaryError ?: "Untrusted certificate"}"
+                        }
+                    }
+                }
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                ): Boolean {
+                    val url = request?.url
+                    return url != null && url.scheme != "data" && url.host != allowedHost && allowedHost != "demo"
+                }
+
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                ): WebResourceResponse? {
+                    val reqUrl = request?.url ?: return null
+                    val reqStr = reqUrl.toString()
+                    if (reqUrl.scheme != "https" || !reqStr.startsWith(session.cookieHostUrl)) {
+                        return null
+                    }
+                    if (request.method != "GET" && request.method != "HEAD") {
+                        return null
+                    }
+                    return try {
+                        val rb = Request.Builder().url(reqStr)
+                        request.requestHeaders.forEach { (k, v) ->
+                            if (!k.equals("Cookie", ignoreCase = true)) rb.addHeader(k, v)
+                        }
+                        rb.addHeader("Cookie", "PVEAuthCookie=${session.pveAuthCookie}")
+                        fetchClient.newCall(rb.build()).execute().use { resp ->
+                            val rawBody = resp.body?.bytes() ?: byteArrayOf()
+                            val rawContentType = resp.header("Content-Type")
+                            val mime = ConsoleMimeUtils.coerceMimeType(reqStr, rawContentType)
+                            val encoding = ConsoleMimeUtils.extractCharset(rawContentType)
+                            val headers = ConsoleMimeUtils.buildResponseHeaders(
+                                resp.headers.map { it.first to it.second },
+                                mime,
+                                encoding,
+                            )
+                            WebResourceResponse(
+                                mime,
+                                encoding,
+                                resp.code,
+                                resp.message.ifBlank { "OK" },
+                                headers,
+                                ByteArrayInputStream(rawBody),
+                            )
+                        }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (session.pageUrl.startsWith("data:")) {
+                val html = try {
+                    java.net.URLDecoder.decode(
+                        session.pageUrl.removePrefix("data:text/html;charset=utf-8,").removePrefix("data:text/html,"),
+                        "UTF-8",
+                    )
+                } catch (_: Exception) {
+                    session.pageUrl
+                }
+                loadDataWithBaseURL("https://demo:8006", html, "text/html", "UTF-8", null)
+            } else {
+                loadUrl(session.pageUrl)
+            }
+        }
+    }
+
+    DisposableEffect(session) {
         onDispose {
             runCatching {
                 val cm = CookieManager.getInstance()
                 cm.setCookie(session.cookieHostUrl, "PVEAuthCookie=; Max-Age=0; Path=/")
                 cm.flush()
             }
-            webView?.apply {
-                stopLoading()
-                // destroy() lives in AndroidView.onRelease so it runs after
-                // the view is detached from the hierarchy.
-            }
+            webViewInstance.stopLoading()
+            webViewInstance.destroy()
         }
     }
 
-    // Re-apply fit when rotating
-    LaunchedEffect(landscape, immersive, webView) {
-        webView?.let { injectFitScript(it, landscape) }
+    // Re-apply fit when rotating or sizing
+    LaunchedEffect(isWide, immersive) {
+        injectFitScript(webViewInstance, isWide)
     }
 
-    Scaffold(
-        topBar = {
-            if (!immersive) {
-                TopAppBar(
-                    colors = techTopAppBarColors(),
-                    title = {
-                        Column {
-                            Text("Console · ${session.name}")
-                            Text(
-                                buildString {
-                                    append(session.guestType.label)
-                                    append(" ")
-                                    append(session.vmid)
-                                    append(" · ")
-                                    append(session.node)
-                                    append(if (landscape) " · landscape" else " · portrait")
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            userOrientation = if (landscape) {
-                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                            } else {
-                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                            }
-                        }) {
-                            Icon(Icons.Default.ScreenRotation, contentDescription = "Rotate Screen")
-                        }
-                        IconButton(onClick = { immersive = !immersive }) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen")
-                        }
-                        IconButton(onClick = {
-                            webView?.reload()
-                        }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Reload")
-                        }
-                    },
-                )
-            }
-        },
-    ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .then(if (immersive) Modifier else Modifier.padding(padding)),
-        ) {
-            if (immersive) {
-                Row(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp),
-                ) {
-                    IconButton(onClick = {
-                        userOrientation = if (landscape) {
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                        } else {
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.ScreenRotation,
-                            contentDescription = "Rotate Screen",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    IconButton(onClick = { immersive = false }) {
-                        Icon(
-                            Icons.Default.Fullscreen,
-                            contentDescription = "Show toolbar",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
+    @Composable
+    fun ConsoleWebViewBox(modifier: Modifier = Modifier) {
+        Box(modifier = modifier) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    WebView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                        )
-                        setBackgroundColor(Color.BLACK)
-                        settings.javaScriptEnabled = true
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        settings.domStorageEnabled = true
-                        settings.databaseEnabled = true
-                        settings.mediaPlaybackRequiresUserGesture = false
-                        // Console is always HTTPS to the same PVE host; never allow cleartext mix-in.
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
-                        settings.builtInZoomControls = true
-                        settings.displayZoomControls = false
-                        settings.setSupportZoom(true)
-                        // Let remote desktop scale; pinch still available
-                        settings.defaultZoom = WebSettings.ZoomDensity.FAR
-                        @Suppress("DEPRECATION")
-                        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-
-                        val cm = CookieManager.getInstance()
-                        cm.setAcceptCookie(true)
-                        cm.setAcceptThirdPartyCookies(this, false)
-                        cm.setCookie(
-                            session.cookieHostUrl,
-                            "PVEAuthCookie=${session.pveAuthCookie}; Path=/; Secure",
-                        )
-                        cm.flush()
-
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                progress = newProgress / 100f
-                                loading = newProgress < 100
-                            }
-                        }
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                loading = true
-                                errorText = null
-                            }
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                loading = false
-                                view?.let { injectFitScript(it, landscape) }
-                            }
-
-                            @SuppressLint("WebViewClientOnReceivedSslError")
-                            override fun onReceivedSslError(
-                                view: WebView?,
-                                handler: SslErrorHandler?,
-                                errorSsl: SslError?,
-                            ) {
-                                // Guard for any direct load the interceptor did not cover.
-                                val sslCert = errorSsl?.certificate
-                                val x509Cert = sslCert?.let { CertUtils.getX509Certificate(it) }
-                                val presentedFp = x509Cert?.let { CertUtils.computeSha256Fingerprint(it) }
-
-                                if (trustSelfSigned && presentedFp != null && expectedCertPin != null &&
-                                    CertUtils.normalizeFingerprint(presentedFp) == CertUtils.normalizeFingerprint(expectedCertPin)
-                                ) {
-                                    handler?.proceed()
-                                } else {
-                                    handler?.cancel()
-                                    loading = false
-                                    errorText = when {
-                                        !trustSelfSigned -> "TLS error: untrusted certificate (enable Trust self-signed on login)"
-                                        expectedCertPin == null -> "TLS error: certificate pin not found for host"
-                                        presentedFp != null && CertUtils.normalizeFingerprint(presentedFp) != CertUtils.normalizeFingerprint(expectedCertPin) ->
-                                            "Certificate changed for host — possible MITM attack! (pinned: $expectedCertPin, presented: $presentedFp)"
-                                        else -> "TLS error: ${errorSsl?.primaryError ?: "Untrusted certificate"}"
-                                    }
-                                }
-                            }
-
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                            ): Boolean {
-                                val url = request?.url
-                                return url != null && url.scheme != "data" && url.host != allowedHost && allowedHost != "demo"
-                            }
-
-                            override fun shouldInterceptRequest(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                            ): WebResourceResponse? {
-                                val reqUrl = request?.url ?: return null
-                                val reqStr = reqUrl.toString()
-                                if (reqUrl.scheme != "https" || !reqStr.startsWith(session.cookieHostUrl)) {
-                                    return null
-                                }
-                                // WebResourceRequest does not expose request bodies, so POSTs
-                                // cannot be proxied; let the WebView send them natively (the
-                                // SSL-proceed path handles the self-signed handshake).
-                                if (request.method != "GET" && request.method != "HEAD") {
-                                    return null
-                                }
-                                return try {
-                                    val rb = Request.Builder().url(reqStr)
-                                    request.requestHeaders.forEach { (k, v) ->
-                                        if (!k.equals("Cookie", ignoreCase = true)) rb.addHeader(k, v)
-                                    }
-                                    rb.addHeader("Cookie", "PVEAuthCookie=${session.pveAuthCookie}")
-                                    fetchClient.newCall(rb.build()).execute().use { resp ->
-                                        val rawBody = resp.body?.bytes() ?: byteArrayOf()
-                                        val rawContentType = resp.header("Content-Type")
-                                        val mime = ConsoleMimeUtils.coerceMimeType(reqStr, rawContentType)
-                                        val encoding = ConsoleMimeUtils.extractCharset(rawContentType)
-                                        val headers = ConsoleMimeUtils.buildResponseHeaders(
-                                            resp.headers.map { it.first to it.second },
-                                            mime,
-                                            encoding,
-                                        )
-                                        WebResourceResponse(
-                                            mime,
-                                            encoding,
-                                            resp.code,
-                                            resp.message.ifBlank { "OK" },
-                                            headers,
-                                            ByteArrayInputStream(rawBody),
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            }
-                        }
-
-                        if (session.pageUrl.startsWith("data:")) {
-                            val html = try {
-                                java.net.URLDecoder.decode(
-                                    session.pageUrl.removePrefix("data:text/html;charset=utf-8,").removePrefix("data:text/html,"),
-                                    "UTF-8",
-                                )
-                            } catch (_: Exception) {
-                                session.pageUrl
-                            }
-                            loadDataWithBaseURL("https://demo:8006", html, "text/html", "UTF-8", null)
-                        } else {
-                            loadUrl(session.pageUrl)
-                        }
-                        webView = this
-                    }
+                factory = { _ ->
+                    (webViewInstance.parent as? ViewGroup)?.removeView(webViewInstance)
+                    webViewInstance
                 },
                 update = { view ->
-                    // Orientation change — re-fit without full reload
-                    injectFitScript(view, landscape)
+                    injectFitScript(view, isWide)
                 },
-                onRelease = { view ->
-                    view.stopLoading()
-                    view.destroy()
-                },
+                onRelease = { _ -> },
             )
 
             if (loading) {
@@ -478,115 +394,212 @@ fun ConsoleScreen(
             }
         }
     }
+
+    if (isTabletop) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black),
+        ) {
+            // Upper region: terminal / guest display above the fold
+            ConsoleWebViewBox(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            )
+
+            // Lower region: top-bar actions below the fold
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(TechColors.Hull)
+                    .padding(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "CONSOLE · ${session.name.uppercase()}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            TechStatusPlate(status = if (loading) "CONNECTING" else "ONLINE")
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = buildString {
+                                append(session.guestType.label)
+                                append(" ")
+                                append(session.vmid)
+                                append(" · ")
+                                append(session.node)
+                                append(if (isWide) " · wide" else " · portrait")
+                                append(" · tabletop")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    TechDeck(
+                        modifier = Modifier.fillMaxWidth(),
+                        showAccentBar = true,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TechActionPlate(
+                                label = "Back",
+                                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                                onClick = onBack,
+                            )
+                            TechActionPlate(
+                                label = "Rotate",
+                                icon = Icons.Default.ScreenRotation,
+                                onClick = {
+                                    userOrientation = if (isWide) {
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                    } else {
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                    }
+                                },
+                            )
+                            TechActionPlate(
+                                label = if (immersive) "Window" else "Full",
+                                icon = Icons.Default.Fullscreen,
+                                onClick = { immersive = !immersive },
+                                emphasized = immersive,
+                            )
+                            TechActionPlate(
+                                label = "Reload",
+                                icon = Icons.Default.Refresh,
+                                onClick = { webViewInstance.reload() },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        Scaffold(
+            topBar = {
+                if (!immersive) {
+                    TopAppBar(
+                        colors = techTopAppBarColors(),
+                        title = {
+                            Column {
+                                Text("Console · ${session.name}")
+                                Text(
+                                    buildString {
+                                        append(session.guestType.label)
+                                        append(" ")
+                                        append(session.vmid)
+                                        append(" · ")
+                                        append(session.node)
+                                        append(if (isWide) " · wide" else " · portrait")
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                userOrientation = if (isWide) {
+                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                } else {
+                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                }
+                            }) {
+                                Icon(Icons.Default.ScreenRotation, contentDescription = "Rotate Screen")
+                            }
+                            IconButton(onClick = { immersive = !immersive }) {
+                                Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen")
+                            }
+                            IconButton(onClick = {
+                                webViewInstance.reload()
+                            }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reload")
+                            }
+                        },
+                    )
+                }
+            },
+        ) { padding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .then(if (immersive) Modifier else Modifier.padding(padding)),
+            ) {
+                ConsoleWebViewBox(modifier = Modifier.fillMaxSize())
+
+                if (immersive) {
+                    Row(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp),
+                    ) {
+                        IconButton(onClick = {
+                            userOrientation = if (isWide) {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                            } else {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.ScreenRotation,
+                                contentDescription = "Rotate Screen",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = { immersive = false }) {
+                            Icon(
+                                Icons.Default.Fullscreen,
+                                contentDescription = "Show toolbar",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
  * Inject CSS/JS so noVNC / xterm scale into the phone viewport.
- * Portrait: fit width. Landscape: fill available area.
+ * Wide: fill available area. Tall: fit width.
  */
-private fun injectFitScript(webView: WebView, landscape: Boolean) {
-    val maxH = if (landscape) "100vh" else "92vh"
-    val js = """
-        (function() {
-          try {
-            var cssId = 'pve-mobile-fit';
-            var old = document.getElementById(cssId);
-            if (old) old.remove();
-            var style = document.createElement('style');
-            style.id = cssId;
-            style.textContent = `
-              html, body {
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 100% !important;
-                height: 100% !important;
-                overflow: hidden !important;
-                background: #000 !important;
-              }
-              /* Hide bulky PVE chrome when possible */
-              .pve-console-controls, #pve-console-toolbar { max-height: 36px !important; }
-              #noVNC_container {
-                width: 100vw !important;
-                height: 100% !important;
-              }
-              #noVNC_screen, #noVNC_canvas_area {
-                width: 100% !important;
-                height: 100% !important;
-                max-width: 100vw !important;
-                max-height: 100vh !important;
-              }
-              #terminal-container, .xterm, .xterm-viewport, .xterm-screen {
-                width: 100% !important;
-                height: ${maxH} !important;
-                max-width: 100vw !important;
-              }
-            `;
-            document.head.appendChild(style);
-
-            // Hide noVNC fullscreen button (WebView doesn't support it + we have our own)
-            try {
-              var fs = document.getElementById('noVNC_fullscreen_button');
-              if (fs) fs.style.display = 'none';
-            } catch(e) {}
-
-            // Shim Fullscreen API to prevent errors
-            if (!Element.prototype.requestFullscreen) {
-              Element.prototype.requestFullscreen = function() { return Promise.resolve(); };
-            }
-            if (!document.exitFullscreen) {
-              document.exitFullscreen = function() { return Promise.resolve(); };
-            }
-
-            // Engage noVNC native scaling if present
-            var tries = 0;
-            var iv = setInterval(function() {
-              tries++;
-              try {
-                if (window.UI && UI.rfb) {
-                  UI.setSetting('resize', 'scale');
-                  UI.applyResizeMode();
-                  window.dispatchEvent(new Event('resize'));
-                }
-              } catch(e) {}
-              if (tries > 40) {
-                clearInterval(iv);
-              }
-            }, 500);
-            setTimeout(function() { clearInterval(iv); }, 20000);
-
-            window.addEventListener('resize', function() {
-              try {
-                if (window.UI && UI.rfb) {
-                  UI.applyResizeMode();
-                }
-              } catch(e) {}
-            });
-
-            function fallbackScale() {
-              if (window.UI && UI.rfb) return;
-              var canvas = document.querySelector('canvas');
-              if (!canvas) return;
-              var vw = window.innerWidth || document.documentElement.clientWidth;
-              var vh = window.innerHeight || document.documentElement.clientHeight;
-              var cw = canvas.width || canvas.clientWidth || 1;
-              var ch = canvas.height || canvas.clientHeight || 1;
-              var scale = Math.min(vw / cw, vh / ch);
-              if (!isFinite(scale) || scale <= 0) scale = 1;
-              // Portrait: prefer fit-width if height allows slight letterbox
-              if (vw < vh) {
-                scale = Math.min(vw / cw, (vh * 0.92) / ch);
-              }
-              canvas.style.transformOrigin = 'top left';
-              canvas.style.transform = 'scale(' + scale + ')';
-              if (canvas.parentElement) {
-                canvas.parentElement.style.width = (cw * scale) + 'px';
-                canvas.parentElement.style.height = (ch * scale) + 'px';
-                canvas.parentElement.style.overflow = 'hidden';
-                canvas.parentElement.style.margin = '0 auto';
-              }
-            }
-          } catch (e) {}
-        })();
-    """.trimIndent()
-    webView.evaluateJavascript(js, null)
+private fun injectFitScript(webView: WebView, wide: Boolean) {
+    webView.evaluateJavascript(ConsoleMimeUtils.buildFitScript(wide), null)
 }
+
