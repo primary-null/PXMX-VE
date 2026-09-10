@@ -18,6 +18,13 @@ class AdaptiveLayoutTest {
     }
 
     @Test
+    fun testLoginTwoPaneWidthBreakpoints() {
+        assertFalse("widthDp 320: not two-pane (cover login stacked)", isOperatorTwoPane(320))
+        assertTrue("widthDp 600: two-pane (inner login split)", isOperatorTwoPane(600))
+        assertTrue("widthDp 800: two-pane (inner login split)", isOperatorTwoPane(800))
+    }
+
+    @Test
     fun testIsWideViewport() {
         assertFalse("1768x2208 should not be wide (tall portrait)", isWideViewport(1768, 2208))
         assertTrue("2208x1768 should be wide (landscape)", isWideViewport(2208, 1768))
