@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -367,3 +370,90 @@ fun TechMetaLine(label: String, value: String) {
         )
     }
 }
+
+@Composable
+fun TechDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier.border(1.dp, TechColors.Edge, TechPlateShape),
+        shape = TechPlateShape,
+        containerColor = TechColors.Hull,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+        content = content,
+    )
+}
+
+@Composable
+fun TechMenuHeader(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontFamily = FontFamily.Monospace,
+        letterSpacing = 1.sp,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+fun TechMenuItem(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    hint: String? = null,
+    selected: Boolean = false,
+    danger: Boolean = false,
+    enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    val color = when {
+        !enabled -> TechColors.Mute
+        danger -> TechColors.Danger
+        selected -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    DropdownMenuItem(
+        modifier = modifier,
+        enabled = enabled,
+        text = {
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp,
+                    color = color,
+                )
+                if (hint != null) {
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TechColors.Mute,
+                    )
+                }
+            }
+        },
+        leadingIcon = leadingIcon?.let {
+            {
+                Icon(it, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            }
+        },
+        trailingIcon = trailing,
+        onClick = onClick,
+        colors = MenuDefaults.itemColors(
+            textColor = color,
+            leadingIconColor = color,
+            disabledTextColor = TechColors.Mute,
+        ),
+    )
+}
+

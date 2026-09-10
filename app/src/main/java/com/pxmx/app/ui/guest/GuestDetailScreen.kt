@@ -92,7 +92,10 @@ import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
+import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechIconBay
+import com.pxmx.app.ui.components.TechMenuHeader
+import com.pxmx.app.ui.components.TechMenuItem
 import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechStatusPlate
@@ -120,8 +123,12 @@ fun GuestDetailScreen(
     val running = st?.status == "running"
     val busy = state.actionInProgress != null
     var powerMenu by remember { mutableStateOf(false) }
+    var pendingDanger by remember { mutableStateOf<GuestAction?>(null) }
 
     // Back handling ordering: modal dialogs/menus close first, then pop screen back to Home
+    BackHandler(enabled = pendingDanger != null) {
+        pendingDanger = null
+    }
     BackHandler(enabled = powerMenu) {
         powerMenu = false
     }
@@ -214,20 +221,37 @@ fun GuestDetailScreen(
                         ) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Actions")
                         }
-                        DropdownMenu(
+                        TechDropdownMenu(
                             expanded = powerMenu,
                             onDismissRequest = {
                                 powerMenu = false
                                 com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
                             },
                         ) {
+                            TechMenuHeader("PWR · ${(st?.status ?: "unknown")}")
+                            if (running) {
+                                TechMenuItem(
+                                    label = "Console",
+                                    hint = "noVNC / xterm",
+                                    leadingIcon = Icons.Default.Computer,
+                                    onClick = {
+                                        powerMenu = false
+                                        onOpenConsole()
+                                    },
+                                )
+                            }
                             availableActions(state.guestType, running, st?.status).forEach { action ->
-                                DropdownMenuItem(
-                                    text = { Text(action.label) },
+                                val danger = action == GuestAction.STOP || action == GuestAction.RESET
+                                TechMenuItem(
+                                    label = action.label,
+                                    hint = powerHint(action),
+                                    danger = danger,
+                                    enabled = !busy,
                                     onClick = {
                                         powerMenu = false
                                         com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
-                                        viewModel.runPowerAction(action)
+                                        if (danger) pendingDanger = action
+                                        else viewModel.runPowerAction(action)
                                     },
                                 )
                             }
@@ -502,6 +526,33 @@ fun GuestDetailScreen(
             onConfirm = { viewModel.deleteBackup(vol) },
         )
     }
+    pendingDanger?.let { action ->
+        ConfirmDialog(
+            title = "${action.label}?",
+            body = when (action) {
+                GuestAction.STOP -> "Hard power off. Unsaved work in the guest may be lost."
+                GuestAction.RESET -> "Cycle power immediately. Same risk as a reset button."
+                else -> "Run ${action.label}?"
+            },
+            confirm = action.label,
+            onDismiss = { pendingDanger = null },
+            onConfirm = {
+                val run = action
+                pendingDanger = null
+                viewModel.runPowerAction(run)
+            },
+        )
+    }
+}
+
+private fun powerHint(action: GuestAction): String = when (action) {
+    GuestAction.START -> "boot the guest"
+    GuestAction.SHUTDOWN -> "ACPI poweroff"
+    GuestAction.STOP -> "hard power off"
+    GuestAction.REBOOT -> "ACPI reboot"
+    GuestAction.RESET -> "cycle power now"
+    GuestAction.SUSPEND -> "pause / hibernate"
+    GuestAction.RESUME -> "continue"
 }
 
 @Composable
