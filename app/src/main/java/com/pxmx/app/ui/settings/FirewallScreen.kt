@@ -306,10 +306,7 @@ fun FirewallScreen(
                             onToggle = {
                                 val isEnabling = !currentSnap.enabled
                                 val isCluster = state.selectedTarget == "cluster"
-                                val hasEnabledAcceptRule = currentSnap.rules.any {
-                                    it.enable && it.action.equals("ACCEPT", ignoreCase = true)
-                                }
-                                if (isEnabling && isCluster && !hasEnabledAcceptRule) {
+                                if (isEnabling && isCluster && !currentSnap.hasInbound8006Accept) {
                                     showRefusalDialog = true
                                 } else {
                                     showConfirmDialog = true

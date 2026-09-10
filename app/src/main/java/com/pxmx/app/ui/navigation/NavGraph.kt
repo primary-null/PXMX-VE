@@ -78,6 +78,10 @@ import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.adaptive.isOperatorTwoPane
 import com.pxmx.app.ui.adaptive.isTabletop
 import com.pxmx.app.ui.adaptive.SettingsPaneSelection
+import com.pxmx.app.ui.adaptive.DetailPaneSelection
+import com.pxmx.app.ui.adaptive.DetailPaneSelectionSaver
+import com.pxmx.app.ui.adaptive.restoreDetailPaneSelection
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.collectFoldingFeaturesAsState
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -136,59 +140,12 @@ object Routes {
     }
 }
 
-sealed interface DetailPaneSelection {
-    data class Guest(val node: String, val type: String, val vmid: Long, val name: String) : DetailPaneSelection
-    data class Node(val node: String) : DetailPaneSelection
-    data class Storage(val node: String, val storage: String) : DetailPaneSelection
-}
-
-val DetailPaneSelectionSaver: Saver<DetailPaneSelection?, Any> = Saver(
-    save = { sel ->
-        when (sel) {
-            is DetailPaneSelection.Guest -> mapOf(
-                "kind" to "guest",
-                "node" to sel.node,
-                "type" to sel.type,
-                "vmid" to sel.vmid,
-                "name" to sel.name,
-            )
-            is DetailPaneSelection.Node -> mapOf(
-                "kind" to "node",
-                "node" to sel.node,
-            )
-            is DetailPaneSelection.Storage -> mapOf(
-                "kind" to "storage",
-                "node" to sel.node,
-                "storage" to sel.storage,
-            )
-            null -> emptyMap<String, Any>()
-        }
-    },
-    restore = { value ->
-        val map = value as? Map<*, *> ?: return@Saver null
-        when (map["kind"] as? String) {
-            "guest" -> DetailPaneSelection.Guest(
-                node = map["node"] as String,
-                type = map["type"] as String,
-                vmid = (map["vmid"] as Number).toLong(),
-                name = map["name"] as String,
-            )
-            "node" -> DetailPaneSelection.Node(
-                node = map["node"] as String,
-            )
-            "storage" -> DetailPaneSelection.Storage(
-                node = map["node"] as String,
-                storage = map["storage"] as String,
-            )
-            else -> null
-        }
-    }
-)
-
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun ProxmoxNavGraph() {
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
     val app = LocalContext.current.applicationContext as ProxmoxApp
     var splashStatus by remember { mutableStateOf("Starting…") }
 
@@ -213,13 +170,13 @@ fun ProxmoxNavGraph() {
     }
 
     // Back handler on two-pane Settings: clear tool selection first before popping Settings
-    BackHandler(enabled = isTwoPane && selectedSettingsPane != null && navController.currentDestination?.route == Routes.SETTINGS) {
+    BackHandler(enabled = isTwoPane && selectedSettingsPane != null && currentRoute == Routes.SETTINGS) {
         selectedSettingsPane = null
     }
 
     // If folding back down to compact while a detail was selected in two-pane, push it onto nav stack
-    LaunchedEffect(isTwoPane) {
-        if (!isTwoPane && selectedDetail != null && navController.currentDestination?.route == Routes.HOME) {
+    LaunchedEffect(isTwoPane, currentRoute) {
+        if (!isTwoPane && selectedDetail != null && currentRoute == Routes.HOME) {
             val sel = selectedDetail
             selectedDetail = null
             when (sel) {
@@ -229,7 +186,7 @@ fun ProxmoxNavGraph() {
                 null -> Unit
             }
         }
-        if (!isTwoPane && selectedSettingsPane != null && navController.currentDestination?.route == Routes.SETTINGS) {
+        if (!isTwoPane && selectedSettingsPane != null && currentRoute == Routes.SETTINGS) {
             val pane = selectedSettingsPane
             selectedSettingsPane = null
             when (pane) {

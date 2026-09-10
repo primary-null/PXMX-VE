@@ -166,7 +166,6 @@ fun LoginScreen(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .statusBarsPadding()
                     .navigationBarsPadding()
                     .imePadding()
                     .padding(horizontal = 24.dp)
