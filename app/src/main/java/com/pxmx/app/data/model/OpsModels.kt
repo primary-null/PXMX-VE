@@ -255,6 +255,9 @@ data class FirewallSnapshot(
             is String -> e == "1" || e.equals("true", ignoreCase = true)
             else -> false
         }
+
+    val hasInbound8006Accept: Boolean
+        get() = rules.any { it.coversInbound8006() }
 }
 
 @Serializable
@@ -275,6 +278,15 @@ data class FirewallRule(
 ) {
     val hasLog: Boolean
         get() = log != null && !log.equals("nolog", ignoreCase = true) && !log.equals("none", ignoreCase = true)
+
+    fun coversInbound8006(): Boolean {
+        if (!enable) return false
+        if (!action.equals("ACCEPT", ignoreCase = true)) return false
+        val t = type?.trim()
+        if (!t.isNullOrEmpty() && !t.equals("in", ignoreCase = true)) return false
+        val ports = dport?.trim() ?: return false
+        return portMatchesOrCovers8006(ports)
+    }
 
     val summary: String
         get() = buildString {
@@ -304,6 +316,29 @@ data class FirewallRule(
             log = str(m, "log"),
         )
     }
+}
+
+private fun portMatchesOrCovers8006(ports: String): Boolean {
+    val tokens = ports.split(',', ';', ' ').map { it.trim() }.filter { it.isNotEmpty() }
+    for (token in tokens) {
+        if (token.contains(':') || token.contains('-')) {
+            val delimiter = if (token.contains(':')) ':' else '-'
+            val parts = token.split(delimiter).map { it.trim() }
+            if (parts.size == 2) {
+                val start = parts[0].toIntOrNull()
+                val end = parts[1].toIntOrNull()
+                if (start != null && end != null) {
+                    val minPort = minOf(start, end)
+                    val maxPort = maxOf(start, end)
+                    if (8006 in minPort..maxPort) return true
+                }
+            }
+        } else {
+            val port = token.toIntOrNull()
+            if (port == 8006) return true
+        }
+    }
+    return false
 }
 
 @Serializable

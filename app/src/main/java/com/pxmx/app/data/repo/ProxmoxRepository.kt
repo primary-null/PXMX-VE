@@ -1457,8 +1457,7 @@ class ProxmoxRepository(
     /** Datacenter firewall options + rules. */
     suspend fun loadClusterFirewall(): Result<FirewallSnapshot> = apiCall { api ->
         val options = api.clusterFirewallOptions().data.orEmpty()
-        val rules = runCatching { api.clusterFirewallRules().data.orEmpty() }
-            .getOrDefault(emptyList())
+        val rules = api.clusterFirewallRules().data.orEmpty()
             .map { FirewallRule.fromMap(it) }
         val aliases = runCatching { api.clusterFirewallAliases().data.orEmpty() }
             .getOrDefault(emptyList())

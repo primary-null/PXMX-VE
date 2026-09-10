@@ -138,4 +138,79 @@ class AdaptiveLayoutTest {
         assertTrue(session.pageUrl.contains("console=shell"))
         assertTrue(session.pageUrl.contains("xtermjs=1"))
     }
+
+    @Test
+    fun testDetailPaneSelectionSaverRestoreValid() {
+        val guestMap = mapOf(
+            "kind" to "guest",
+            "node" to "pve1",
+            "type" to "qemu",
+            "vmid" to 100L,
+            "name" to "vm100",
+        )
+        val restoredGuest = DetailPaneSelectionSaver.restore(guestMap)
+        assertTrue(restoredGuest is DetailPaneSelection.Guest)
+        val guest = restoredGuest as DetailPaneSelection.Guest
+        assertEquals("pve1", guest.node)
+        assertEquals("qemu", guest.type)
+        assertEquals(100L, guest.vmid)
+        assertEquals("vm100", guest.name)
+
+        // Test with Int vmid
+        val guestMapIntVmid = mapOf(
+            "kind" to "guest",
+            "node" to "pve1",
+            "type" to "lxc",
+            "vmid" to 101,
+            "name" to "ct101",
+        )
+        val restoredGuestInt = DetailPaneSelectionSaver.restore(guestMapIntVmid)
+        assertTrue(restoredGuestInt is DetailPaneSelection.Guest)
+        assertEquals(101L, (restoredGuestInt as DetailPaneSelection.Guest).vmid)
+
+        val nodeMap = mapOf(
+            "kind" to "node",
+            "node" to "pve2",
+        )
+        val restoredNode = DetailPaneSelectionSaver.restore(nodeMap)
+        assertTrue(restoredNode is DetailPaneSelection.Node)
+        assertEquals("pve2", (restoredNode as DetailPaneSelection.Node).node)
+
+        val storageMap = mapOf(
+            "kind" to "storage",
+            "node" to "pve1",
+            "storage" to "local-zfs",
+        )
+        val restoredStorage = DetailPaneSelectionSaver.restore(storageMap)
+        assertTrue(restoredStorage is DetailPaneSelection.Storage)
+        val storage = restoredStorage as DetailPaneSelection.Storage
+        assertEquals("pve1", storage.node)
+        assertEquals("local-zfs", storage.storage)
+    }
+
+    @Test
+    fun testDetailPaneSelectionSaverRestoreBadMapsReturnNull() {
+        // Not a map
+        assertNull(DetailPaneSelectionSaver.restore("not-a-map"))
+        assertNull(DetailPaneSelectionSaver.restore(12345))
+        assertNull(restoreDetailPaneSelection(null))
+        assertNull(DetailPaneSelectionSaver.restore(emptyMap<String, Any>()))
+
+        // Unknown kind
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "unknown", "node" to "pve1")))
+
+        // Guest missing required fields
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "guest", "type" to "qemu", "vmid" to 100L, "name" to "vm100")))
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "guest", "node" to "pve1", "vmid" to 100L, "name" to "vm100")))
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "guest", "node" to "pve1", "type" to "qemu", "name" to "vm100")))
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "guest", "node" to "pve1", "type" to "qemu", "vmid" to "not-a-number", "name" to "vm100")))
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "guest", "node" to "pve1", "type" to "qemu", "vmid" to 100L)))
+
+        // Node missing node field
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "node")))
+
+        // Storage missing fields
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "storage", "node" to "pve1")))
+        assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "storage", "storage" to "local")))
+    }
 }

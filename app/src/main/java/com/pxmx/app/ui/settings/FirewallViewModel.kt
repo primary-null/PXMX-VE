@@ -130,10 +130,8 @@ class FirewallViewModel(
         val digest = currentSnap?.options?.get("digest")?.toString()
 
         if (enable && target == "cluster") {
-            val hasEnabledAcceptRule = currentSnap?.rules.orEmpty().any {
-                it.enable && it.action.equals("ACCEPT", ignoreCase = true)
-            }
-            if (!hasEnabledAcceptRule) {
+            val has8006Accept = currentSnap?.hasInbound8006Accept == true
+            if (!has8006Accept) {
                 _ui.update {
                     it.copy(
                         isApplying = false,

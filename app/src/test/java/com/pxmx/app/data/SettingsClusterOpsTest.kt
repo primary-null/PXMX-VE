@@ -6,6 +6,7 @@ import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.model.FirewallRule
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.SdnStatusInfo
 import com.pxmx.app.data.model.ServerConfig
@@ -498,5 +499,105 @@ class SettingsClusterOpsTest {
         collectJob.cancel()
 
         assertTrue("Expected immediate poll upon collection without waiting 6500ms, got: $callCount", callCount >= 2)
+    }
+
+    @Test
+    fun firewallRule_coversInbound8006_checks() {
+        fun makeRule(
+            type: String?,
+            action: String?,
+            enable: Boolean = true,
+            proto: String? = null,
+            dport: String? = null,
+        ) = FirewallRule(
+            pos = 0,
+            type = type,
+            action = action,
+            enable = enable,
+            source = null,
+            dest = null,
+            proto = proto,
+            dport = dport,
+            sport = null,
+            comment = null,
+            macro = null,
+            iface = null,
+        )
+
+        // IN tcp 8006 true
+        val inTcp8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = "8006")
+        assertTrue("IN tcp 8006 must cover 8006", inTcp8006.coversInbound8006())
+
+        // OUT ACCEPT false
+        val outAccept = makeRule(type = "out", action = "ACCEPT", enable = true, proto = "tcp", dport = "8006")
+        assertFalse("OUT ACCEPT must not cover inbound 8006", outAccept.coversInbound8006())
+
+        // IN 22 only false
+        val in22Only = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = "22")
+        assertFalse("IN 22 only must not cover 8006", in22Only.coversInbound8006())
+
+        // disabled false
+        val disabled = makeRule(type = "in", action = "ACCEPT", enable = false, proto = "tcp", dport = "8006")
+        assertFalse("Disabled rule must not cover 8006", disabled.coversInbound8006())
+
+        // range 8000:8010 true
+        val rangeColon = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = "8000:8010")
+        assertTrue("Range 8000:8010 must cover 8006", rangeColon.coversInbound8006())
+    }
+
+    @Test
+    fun clusterFirewall_enable_withOnlyOutAcceptRule_isRefused_andDoesNotCallPut() = runBlocking {
+        var putCalled = false
+        val fakeApi = object : ProxmoxApi by demoApi {
+            override suspend fun clusterFirewallRules(): PveResponse<List<Map<String, Any>>> =
+                PveResponse(
+                    data = listOf(
+                        mapOf(
+                            "pos" to 0,
+                            "type" to "out",
+                            "action" to "ACCEPT",
+                            "enable" to 1,
+                            "comment" to "Only outbound access",
+                        )
+                    )
+                )
+
+            override suspend fun setClusterFirewallOptions(enable: Int, digest: String?): PveResponse<String?> {
+                putCalled = true
+                fail("setClusterFirewallOptions PUT must not be called when only OUT ACCEPT rule exists")
+                return PveResponse(data = null)
+            }
+        }
+
+        val repository = createRepository(fakeApi)
+        val vm = FirewallViewModel(repository, coroutineScope = CoroutineScope(Dispatchers.Default))
+        vm.fetchData()
+
+        val job = vm.setFirewallEnabled(true)
+        assertNull("Job should be null when enable is refused", job)
+        assertFalse("PUT setClusterFirewallOptions must not be called when only OUT ACCEPT rule exists", putCalled)
+        assertEquals(
+            FirewallViewModel.REFUSAL_EMPTY_FIREWALL_MESSAGE,
+            vm.state.actionError,
+        )
+    }
+
+    @Test
+    fun loadClusterFirewall_rules403_failsResult() = runBlocking {
+        val fakeApi403 = object : ProxmoxApi by demoApi {
+            override suspend fun clusterFirewallRules(): PveResponse<List<Map<String, Any>>> {
+                throw PveHttpException(code = 403, errorBody = null, httpMessage = "forbidden")
+            }
+        }
+
+        val repository = createRepository(fakeApi403)
+        val result = repository.loadClusterFirewall()
+        assertTrue("loadClusterFirewall must fail when clusterFirewallRules throws 403", result.isFailure)
+        val exception = result.exceptionOrNull()
+        assertNotNull(exception)
+        assertTrue(
+            "Expected 403 in message or cause, got: $exception",
+            exception?.message?.contains("403") == true || exception?.cause is PveHttpException,
+        )
     }
 }

@@ -401,95 +401,136 @@ fun ConsoleScreen(
                 .fillMaxSize()
                 .background(androidx.compose.ui.graphics.Color.Black),
         ) {
-            // Upper region: terminal / guest display above the fold
-            ConsoleWebViewBox(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            )
+            if (immersive) {
+                // Full column when immersive: collapse the lower dock
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ConsoleWebViewBox(modifier = Modifier.fillMaxSize())
 
-            // Lower region: top-bar actions below the fold
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(TechColors.Hull)
-                    .padding(16.dp),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "CONSOLE · ${session.name.uppercase()}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            TechStatusPlate(status = if (loading) "CONNECTING" else "ONLINE")
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = buildString {
-                                append(session.guestType.label)
-                                append(" ")
-                                append(session.vmid)
-                                append(" · ")
-                                append(session.node)
-                                append(if (isWide) " · wide" else " · portrait")
-                                append(" · tabletop")
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    TechDeck(
-                        modifier = Modifier.fillMaxWidth(),
-                        showAccentBar = true,
+                    Row(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp),
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TechActionPlate(
-                                label = "Back",
-                                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                                onClick = onBack,
+                        IconButton(onClick = {
+                            userOrientation = if (isWide) {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                            } else {
+                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.ScreenRotation,
+                                contentDescription = "Rotate Screen",
+                                tint = MaterialTheme.colorScheme.primary,
                             )
-                            TechActionPlate(
-                                label = "Rotate",
-                                icon = Icons.Default.ScreenRotation,
-                                onClick = {
-                                    userOrientation = if (isWide) {
-                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                    } else {
-                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                    }
+                        }
+                        IconButton(onClick = { immersive = false }) {
+                            Icon(
+                                Icons.Default.Fullscreen,
+                                contentDescription = "Show controls",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Upper region: terminal / guest display above the fold
+                ConsoleWebViewBox(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                )
+
+                // Lower region: top-bar actions below the fold
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(TechColors.Hull)
+                        .padding(16.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "CONSOLE · ${session.name.uppercase()}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                TechStatusPlate(status = if (loading) "CONNECTING" else "ONLINE")
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = buildString {
+                                    append(session.guestType.label)
+                                    append(" ")
+                                    append(session.vmid)
+                                    append(" · ")
+                                    append(session.node)
+                                    append(if (isWide) " · wide" else " · portrait")
+                                    append(" · tabletop")
                                 },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TechActionPlate(
-                                label = if (immersive) "Window" else "Full",
-                                icon = Icons.Default.Fullscreen,
-                                onClick = { immersive = !immersive },
-                                emphasized = immersive,
-                            )
-                            TechActionPlate(
-                                label = "Reload",
-                                icon = Icons.Default.Refresh,
-                                onClick = { webViewInstance.reload() },
-                            )
+                        }
+
+                        TechDeck(
+                            modifier = Modifier.fillMaxWidth(),
+                            showAccentBar = true,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                TechActionPlate(
+                                    label = "Back",
+                                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                                    onClick = onBack,
+                                )
+                                TechActionPlate(
+                                    label = "Rotate",
+                                    icon = Icons.Default.ScreenRotation,
+                                    onClick = {
+                                        userOrientation = if (isWide) {
+                                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                        } else {
+                                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                        }
+                                    },
+                                )
+                                TechActionPlate(
+                                    label = if (immersive) "Window" else "Full",
+                                    icon = Icons.Default.Fullscreen,
+                                    onClick = { immersive = !immersive },
+                                    emphasized = immersive,
+                                )
+                                TechActionPlate(
+                                    label = "Reload",
+                                    icon = Icons.Default.Refresh,
+                                    onClick = { webViewInstance.reload() },
+                                )
+                            }
                         }
                     }
                 }
