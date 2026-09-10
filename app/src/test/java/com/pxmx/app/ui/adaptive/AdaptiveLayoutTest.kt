@@ -213,4 +213,82 @@ class AdaptiveLayoutTest {
         assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "storage", "node" to "pve1")))
         assertNull(DetailPaneSelectionSaver.restore(mapOf("kind" to "storage", "storage" to "local")))
     }
+
+    @Test
+    fun testDialogPaneAndPrimaryPaneWidthConstants() {
+        assertEquals(360, OPERATOR_PRIMARY_PANE_WIDTH_DP)
+        assertEquals(3, DialogPane.entries.size)
+        assertTrue(DialogPane.entries.contains(DialogPane.FULL))
+        assertTrue(DialogPane.entries.contains(DialogPane.PRIMARY))
+        assertTrue(DialogPane.entries.contains(DialogPane.DETAIL))
+    }
+
+    @Test
+    fun testFold3PaneScopedGeometryAvoidsCrease() {
+        // Samsung Galaxy Z Fold 3 in unfolded landscape (841 dp total width)
+        val screenWidthDp = 841
+        val primaryWidthDp = OPERATOR_PRIMARY_PANE_WIDTH_DP // 360 dp
+        val dividerWidthDp = 1
+        val detailPaneStart = primaryWidthDp + dividerWidthDp // 361 dp
+        val detailWidthDp = screenWidthDp - detailPaneStart // 480 dp
+
+        assertTrue("Fold 3 unfolded must trigger two-pane", isOperatorTwoPane(screenWidthDp))
+        assertEquals(361, detailPaneStart)
+        assertEquals(480, detailWidthDp)
+
+        // The physical crease sits in the center of the display (at x = 420.5 dp)
+        val creaseCenterDp = screenWidthDp / 2f
+        assertEquals(420.5f, creaseCenterDp, 0.1f)
+
+        // Operator / Detail pane center
+        val detailPaneCenterDp = detailPaneStart + (detailWidthDp / 2f)
+        assertEquals(601.0f, detailPaneCenterDp, 0.1f)
+
+        // For a standard 360 dp wide modal dialog centered in the operator pane:
+        val dialogWidthDp = 360
+        val dialogLeftEdge = detailPaneCenterDp - (dialogWidthDp / 2f)
+        val dialogRightEdge = detailPaneCenterDp + (dialogWidthDp / 2f)
+
+        assertEquals(421.0f, dialogLeftEdge, 0.1f)
+        assertEquals(781.0f, dialogRightEdge, 0.1f)
+
+        // The dialog sits squarely on the right operator half and does not cross over into the left pane
+        assertTrue("Dialog left edge must stay on or to the right of the crease", dialogLeftEdge >= creaseCenterDp)
+        assertTrue("Dialog right edge must stay within screen bounds", dialogRightEdge <= screenWidthDp)
+
+        // In primary pane (Home or Settings list), a dialog centered in primary pane:
+        val primaryPaneCenterDp = primaryWidthDp / 2f
+        val primaryDialogLeftEdge = primaryPaneCenterDp - (dialogWidthDp / 2f)
+        val primaryDialogRightEdge = primaryPaneCenterDp + (dialogWidthDp / 2f)
+
+        assertEquals(180f, primaryPaneCenterDp, 0.1f)
+        assertEquals(0f, primaryDialogLeftEdge, 0.1f)
+        assertEquals(360f, primaryDialogRightEdge, 0.1f)
+        assertTrue("Primary dialog right edge must never reach the crease", primaryDialogRightEdge < creaseCenterDp)
+    }
+
+    @Test
+    fun testComputePaneWidthClampingAndSnapping() {
+        val min = 260f
+        val max = 540f
+        val defaultWidth = 360f
+        val crease = 420.5f
+        val snaps = listOf(defaultWidth, crease)
+
+        // 1. Clamping
+        assertEquals(min, computePaneWidth(200f, minWidth = min, maxWidth = max), 0.01f)
+        assertEquals(max, computePaneWidth(600f, minWidth = min, maxWidth = max), 0.01f)
+
+        // 2. Free dragging (outside snap threshold)
+        assertEquals(300f, computePaneWidth(300f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+        assertEquals(480f, computePaneWidth(480f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+
+        // 3. Magnetic snap to default width (360) within 8 dp threshold
+        assertEquals(defaultWidth, computePaneWidth(357f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+        assertEquals(defaultWidth, computePaneWidth(364f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+
+        // 4. Magnetic snap to center crease (420.5) within 8 dp threshold
+        assertEquals(crease, computePaneWidth(418f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+        assertEquals(crease, computePaneWidth(424f, minWidth = min, maxWidth = max, snapPoints = snaps), 0.01f)
+    }
 }

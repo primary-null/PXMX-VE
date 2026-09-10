@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -441,10 +442,11 @@ class HomeViewModel(
     }
 
     fun quickPowerToggle(resource: ClusterResource, wantOn: Boolean) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         val guestType = GuestType.fromResourceType(resource.type) ?: return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
         val running = resource.isRunning
         if (wantOn == running) return
 
@@ -454,19 +456,21 @@ class HomeViewModel(
     }
 
     fun quickReboot(resource: ClusterResource) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         if (!resource.isRunning) return
         val guestType = GuestType.fromResourceType(resource.type) ?: return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
         runGuestAction(id, node, guestType, vmid, GuestAction.REBOOT, resource.displayName)
     }
 
     fun triggerGuestAction(resource: ClusterResource, action: GuestAction) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         val guestType = GuestType.fromResourceType(resource.type) ?: return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
 
         if (action == GuestAction.START) {
             patchGuest(id) { it.copy(status = "running") }
@@ -478,10 +482,11 @@ class HomeViewModel(
     }
 
     fun quickOnbootToggle(resource: ClusterResource, enabled: Boolean) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         val guestType = GuestType.fromResourceType(resource.type) ?: return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
         if (resource.template == 1) return
 
         patchGuest(id) { it.copy(onboot = if (enabled) 1 else 0) }
@@ -509,9 +514,10 @@ class HomeViewModel(
     }
 
     fun triggerBackup(resource: ClusterResource, storage: String, mode: String) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
         markBusy(id, true)
         AppToast.BACKUP_SERVER_STARTED.show(context)
         viewModelScope.launch {
@@ -529,9 +535,10 @@ class HomeViewModel(
     }
 
     fun triggerBackupToDevice(resource: ClusterResource, storage: String) {
+        val id = resource.id ?: return
+        if (id in _ui.value.busyGuestIds) return
         val node = resource.node ?: return
         val vmid = resource.vmid ?: return
-        val id = resource.id ?: return
         val type = resource.type ?: return
         markBusy(id, true)
         AppToast.BACKUP_DEVICE_STARTED.show(context)
@@ -566,22 +573,31 @@ class HomeViewModel(
         action: GuestAction,
         guestName: String = "Guest",
     ) {
+        if (id in _ui.value.busyGuestIds) return
         markBusy(id, true)
         viewModelScope.launch {
-            repository.guestAction(node, guestType, vmid, action).fold(
-                onSuccess = {
-                    markBusy(id, false)
-                    _ui.update { it.copy(message = "${action.label} started") }
-                    showGuestActionToast(action, guestName)
-                    refresh()
-                },
-                onFailure = { e ->
-                    markBusy(id, false)
-                    _ui.update { it.copy(error = e.message ?: "Action failed") }
-                    AppToast.ACTION_FAILED.show(context, action.label, e.message ?: "Failed")
-                    refresh()
-                },
-            )
+            try {
+                repository.guestAction(node, guestType, vmid, action).fold(
+                    onSuccess = {
+                        markBusy(id, false)
+                        _ui.update { it.copy(message = "${action.label} started") }
+                        showGuestActionToast(action, guestName)
+                        refresh()
+                    },
+                    onFailure = { e ->
+                        markBusy(id, false)
+                        _ui.update { it.copy(error = e.message ?: "Action failed") }
+                        AppToast.ACTION_FAILED.show(context, action.label, e.message ?: "Failed")
+                        refresh()
+                    },
+                )
+            } catch (e: CancellationException) {
+                markBusy(id, false)
+                throw e
+            } catch (e: Exception) {
+                markBusy(id, false)
+                _ui.update { it.copy(error = e.message ?: "Action failed") }
+            }
         }
     }
 

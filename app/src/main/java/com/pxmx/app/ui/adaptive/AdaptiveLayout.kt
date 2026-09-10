@@ -1,8 +1,38 @@
 package com.pxmx.app.ui.adaptive
 
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 
 const val OPERATOR_TWO_PANE_MIN_WIDTH_DP = 600
+const val OPERATOR_PRIMARY_PANE_WIDTH_DP = 360
+
+enum class DialogPane {
+    FULL,
+    PRIMARY,
+    DETAIL,
+}
+
+val LocalDialogPane = compositionLocalOf { DialogPane.FULL }
+val LocalPrimaryPaneWidth = compositionLocalOf { OPERATOR_PRIMARY_PANE_WIDTH_DP.dp }
+
+fun computePaneWidth(
+    rawWidth: Float,
+    minWidth: Float = 260f,
+    maxWidth: Float = 540f,
+    snapPoints: List<Float> = emptyList(),
+    snapThreshold: Float = 8f,
+): Float {
+    val clamped = rawWidth.coerceIn(minWidth, maxWidth)
+    for (snap in snapPoints) {
+        if (abs(clamped - snap) <= snapThreshold) {
+            return snap
+        }
+    }
+    return clamped
+}
 
 enum class TabletopIntent {
     KEEP_CONSOLE,

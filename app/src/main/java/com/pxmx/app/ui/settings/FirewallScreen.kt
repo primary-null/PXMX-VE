@@ -27,7 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -86,7 +86,7 @@ fun FirewallScreen(
     val currentSnap = state.currentSnapshot
 
     if (showRefusalDialog) {
-        AlertDialog(
+        AdaptiveAlertDialog(
             onDismissRequest = { showRefusalDialog = false },
             title = { Text("Firewall Refusal") },
             text = { Text(FirewallViewModel.REFUSAL_EMPTY_FIREWALL_MESSAGE) },

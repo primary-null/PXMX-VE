@@ -284,6 +284,15 @@ data class FirewallRule(
         if (!action.equals("ACCEPT", ignoreCase = true)) return false
         val t = type?.trim()
         if (!t.isNullOrEmpty() && !t.equals("in", ignoreCase = true)) return false
+
+        val p = proto?.trim()?.lowercase()
+        if (!p.isNullOrEmpty() && p != "tcp" && !p.contains("tcp")) return false
+
+        // PVE macro PVEWebAdmin opens TCP 8006
+        if (macro?.trim()?.equals("PVEWebAdmin", ignoreCase = true) == true) {
+            return true
+        }
+
         val ports = dport?.trim() ?: return false
         return portMatchesOrCovers8006(ports)
     }

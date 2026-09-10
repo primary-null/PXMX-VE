@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pxmx.app.data.model.ClusterResource
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -36,7 +37,7 @@ fun DeployDialog(
     var name by remember { mutableStateOf(selectedTemplate?.name?.let { "$it-clone" } ?: "") }
     var expanded by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    AdaptiveAlertDialog(
         onDismissRequest = onDismiss,
         shape = TechPlateShape,
         containerColor = TechColors.Hull,
