@@ -15,8 +15,8 @@ android {
         applicationId = "com.pxmx.app"
         minSdk = 27
         targetSdk = 36
-        versionCode = 35
-        versionName = "0.7.3"
+        versionCode = 36
+        versionName = "0.7.4"
         testInstrumentationRunner = "com.pxmx.app.CustomTestRunner"
     }
 
@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.bouncycastleUtil)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.testcore)
     androidTestImplementation(libs.espresso.core)

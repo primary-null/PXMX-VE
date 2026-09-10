@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -79,7 +79,7 @@ fun CreateBackupDialog(
 ) {
     var storage by remember { mutableStateOf(storages.firstOrNull().orEmpty()) }
     var mode by remember { mutableStateOf("snapshot") }
-    AlertDialog(
+    AdaptiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Backup now") },
         text = {

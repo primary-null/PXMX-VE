@@ -21,7 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.AlertDialog
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -237,7 +237,7 @@ fun StorageDetailScreen(
     }
 
     state.confirmDelete?.let { item ->
-        AlertDialog(
+        AdaptiveAlertDialog(
             onDismissRequest = { viewModel.confirmDelete(null) },
             title = { Text("Delete volume?") },
             text = { Text("Delete ${item.volid}? This cannot be undone.") },

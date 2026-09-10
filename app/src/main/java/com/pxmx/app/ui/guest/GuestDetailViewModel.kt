@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /** Accordion sections on the guest detail screen. */
@@ -182,6 +183,7 @@ class GuestDetailViewModel(
     }
 
     fun runPowerAction(action: GuestAction) {
+        if (_ui.value.actionInProgress != null) return
         val guestName = _ui.value.name
         runTask("power:${action.apiName}", action.label) { s ->
             repository.guestAction(s.node, s.guestType, s.vmid, action).fold(
@@ -306,46 +308,56 @@ class GuestDetailViewModel(
         label: String,
         block: suspend (GuestDetailUiState) -> Result<String>,
     ) {
+        if (_ui.value.actionInProgress != null) return
+        _ui.update { it.copy(actionInProgress = key, message = null, error = null) }
         val s = _ui.value
         viewModelScope.launch {
-            _ui.update { it.copy(actionInProgress = key, message = null, error = null) }
-            block(s).fold(
-                onSuccess = { upid ->
-                    if (upid.isBlank() || upid == "OK" || !upid.startsWith("UPID:")) {
-                        _ui.update {
-                            it.copy(message = "$label OK", actionInProgress = null)
-                        }
-                        refresh()
-                        return@fold
-                    }
-                    _ui.update { it.copy(message = "$label started…") }
-                    repository.awaitTask(s.node, upid, timeoutMs = 120_000).fold(
-                        onSuccess = { task ->
-                            val msg = if (task.isOk) {
-                                "$label completed"
-                            } else {
-                                "$label: ${task.exitstatus ?: task.status}"
-                            }
-                            _ui.update { it.copy(message = msg, actionInProgress = null) }
-                            refresh()
-                        },
-                        onFailure = {
+            try {
+                block(s).fold(
+                    onSuccess = { upid ->
+                        if (upid.isBlank() || upid == "OK" || !upid.startsWith("UPID:")) {
                             _ui.update {
-                                it.copy(
-                                    message = "$label submitted (still running). UPID: $upid",
-                                    actionInProgress = null,
-                                )
+                                it.copy(message = "$label OK", actionInProgress = null)
                             }
                             refresh()
-                        },
-                    )
-                },
-                onFailure = { e ->
-                    _ui.update {
-                        it.copy(actionInProgress = null, error = e.message ?: "$label failed")
-                    }
-                },
-            )
+                            return@fold
+                        }
+                        _ui.update { it.copy(message = "$label started…") }
+                        repository.awaitTask(s.node, upid, timeoutMs = 120_000).fold(
+                            onSuccess = { task ->
+                                val msg = if (task.isOk) {
+                                    "$label completed"
+                                } else {
+                                    "$label: ${task.exitstatus ?: task.status}"
+                                }
+                                _ui.update { it.copy(message = msg, actionInProgress = null) }
+                                refresh()
+                            },
+                            onFailure = {
+                                _ui.update {
+                                    it.copy(
+                                        message = "$label submitted (still running). UPID: $upid",
+                                        actionInProgress = null,
+                                    )
+                                }
+                                refresh()
+                            },
+                        )
+                    },
+                    onFailure = { e ->
+                        _ui.update {
+                            it.copy(actionInProgress = null, error = e.message ?: "$label failed")
+                        }
+                    },
+                )
+            } catch (e: CancellationException) {
+                _ui.update { it.copy(actionInProgress = null) }
+                throw e
+            } catch (e: Exception) {
+                _ui.update {
+                    it.copy(actionInProgress = null, error = e.message ?: "$label failed")
+                }
+            }
         }
     }
 

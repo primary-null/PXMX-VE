@@ -32,7 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.AlertDialog
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -294,7 +294,7 @@ fun SettingsScreen(
     }
 
     if (showTheme) {
-        AlertDialog(
+        AdaptiveAlertDialog(
             onDismissRequest = { showTheme = false },
             title = { Text("Appearance") },
             text = {

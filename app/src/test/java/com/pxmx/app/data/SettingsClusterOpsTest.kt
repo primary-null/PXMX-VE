@@ -509,6 +509,7 @@ class SettingsClusterOpsTest {
             enable: Boolean = true,
             proto: String? = null,
             dport: String? = null,
+            macro: String? = null,
         ) = FirewallRule(
             pos = 0,
             type = type,
@@ -520,13 +521,29 @@ class SettingsClusterOpsTest {
             dport = dport,
             sport = null,
             comment = null,
-            macro = null,
+            macro = macro,
             iface = null,
         )
 
         // IN tcp 8006 true
         val inTcp8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = "8006")
         assertTrue("IN tcp 8006 must cover 8006", inTcp8006.coversInbound8006())
+
+        // IN udp 8006 false (PVE API requires TCP)
+        val inUdp8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "udp", dport = "8006")
+        assertFalse("IN udp 8006 must not cover 8006", inUdp8006.coversInbound8006())
+
+        // IN icmp 8006 false
+        val inIcmp8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "icmp", dport = "8006")
+        assertFalse("IN icmp 8006 must not cover 8006", inIcmp8006.coversInbound8006())
+
+        // IN tcp/udp 8006 true
+        val inTcpUdp8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp/udp", dport = "8006")
+        assertTrue("IN tcp/udp 8006 must cover 8006", inTcpUdp8006.coversInbound8006())
+
+        // IN null proto 8006 true (unspecified protocol allows TCP)
+        val inNullProto8006 = makeRule(type = "in", action = "ACCEPT", enable = true, proto = null, dport = "8006")
+        assertTrue("IN null proto 8006 must cover 8006", inNullProto8006.coversInbound8006())
 
         // OUT ACCEPT false
         val outAccept = makeRule(type = "out", action = "ACCEPT", enable = true, proto = "tcp", dport = "8006")
@@ -543,6 +560,18 @@ class SettingsClusterOpsTest {
         // range 8000:8010 true
         val rangeColon = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = "8000:8010")
         assertTrue("Range 8000:8010 must cover 8006", rangeColon.coversInbound8006())
+
+        // PVE macro PVEWebAdmin true (even with null dport)
+        val inMacroWebAdmin = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = null, macro = "PVEWebAdmin")
+        assertTrue("IN PVEWebAdmin macro must cover 8006", inMacroWebAdmin.coversInbound8006())
+
+        // PVE macro PVEWebAdmin false if disabled
+        val disabledMacro = makeRule(type = "in", action = "ACCEPT", enable = false, proto = "tcp", dport = null, macro = "PVEWebAdmin")
+        assertFalse("Disabled PVEWebAdmin macro must not cover 8006", disabledMacro.coversInbound8006())
+
+        // PVE macro PVEWebAdmin false if proto is explicitly udp
+        val udpMacro = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "udp", dport = null, macro = "PVEWebAdmin")
+        assertFalse("UDP PVEWebAdmin macro must not cover 8006", udpMacro.coversInbound8006())
     }
 
     @Test

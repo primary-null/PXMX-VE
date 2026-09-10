@@ -75,6 +75,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechColors
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
+import com.pxmx.app.ui.adaptive.AdaptivePaneSplitter
+import com.pxmx.app.ui.adaptive.DialogPane
+import com.pxmx.app.ui.adaptive.LocalDialogPane
+import com.pxmx.app.ui.adaptive.LocalPrimaryPaneWidth
+import com.pxmx.app.ui.adaptive.OPERATOR_PRIMARY_PANE_WIDTH_DP
 import com.pxmx.app.ui.adaptive.isOperatorTwoPane
 import com.pxmx.app.ui.adaptive.isTabletop
 import com.pxmx.app.ui.adaptive.SettingsPaneSelection
@@ -162,6 +169,10 @@ fun ProxmoxNavGraph() {
 
     var selectedSettingsPane by rememberSaveable {
         mutableStateOf<SettingsPaneSelection?>(null)
+    }
+
+    var primaryPaneWidthDp by rememberSaveable {
+        mutableFloatStateOf(OPERATOR_PRIMARY_PANE_WIDTH_DP.toFloat())
     }
 
     // Back handler on two-pane: clear the pane selection first before popping Home
@@ -261,56 +272,63 @@ fun ProxmoxNavGraph() {
             )
             if (isTwoPane) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    HomeScreen(
-                        viewModel = vm,
-                        onOpenGuest = { node, type, vmid, name ->
-                            selectedDetail = DetailPaneSelection.Guest(node, type, vmid, name)
-                        },
-                        onOpenStorage = { node, storage ->
-                            selectedDetail = DetailPaneSelection.Storage(node, storage)
-                        },
-                        onOpenNode = { node ->
-                            selectedDetail = DetailPaneSelection.Node(node)
-                        },
-                        onOpenSettings = {
-                            navController.navigate(Routes.SETTINGS)
-                        },
-                        onOpenTasks = {
-                            navController.navigate(Routes.TASKS)
-                        },
-                        onOpenLogs = {
-                            navController.navigate(Routes.LOG)
-                        },
-                        onOpenServers = {
-                            navController.navigate(Routes.SERVERS)
-                        },
-                        onOpenUpdates = {
-                            navController.navigate(Routes.UPDATES)
-                        },
-                        onLogout = {
-                            navController.navigate(Routes.LOGIN) {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        },
-                        onSwitchAccount = {
-                            navController.navigate(Routes.LOGIN) {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        },
-                        canOfferNodeShell = isTabletop,
-                        onOpenNodeShell = { node ->
-                            navController.navigate(
-                                Routes.console(node, GuestType.NODE.path, 0L, node, "shell"),
-                            )
-                        },
-                        modifier = Modifier.width(360.dp).fillMaxHeight(),
-                    )
+                    CompositionLocalProvider(
+                        LocalDialogPane provides DialogPane.PRIMARY,
+                        LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
+                    ) {
+                        HomeScreen(
+                            viewModel = vm,
+                            onOpenGuest = { node, type, vmid, name ->
+                                selectedDetail = DetailPaneSelection.Guest(node, type, vmid, name)
+                            },
+                            onOpenStorage = { node, storage ->
+                                selectedDetail = DetailPaneSelection.Storage(node, storage)
+                            },
+                            onOpenNode = { node ->
+                                selectedDetail = DetailPaneSelection.Node(node)
+                            },
+                            onOpenSettings = {
+                                navController.navigate(Routes.SETTINGS)
+                            },
+                            onOpenTasks = {
+                                navController.navigate(Routes.TASKS)
+                            },
+                            onOpenLogs = {
+                                navController.navigate(Routes.LOG)
+                            },
+                            onOpenServers = {
+                                navController.navigate(Routes.SERVERS)
+                            },
+                            onOpenUpdates = {
+                                navController.navigate(Routes.UPDATES)
+                            },
+                            onLogout = {
+                                navController.navigate(Routes.LOGIN) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            },
+                            onSwitchAccount = {
+                                navController.navigate(Routes.LOGIN) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            },
+                            canOfferNodeShell = isTabletop,
+                            onOpenNodeShell = { node ->
+                                navController.navigate(
+                                    Routes.console(node, GuestType.NODE.path, 0L, node, "shell"),
+                                )
+                            },
+                            modifier = Modifier.width(primaryPaneWidthDp.dp).fillMaxHeight(),
+                        )
+                    }
 
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(TechColors.Edge),
+                    AdaptivePaneSplitter(
+                        currentWidthDp = primaryPaneWidthDp,
+                        onWidthChange = { primaryPaneWidthDp = it },
+                        onResetDefault = { primaryPaneWidthDp = OPERATOR_PRIMARY_PANE_WIDTH_DP.toFloat() },
+                        minWidthDp = 260f,
+                        maxWidthDp = (configuration.screenWidthDp - 300f).coerceAtLeast(280f),
+                        creaseX = if (isTabletop) null else (configuration.screenWidthDp / 2f),
                     )
 
                     Box(
@@ -318,7 +336,11 @@ fun ProxmoxNavGraph() {
                             .weight(1f)
                             .fillMaxHeight(),
                     ) {
-                        when (val sel = selectedDetail) {
+                        CompositionLocalProvider(
+                            LocalDialogPane provides DialogPane.DETAIL,
+                            LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
+                        ) {
+                            when (val sel = selectedDetail) {
                             is DetailPaneSelection.Guest -> {
                                 val guestType = remember(sel.type) {
                                     GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
@@ -408,7 +430,8 @@ fun ProxmoxNavGraph() {
                         }
                     }
                 }
-            } else {
+            }
+        } else {
                 HomeScreen(
                     viewModel = vm,
                     onOpenGuest = { node, type, vmid, name ->
@@ -462,40 +485,47 @@ fun ProxmoxNavGraph() {
 
             if (isTwoPane) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    SettingsScreen(
-                        hostDisplay = session?.config?.displayHost ?: "—",
-                        versionDisplay = session?.version?.display ?: "—",
-                        themeMode = themeMode,
-                        uiState = uiState,
-                        onBack = {
-                            if (selectedSettingsPane != null) selectedSettingsPane = null
-                            else navController.popBackStack()
-                        },
-                        onOpenNetwork = { selectedSettingsPane = SettingsPaneSelection.NETWORK },
-                        onOpenSdn = { selectedSettingsPane = SettingsPaneSelection.SDN },
-                        onOpenFirewall = { selectedSettingsPane = SettingsPaneSelection.FIREWALL },
-                        onOpenUpdates = { selectedSettingsPane = SettingsPaneSelection.UPDATES },
-                        onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
-                        onOpenLogs = { selectedSettingsPane = SettingsPaneSelection.LOG },
-                        onThemeMode = { app.sessionStore.setThemeMode(it) },
-                        onSwitchAccount = {
-                            app.repository.logout(rememberAsPrevious = true)
-                            navController.navigate(Routes.LOGIN) {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        },
-                        onCleanSlate = {
-                            app.sessionStore.purgeAll(app)
-                            android.os.Process.killProcess(android.os.Process.myPid())
-                        },
-                        modifier = Modifier.width(360.dp).fillMaxHeight(),
-                    )
+                    CompositionLocalProvider(
+                        LocalDialogPane provides DialogPane.PRIMARY,
+                        LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
+                    ) {
+                        SettingsScreen(
+                            hostDisplay = session?.config?.displayHost ?: "—",
+                            versionDisplay = session?.version?.display ?: "—",
+                            themeMode = themeMode,
+                            uiState = uiState,
+                            onBack = {
+                                if (selectedSettingsPane != null) selectedSettingsPane = null
+                                else navController.popBackStack()
+                            },
+                            onOpenNetwork = { selectedSettingsPane = SettingsPaneSelection.NETWORK },
+                            onOpenSdn = { selectedSettingsPane = SettingsPaneSelection.SDN },
+                            onOpenFirewall = { selectedSettingsPane = SettingsPaneSelection.FIREWALL },
+                            onOpenUpdates = { selectedSettingsPane = SettingsPaneSelection.UPDATES },
+                            onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                            onOpenLogs = { selectedSettingsPane = SettingsPaneSelection.LOG },
+                            onThemeMode = { app.sessionStore.setThemeMode(it) },
+                            onSwitchAccount = {
+                                app.repository.logout(rememberAsPrevious = true)
+                                navController.navigate(Routes.LOGIN) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            },
+                            onCleanSlate = {
+                                app.sessionStore.purgeAll(app)
+                                android.os.Process.killProcess(android.os.Process.myPid())
+                            },
+                            modifier = Modifier.width(primaryPaneWidthDp.dp).fillMaxHeight(),
+                        )
+                    }
 
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(TechColors.Edge),
+                    AdaptivePaneSplitter(
+                        currentWidthDp = primaryPaneWidthDp,
+                        onWidthChange = { primaryPaneWidthDp = it },
+                        onResetDefault = { primaryPaneWidthDp = OPERATOR_PRIMARY_PANE_WIDTH_DP.toFloat() },
+                        minWidthDp = 260f,
+                        maxWidthDp = (configuration.screenWidthDp - 300f).coerceAtLeast(280f),
+                        creaseX = if (isTabletop) null else (configuration.screenWidthDp / 2f),
                     )
 
                     Box(
@@ -503,7 +533,11 @@ fun ProxmoxNavGraph() {
                             .weight(1f)
                             .fillMaxHeight(),
                     ) {
-                        when (selectedSettingsPane) {
+                        CompositionLocalProvider(
+                            LocalDialogPane provides DialogPane.DETAIL,
+                            LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
+                        ) {
+                            when (selectedSettingsPane) {
                             SettingsPaneSelection.NETWORK -> {
                                 val netVm: NetworkViewModel = viewModel(
                                     key = "pane-network",
@@ -599,7 +633,8 @@ fun ProxmoxNavGraph() {
                         }
                     }
                 }
-            } else {
+            }
+        } else {
                 SettingsScreen(
                     hostDisplay = session?.config?.displayHost ?: "—",
                     versionDisplay = session?.version?.display ?: "—",

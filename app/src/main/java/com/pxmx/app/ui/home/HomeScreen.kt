@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.pxmx.app.ui.components.SystemLogStrip
 import androidx.compose.runtime.*
@@ -591,7 +592,7 @@ fun HomeScreen(
     }
 
     if (state.showThemePicker) {
-        AlertDialog(
+        AdaptiveAlertDialog(
             onDismissRequest = { viewModel.showThemePicker(false) },
             shape = TechPlateShape,
             containerColor = TechColors.Hull,
@@ -628,7 +629,7 @@ fun HomeScreen(
     }
 
     if (state.showAccounts) {
-        AlertDialog(
+        AdaptiveAlertDialog(
             onDismissRequest = { viewModel.showAccounts(false) },
             shape = TechPlateShape,
             containerColor = TechColors.Hull,

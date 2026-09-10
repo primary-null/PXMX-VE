@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material3.AlertDialog
+import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -93,7 +93,7 @@ fun CreateSnapshotDialog(
     var name by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var ram by remember { mutableStateOf(false) }
-    AlertDialog(
+    AdaptiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create snapshot") },
         text = {
