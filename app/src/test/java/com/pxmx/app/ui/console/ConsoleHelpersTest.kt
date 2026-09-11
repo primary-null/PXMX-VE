@@ -286,4 +286,45 @@ class ConsoleHelpersTest {
         val tallScript = ConsoleMimeUtils.buildFitScript(wide = false)
         assertTrue(tallScript.contains("height: 92vh !important;"))
     }
+
+    @Test
+    fun testBuildFitScriptContainsXtermStabilization() {
+        val script = ConsoleMimeUtils.buildFitScript(wide = true)
+        // Verify bracketed paste escape code suppression
+        assertTrue(script.contains("term.options.ignoreBracketedPasteMode = true;"))
+        // Verify neutralization of the broken textarea diffing loop
+        assertTrue(script.contains("core._compositionHelper._handleAnyTextareaChanges = function() {};"))
+        // Verify inputEvent direct data dispatch for Android IMEs
+        assertTrue(script.contains("e.inputType === \"insertText\""))
+        assertTrue(script.contains("this.coreService.triggerDataEvent(e.data, true);"))
+        assertTrue(script.contains("this.textarea.value = '';"))
+        // Verify backspace handling for Android Gboard/Samsung Keyboard
+        assertTrue(script.contains("deleteContentBackward"))
+        assertTrue(script.contains("core.coreService.triggerDataEvent('\\x7f', true);"))
+        // Verify paste and compositionend event sanitization
+        assertTrue(script.contains("term.paste(pText);"))
+        assertTrue(script.contains("ta.addEventListener('compositionend'"))
+    }
+
+    @Test
+    fun testEscapeJsString() {
+        assertEquals("\"hello\"", ConsoleMimeUtils.escapeJsString("hello"))
+        assertEquals("\"line1\\nline2\"", ConsoleMimeUtils.escapeJsString("line1\nline2"))
+        assertEquals("\"tab\\tchar\"", ConsoleMimeUtils.escapeJsString("tab\tchar"))
+        assertEquals("\"\\\"quotes\\\" and \\\\ backslash\"", ConsoleMimeUtils.escapeJsString("\"quotes\" and \\ backslash"))
+        assertEquals("\"\\r\\b\\f\"", ConsoleMimeUtils.escapeJsString("\r\b\u000C"))
+        // Unicode control character
+        val escapedControl = ConsoleMimeUtils.escapeJsString("\u0001")
+        assertTrue(escapedControl.contains("\\u0001"))
+    }
+
+    @Test
+    fun testBuildPasteScript() {
+        val script = ConsoleMimeUtils.buildPasteScript("echo 'hello world'\n")
+        assertTrue(script.contains("\"echo 'hello world'\\n\""))
+        assertTrue(script.contains("window.term.paste(text);"))
+        assertTrue(script.contains("UI.clipboardPaste(text);"))
+        assertTrue(script.contains(".xterm-helper-textarea"))
+        assertTrue(script.contains("ta.dispatchEvent(new Event('input', { bubbles: true }));"))
+    }
 }
