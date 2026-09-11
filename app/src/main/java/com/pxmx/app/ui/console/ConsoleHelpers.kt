@@ -165,6 +165,91 @@ object ConsoleMimeUtils {
                 }, 500);
                 setTimeout(function() { clearInterval(iv); }, 20000);
 
+                // Stabilize xterm.js input on Android virtual keyboards (IMEs)
+                var xtermTries = 0;
+                var xtermIv = setInterval(function() {
+                  xtermTries++;
+                  try {
+                    var term = window.term;
+                    if (term && term._core && term._core.textarea) {
+                      var core = term._core;
+                      var ta = core.textarea;
+
+                      // Prevent leaking ^[[200~ bracketed paste escape codes
+                      if (term.options) {
+                        term.options.ignoreBracketedPasteMode = true;
+                      }
+
+                      // Disable broken setTimeout diffing that causes quadratic character multiplication on Android
+                      if (core._compositionHelper) {
+                        core._compositionHelper._handleAnyTextareaChanges = function() {};
+                      }
+
+                      // Hook _inputEvent to handle insertText directly on Android (bypassing _keyDownSeen rejection)
+                      if (!core.__pxmxInputHooked && core._inputEvent) {
+                        core.__pxmxInputHooked = true;
+                        var origInput = core._inputEvent.bind(core);
+                        core._inputEvent = function(e) {
+                          if (e.data && e.inputType === "insertText") {
+                            this._unprocessedDeadKey = false;
+                            this.coreService.triggerDataEvent(e.data, true);
+                            if (this.textarea) this.textarea.value = '';
+                            return true;
+                          }
+                          return origInput(e);
+                        };
+                      }
+
+                      if (!ta.__pxmxHelperAttached) {
+                        ta.__pxmxHelperAttached = true;
+                        ta.setAttribute('autocomplete', 'off');
+                        ta.setAttribute('autocorrect', 'off');
+                        ta.setAttribute('autocapitalize', 'off');
+                        ta.setAttribute('spellcheck', 'false');
+
+                        var lastKeyDownWasBackspace = false;
+                        ta.addEventListener('keydown', function(e) {
+                          lastKeyDownWasBackspace = (e.keyCode === 8 || e.key === 'Backspace');
+                        }, true);
+
+                        ta.addEventListener('beforeinput', function(e) {
+                          if (e.inputType === 'deleteContentBackward') {
+                            if (!lastKeyDownWasBackspace) {
+                              core.coreService.triggerDataEvent('\x7f', true);
+                            }
+                            e.preventDefault();
+                          } else if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromYank') {
+                            var pText = (e.dataTransfer && e.dataTransfer.getData('text')) || e.data;
+                            if (pText) {
+                              term.paste(pText);
+                              e.preventDefault();
+                            }
+                          }
+                        }, true);
+
+                        ta.addEventListener('paste', function(e) {
+                          var pText = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).getData('text') : '';
+                          if (pText) {
+                            term.paste(pText);
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }, true);
+
+                        ta.addEventListener('compositionend', function() {
+                          setTimeout(function() { if (ta) ta.value = ''; }, 0);
+                        });
+                      }
+
+                      clearInterval(xtermIv);
+                    }
+                  } catch(e) {}
+                  if (xtermTries > 40) {
+                    clearInterval(xtermIv);
+                  }
+                }, 250);
+                setTimeout(function() { clearInterval(xtermIv); }, 20000);
+
                 window.addEventListener('resize', function() {
                   try {
                     if (window.UI && UI.rfb) {
@@ -196,6 +281,65 @@ object ConsoleMimeUtils {
                   }
                 }
               } catch (e) {}
+            })();
+        """.trimIndent()
+    }
+
+    /**
+     * Escape arbitrary string for embedding in a JavaScript string literal.
+     */
+    fun escapeJsString(text: String): String {
+        val sb = StringBuilder("\"")
+        for (ch in text) {
+            when (ch) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                '\b' -> sb.append("\\b")
+                '\u000C' -> sb.append("\\f")
+                else -> {
+                    if (ch < ' ' || ch in '\u007F'..'\u009F') {
+                        sb.append(String.format("\\u%04x", ch.code))
+                    } else {
+                        sb.append(ch)
+                    }
+                }
+            }
+        }
+        sb.append("\"")
+        return sb.toString()
+    }
+
+    /**
+     * Builds JavaScript to paste text into the active console (xterm.js or noVNC).
+     */
+    fun buildPasteScript(text: String): String {
+        val escaped = escapeJsString(text)
+        return """
+            (function() {
+              try {
+                var text = $escaped;
+                if (window.term && typeof window.term.paste === 'function') {
+                  window.term.paste(text);
+                  return true;
+                } else if (window.UI && UI.rfb && typeof UI.clipboardPaste === 'function') {
+                  UI.clipboardPaste(text);
+                  return true;
+                } else {
+                  var ta = document.querySelector('.xterm-helper-textarea') || document.activeElement;
+                  if (ta && 'value' in ta) {
+                    var start = ta.selectionStart || 0;
+                    var end = ta.selectionEnd || 0;
+                    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+                    ta.selectionStart = ta.selectionEnd = start + text.length;
+                    ta.dispatchEvent(new Event('input', { bubbles: true }));
+                    return true;
+                  }
+                }
+              } catch(e) {}
+              return false;
             })();
         """.trimIndent()
     }

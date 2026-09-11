@@ -17,6 +17,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -352,6 +355,14 @@ fun ConsoleScreen(
         }
     }
 
+    val onPaste: () -> Unit = {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val clipText = cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+        if (!clipText.isNullOrEmpty()) {
+            webViewInstance.evaluateJavascript(ConsoleMimeUtils.buildPasteScript(clipText), null)
+        }
+    }
+
     // Re-apply fit when rotating or sizing
     LaunchedEffect(isWide, immersive) {
         injectFitScript(webViewInstance, isWide)
@@ -421,6 +432,13 @@ fun ConsoleScreen(
                             Icon(
                                 Icons.Default.ScreenRotation,
                                 contentDescription = "Rotate Screen",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = onPaste) {
+                            Icon(
+                                Icons.Default.ContentPaste,
+                                contentDescription = "Paste",
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -526,6 +544,11 @@ fun ConsoleScreen(
                                     emphasized = immersive,
                                 )
                                 TechActionPlate(
+                                    label = "Paste",
+                                    icon = Icons.Default.ContentPaste,
+                                    onClick = onPaste,
+                                )
+                                TechActionPlate(
                                     label = "Reload",
                                     icon = Icons.Default.Refresh,
                                     onClick = { webViewInstance.reload() },
@@ -578,6 +601,9 @@ fun ConsoleScreen(
                             IconButton(onClick = { immersive = !immersive }) {
                                 Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen")
                             }
+                            IconButton(onClick = onPaste) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = "Paste")
+                            }
                             IconButton(onClick = {
                                 webViewInstance.reload()
                             }) {
@@ -612,6 +638,13 @@ fun ConsoleScreen(
                             Icon(
                                 Icons.Default.ScreenRotation,
                                 contentDescription = "Rotate Screen",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = onPaste) {
+                            Icon(
+                                Icons.Default.ContentPaste,
+                                contentDescription = "Paste",
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
