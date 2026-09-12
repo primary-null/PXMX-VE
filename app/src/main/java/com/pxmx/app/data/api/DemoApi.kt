@@ -942,7 +942,23 @@ class DemoApi : ProxmoxApi {
         }
         return PveResponse(data = null)
     }
-    override suspend fun nodeNetwork(node: String): PveResponse<List<Map<String, Any>>> = PveResponse()
+    override suspend fun nodeNetwork(node: String): PveResponse<List<Map<String, Any>>> = PveResponse(
+        data = listOf(
+            mapOf("iface" to "eno1", "type" to "eth", "method" to "manual", "active" to 1, "autostart" to 1),
+            mapOf(
+                "iface" to "vmbr0",
+                "type" to "bridge",
+                "method" to "static",
+                "address" to "10.0.0.55",
+                "netmask" to "255.255.255.0",
+                "cidr" to "10.0.0.55/24",
+                "gateway" to "10.0.0.1",
+                "bridge_ports" to "eno1",
+                "active" to 1,
+                "autostart" to 1,
+            ),
+        ),
+    )
 
     override suspend fun aptUpdateList(node: String): PveResponse<List<Map<String, Any>>> {
         if (demoUpgraded) {

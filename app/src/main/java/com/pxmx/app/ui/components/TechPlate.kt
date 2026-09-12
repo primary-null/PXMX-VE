@@ -264,12 +264,22 @@ fun TechIconBay(
     contentDescription: String? = null,
     size: Dp = 44.dp,
     iconSize: Dp = 26.dp,
+    modifier: Modifier = Modifier,
 ) {
+    val cutShape = CutCornerShape(topStart = 8.dp)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
-            .background(accent.copy(alpha = 0.12f), RectangleShape)
-            .border(1.dp, accent.copy(alpha = 0.45f), RectangleShape),
+            .clip(cutShape)
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(
+                        accent.copy(alpha = 0.22f),
+                        accent.copy(alpha = 0.08f),
+                    ),
+                ),
+            )
+            .border(1.dp, accent.copy(alpha = 0.55f), cutShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

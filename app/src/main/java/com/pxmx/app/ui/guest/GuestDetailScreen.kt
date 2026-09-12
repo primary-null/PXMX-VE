@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
@@ -115,6 +116,7 @@ fun GuestDetailScreen(
     onBack: () -> Unit,
     onOpenConsole: () -> Unit,
     onOpenLogs: () -> Unit = {},
+    isEmbeddedInPane: Boolean = false,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
@@ -198,7 +200,10 @@ fun GuestDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = if (isEmbeddedInPane) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (isEmbeddedInPane) "Close" else "Back",
+                        )
                     }
                 },
                 actions = {

@@ -1,13 +1,16 @@
 package com.pxmx.app.ui.icons
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -27,6 +30,9 @@ enum class GuestKind {
     CONTAINER,
     WINDOWS,
     LINUX,
+    FIREWALL,
+    DATABASE,
+    MEDIA,
     HOME_ASSISTANT,
     TEMPLATE,
     GENERIC_VM,
@@ -49,6 +55,8 @@ object GuestIcons {
     private val Cyan = Color(0xFF26C6DA)
     private val Grey = Color(0xFFBDBDBD)
     private val WinBlue = Color(0xFF00A4EF)
+    private val RedOrange = Color(0xFFFF7043)
+    private val Amber = Color(0xFFFFB300)
 
     fun styleFor(resource: ClusterResource): GuestIconStyle {
         return when (resource.type) {
@@ -80,6 +88,12 @@ object GuestIcons {
         when {
             looksLikeHomeAssistant(blob) ->
                 return GuestIconStyle(GuestKind.HOME_ASSISTANT, Icons.Default.Home, Color(0xFF41BDF5), "Home Assistant")
+            looksLikeFirewall(blob) ->
+                return GuestIconStyle(GuestKind.FIREWALL, Icons.Default.Security, RedOrange, "Firewall")
+            looksLikeMedia(blob) ->
+                return GuestIconStyle(GuestKind.MEDIA, Icons.Default.Tv, Amber, "Media")
+            looksLikeDatabase(blob) ->
+                return GuestIconStyle(GuestKind.DATABASE, Icons.Default.DataObject, Purple, "Database")
             looksLikeWindows(name, tags, ostype) ->
                 return GuestIconStyle(GuestKind.WINDOWS, Icons.Default.Window, WinBlue, "Windows")
         }
@@ -98,6 +112,24 @@ object GuestIcons {
         }
 
         return GuestIconStyle(GuestKind.GENERIC_VM, Icons.Default.Laptop, Grey, "VM")
+    }
+
+    private fun looksLikeFirewall(blob: String): Boolean {
+        val keys = listOf(
+            "pfsense", "opnsense", "firewall", "vyos", "openwrt",
+            "freebsd", "openbsd", "netbsd", "bsd", "router",
+        )
+        return keys.any { blob.contains(it) }
+    }
+
+    private fun looksLikeMedia(blob: String): Boolean {
+        val keys = listOf("plex", "jellyfin", "emby")
+        return keys.any { blob.contains(it) }
+    }
+
+    private fun looksLikeDatabase(blob: String): Boolean {
+        val keys = listOf("postgres", "postgresql", "mariadb", "mongodb", "redis")
+        return keys.any { blob.contains(it) }
     }
 
     private fun looksLikeWindows(name: String, tags: String, ostype: String): Boolean {

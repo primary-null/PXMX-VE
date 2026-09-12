@@ -9,6 +9,7 @@ import com.pxmx.app.data.model.SdnZoneInfo
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -121,10 +122,10 @@ class SdnViewModel(
         }
     }
 
-    fun applySdn() {
-        if (_ui.value.isApplying) return
+    fun applySdn(): Job? {
+        if (_ui.value.isApplying) return null
 
-        viewModelScope.launch {
+        return viewModelScope.launch {
             _ui.update {
                 it.copy(
                     isApplying = true,
