@@ -373,7 +373,9 @@ data class SdnStatusInfo(
     val controller: String?,
 ) {
     val isOk: Boolean
-        get() = status.equals("ok", ignoreCase = true) || status.equals("running", ignoreCase = true)
+        get() = status.equals("ok", ignoreCase = true) ||
+                status.equals("running", ignoreCase = true) ||
+                status.equals("available", ignoreCase = true)
 
     companion object {
         fun fromMap(m: Map<String, Any>): SdnStatusInfo = SdnStatusInfo(

@@ -1446,8 +1446,31 @@ class ProxmoxRepository(
         api.sdnVnets().data.orEmpty().map { SdnVnetInfo.fromMap(it) }
     }
 
+    suspend fun createSdnZone(zone: String, type: String): Result<Unit> = apiCall { api ->
+        api.createSdnZone(zone, type)
+    }
+
+    suspend fun deleteSdnZone(zone: String): Result<Unit> = apiCall { api ->
+        api.deleteSdnZone(zone)
+    }
+
+    suspend fun createSdnVnet(vnet: String, zone: String, alias: String? = null): Result<Unit> = apiCall { api ->
+        api.createSdnVnet(vnet, zone, alias)
+    }
+
+    suspend fun deleteSdnVnet(vnet: String): Result<Unit> = apiCall { api ->
+        api.deleteSdnVnet(vnet)
+    }
+
     suspend fun listSdnStatus(): Result<List<SdnStatusInfo>> = apiCall { api ->
-        api.sdnStatus().data.orEmpty().map { SdnStatusInfo.fromMap(it) }
+        val nodes = discoverNodeNames(api)
+        val allStatuses = mutableListOf<SdnStatusInfo>()
+        for (node in nodes) {
+            val statusMap = runCatching { api.nodeSdnZones(node).data.orEmpty() }
+                .getOrDefault(emptyList())
+            allStatuses.addAll(statusMap.map { SdnStatusInfo.fromMap(it) })
+        }
+        allStatuses
     }
 
     suspend fun applySdn(): Result<String> = apiCall { api ->
@@ -1719,3 +1742,4 @@ class PveHttpException(
 ) : Exception("HTTP $code: ${errorBody ?: httpMessage}", cause)
 
 class PveException(message: String, cause: Throwable? = null) : Exception(message, cause)
+

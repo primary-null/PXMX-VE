@@ -302,11 +302,41 @@ interface ProxmoxApi {
     @GET("cluster/sdn/zones")
     suspend fun sdnZones(): PveResponse<List<Map<String, @Contextual Any>>>
 
+    @POST("cluster/sdn/zones")
+    @FormUrlEncoded
+    suspend fun createSdnZone(
+        @Field("zone") zone: String,
+        @Field("type") type: String,
+    ): PveResponse<@Contextual Any?>
+
+    @DELETE("cluster/sdn/zones/{zone}")
+    suspend fun deleteSdnZone(
+        @Path("zone") zone: String,
+    ): PveResponse<@Contextual Any?>
+
     @GET("cluster/sdn/vnets")
     suspend fun sdnVnets(): PveResponse<List<Map<String, @Contextual Any>>>
 
+    @POST("cluster/sdn/vnets")
+    @FormUrlEncoded
+    suspend fun createSdnVnet(
+        @Field("vnet") vnet: String,
+        @Field("zone") zone: String,
+        @Field("alias") alias: String? = null,
+    ): PveResponse<@Contextual Any?>
+
+    @DELETE("cluster/sdn/vnets/{vnet}")
+    suspend fun deleteSdnVnet(
+        @Path("vnet") vnet: String,
+    ): PveResponse<@Contextual Any?>
+
     @GET("cluster/sdn/status")
     suspend fun sdnStatus(): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @GET("nodes/{node}/sdn/zones")
+    suspend fun nodeSdnZones(
+        @Path("node") node: String
+    ): PveResponse<List<Map<String, @Contextual Any>>>
 
     @GET("nodes/{node}/services")
     suspend fun nodeServices(
