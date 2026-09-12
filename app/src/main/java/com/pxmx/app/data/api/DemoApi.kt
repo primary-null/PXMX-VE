@@ -25,13 +25,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Demo-mode backend: a full canned Proxmox 3-node cluster so the app is fully browsable
- * offline — no real machines, no network, no credentials. Activated by logging
+ * offline Ã¢â‚¬â€ no real machines, no network, no credentials. Activated by logging
  * in with host == "demo" (see LoginViewModel's hidden 5-tap title gesture).
  *
  * 1:1 ambitions: this is a LIVE simulation, not a static dump.
  * - Multi-node cluster: alpha (24C/64G), beta (16C/32G), gamma (8C/16G) in quorate "demo-cluster".
  * - Uptimes tick (each guest and node has a fixed boot epoch, computed from first access).
- * - Memory/CPU wobble slightly over time (±2% every 10s).
+ * - Memory/CPU wobble slightly over time (Ã‚Â±2% every 10s).
  * - Power actions actually mutate guest state (start/stop/shutdown/reboot/
  *   suspend/resume), and the app's next poll reflects the change.
  * - Storage rows show full color range (green < 60%, amber 60-85%, red > 85%).
@@ -132,12 +132,12 @@ class DemoApi : ProxmoxApi {
     /** Fixed boot epochs so uptimes look alive at first glance, then tick. */
     private fun bootedAt(vmid: Long): Long = bootEpochMs.computeIfAbsent(vmid) {
         when (it) {
-            100L -> now() - 50_000_000L        // ~13.9h — "nova" (alpha)
-            102L -> now() - 14L * 86_400_000L  // ~14.0d — "quasar" (gamma)
-            200L -> now() - 20_000_000L        // ~5.6h  — "nebula" (alpha)
-            202L -> now() - 172_800_000L       // ~2.0d  — "pulsar" (beta)
-            203L -> now() - 259_200_000L       // ~3.0d  — "comet" (beta frozen)
-            204L -> now() - 432_000_000L       // ~5.0d  — "aurora" (gamma)
+            100L -> now() - 50_000_000L        // ~13.9h Ã¢â‚¬â€ "nova" (alpha)
+            102L -> now() - 14L * 86_400_000L  // ~14.0d Ã¢â‚¬â€ "quasar" (gamma)
+            200L -> now() - 20_000_000L        // ~5.6h  Ã¢â‚¬â€ "nebula" (alpha)
+            202L -> now() - 172_800_000L       // ~2.0d  Ã¢â‚¬â€ "pulsar" (beta)
+            203L -> now() - 259_200_000L       // ~3.0d  Ã¢â‚¬â€ "comet" (beta frozen)
+            204L -> now() - 432_000_000L       // ~5.0d  Ã¢â‚¬â€ "aurora" (gamma)
             else -> now()
         }
     }
@@ -154,7 +154,7 @@ class DemoApi : ProxmoxApi {
         else -> 0L
     }
 
-    /** ±2% wobble every 10s so live views never look frozen. */
+    /** Ã‚Â±2% wobble every 10s so live views never look frozen. */
     private fun memUsed(base: Long): Long {
         val wobble = ((now() / 10_000) % 5 - 2) * base / 100
         return (base + wobble).coerceAtLeast(0L)
@@ -219,6 +219,19 @@ class DemoApi : ProxmoxApi {
 
     override suspend fun version(): PveResponse<VersionInfo> {
         return PveResponse(data = VersionInfo(version = "8.3.0", release = "8.3", repoid = "pve"))
+    }
+
+
+
+    override suspend fun nodeSdnZones(node: String): PveResponse<List<Map<String, Any>>> {
+        return PveResponse(
+            data = listOf(
+                mapOf(
+                    "zone" to "testzone",
+                    "status" to "available"
+                )
+            )
+        )
     }
 
     override suspend fun clusterStatus(): PveResponse<List<Map<String, Any>>> {
@@ -1091,6 +1104,26 @@ class DemoApi : ProxmoxApi {
         return PveResponse(data = lines.take(l))
     }
 
+    override suspend fun createSdnZone(zone: String, type: String): PveResponse<Any?> {
+        kotlinx.coroutines.delay(200)
+        return PveResponse(data = null)
+    }
+
+    override suspend fun deleteSdnZone(zone: String): PveResponse<Any?> {
+        kotlinx.coroutines.delay(200)
+        return PveResponse(data = null)
+    }
+
+    override suspend fun createSdnVnet(vnet: String, zone: String, alias: String?): PveResponse<Any?> {
+        kotlinx.coroutines.delay(200)
+        return PveResponse(data = null)
+    }
+
+    override suspend fun deleteSdnVnet(vnet: String): PveResponse<Any?> {
+        kotlinx.coroutines.delay(200)
+        return PveResponse(data = null)
+    }
+
     override suspend fun sdnStatus(): PveResponse<List<Map<String, Any>>> {
         val isPending = sdnApplyTaskStart != 0L && now() - sdnApplyTaskStart < 2_500L
         return PveResponse(
@@ -1162,3 +1195,5 @@ class DemoApi : ProxmoxApi {
         )
     )
 }
+
+

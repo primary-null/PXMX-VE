@@ -105,7 +105,7 @@ class SdnViewModel(
                         statuses = statusRes.getOrDefault(emptyList()),
                         error = zonesRes.exceptionOrNull()?.message
                             ?: vnetsRes.exceptionOrNull()?.message
-                            ?: statusRes.exceptionOrNull()?.message,
+                            ?: statusRes.exceptionOrNull()?.message?.takeUnless { it.contains("501") },
                     )
                 }
             }
@@ -119,6 +119,62 @@ class SdnViewModel(
                     error = e.message ?: "Failed to load SDN configuration",
                 )
             }
+        }
+    }
+
+    fun createZone(zoneId: String, type: String = "simple") {
+        if (_ui.value.isApplying) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "CREATING ZONE") }
+            val res = repository.createSdnZone(zoneId, type)
+            res.onSuccess {
+                fetchData()
+            }.onFailure { e ->
+                _ui.update { it.copy(actionError = e.message ?: "Failed to create zone") }
+            }
+            _ui.update { it.copy(isApplying = false, jobStatus = null) }
+        }
+    }
+
+    fun deleteZone(zoneId: String) {
+        if (_ui.value.isApplying) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "DELETING ZONE") }
+            val res = repository.deleteSdnZone(zoneId)
+            res.onSuccess {
+                fetchData()
+            }.onFailure { e ->
+                _ui.update { it.copy(actionError = e.message ?: "Failed to delete zone") }
+            }
+            _ui.update { it.copy(isApplying = false, jobStatus = null) }
+        }
+    }
+
+    fun createVnet(vnetId: String, zoneId: String) {
+        if (_ui.value.isApplying) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "CREATING VNET") }
+            val res = repository.createSdnVnet(vnetId, zoneId)
+            res.onSuccess {
+                fetchData()
+            }.onFailure { e ->
+                _ui.update { it.copy(actionError = e.message ?: "Failed to create vnet") }
+            }
+            _ui.update { it.copy(isApplying = false, jobStatus = null) }
+        }
+    }
+
+    fun deleteVnet(vnetId: String) {
+        if (_ui.value.isApplying) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "DELETING VNET") }
+            val res = repository.deleteSdnVnet(vnetId)
+            res.onSuccess {
+                fetchData()
+            }.onFailure { e ->
+                _ui.update { it.copy(actionError = e.message ?: "Failed to delete vnet") }
+            }
+            _ui.update { it.copy(isApplying = false, jobStatus = null) }
         }
     }
 
