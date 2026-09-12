@@ -366,6 +366,7 @@ fun ProxmoxNavGraph() {
                                     onOpenLogs = {
                                         navController.navigate(Routes.LOG)
                                     },
+                                    isEmbeddedInPane = true,
                                 )
                             }
                             is DetailPaneSelection.Node -> {
@@ -381,6 +382,7 @@ fun ProxmoxNavGraph() {
                                             Routes.console(sel.node, GuestType.NODE.path, 0L, sel.node, cmd ?: "shell"),
                                         )
                                     },
+                                    isEmbeddedInPane = true,
                                 )
                             }
                             is DetailPaneSelection.Storage -> {
@@ -391,6 +393,7 @@ fun ProxmoxNavGraph() {
                                 StorageDetailScreen(
                                     viewModel = detailVm,
                                     onBack = { selectedDetail = null },
+                                    isEmbeddedInPane = true,
                                 )
                             }
                             null -> {

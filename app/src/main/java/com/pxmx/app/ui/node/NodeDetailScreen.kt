@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Terminal
@@ -62,6 +63,7 @@ fun NodeDetailScreen(
     viewModel: NodeDetailViewModel,
     onBack: () -> Unit,
     onOpenConsole: (String?) -> Unit,
+    isEmbeddedInPane: Boolean = false,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val st = state.status
@@ -93,7 +95,10 @@ fun NodeDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = if (isEmbeddedInPane) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (isEmbeddedInPane) "Close" else "Back",
+                        )
                     }
                 },
                 actions = {
@@ -141,12 +146,22 @@ fun NodeDetailScreen(
                 item {
                     TechPlate(railColor = TechColors.LinkGreen) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-                            Text(
-                                state.node.uppercase(),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "NODE OVERVIEW",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                TechStatusPlate(status = if (st != null) "online" else "loading")
+                            }
+                            Spacer(Modifier.height(6.dp))
                             TechMetaLine("Uptime", formatUptime(st?.uptime))
                             st?.pveversion?.let { TechMetaLine("PVE", it) }
                             st?.kversion?.let { TechMetaLine("Kernel", it) }

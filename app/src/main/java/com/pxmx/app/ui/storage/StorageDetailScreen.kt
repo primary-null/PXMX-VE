@@ -18,10 +18,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -60,6 +62,7 @@ import com.pxmx.app.ui.util.formatPercent
 fun StorageDetailScreen(
     viewModel: StorageDetailViewModel,
     onBack: () -> Unit,
+    isEmbeddedInPane: Boolean = false,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val st = state.status
@@ -92,7 +95,10 @@ fun StorageDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = if (isEmbeddedInPane) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (isEmbeddedInPane) "Close" else "Back",
+                        )
                     }
                 },
                 actions = {
@@ -242,7 +248,12 @@ fun StorageDetailScreen(
             title = { Text("Delete volume?") },
             text = { Text("Delete ${item.volid}? This cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.deleteConfirmed() }) { Text("Delete") }
+                TextButton(
+                    onClick = { viewModel.deleteConfirmed() },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.confirmDelete(null) }) { Text("Cancel") }

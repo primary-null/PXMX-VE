@@ -84,6 +84,7 @@ import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
+import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechStatusPlate
@@ -1006,20 +1007,13 @@ private fun ResourceCard(
                         )
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (isGuest) 44.dp else 36.dp)
-                            .background(accent.copy(alpha = 0.12f), RectangleShape)
-                            .border(1.dp, accent.copy(alpha = 0.45f), RectangleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = iconStyle.icon,
-                            contentDescription = iconStyle.label,
-                            tint = accent,
-                            modifier = Modifier.size(if (isGuest) 26.dp else 22.dp),
-                        )
-                    }
+                    TechIconBay(
+                        icon = iconStyle.icon,
+                        accent = accent,
+                        contentDescription = iconStyle.label,
+                        size = if (isGuest) 44.dp else 36.dp,
+                        iconSize = if (isGuest) 26.dp else 22.dp,
+                    )
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
