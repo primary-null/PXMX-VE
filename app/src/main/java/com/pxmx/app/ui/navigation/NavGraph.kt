@@ -159,7 +159,9 @@ fun ProxmoxNavGraph() {
     // Adaptive window info and posture
     val adaptiveInfo = currentWindowAdaptiveInfoV2()
     val configuration = LocalConfiguration.current
-    val isTwoPane = isOperatorTwoPane(configuration.screenWidthDp)
+    val context = LocalContext.current
+    val isDex = com.pxmx.app.ui.util.DeXUtils.isDeXMode(context)
+    val isTwoPane = isOperatorTwoPane(configuration.screenWidthDp, isDex)
     val foldingFeatures = collectFoldingFeaturesAsState().value
     val isTabletop = foldingFeatures.any { isTabletop(it.state.toString(), it.orientation.toString()) }
 
@@ -270,7 +272,138 @@ fun ProxmoxNavGraph() {
             val vm: HomeViewModel = viewModel(
                 factory = HomeViewModel.Factory(app.repository, app.sessionStore),
             )
-            if (isTwoPane) {
+            if (isDex) {
+                com.pxmx.app.ui.dex.DexDashboardScreen(
+                    viewModel = vm,
+                    selectedDetail = selectedDetail,
+                    onSelectDetail = { selectedDetail = it },
+                    onOpenSettings = {
+                        navController.navigate(Routes.SETTINGS)
+                    },
+                    onOpenServers = {
+                        navController.navigate(Routes.SERVERS)
+                    },
+                    onSwitchAccount = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onOpenLogs = {
+                        navController.navigate(Routes.LOG)
+                    },
+                    detailPaneContent = { sel ->
+                        when (sel) {
+                            is DetailPaneSelection.Guest -> {
+                                val guestType = remember(sel.type) {
+                                    GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                                }
+                                val detailVm: GuestDetailViewModel = viewModel(
+                                    key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
+                                    factory = GuestDetailViewModel.Factory(app.repository, sel.node, guestType, sel.vmid, sel.name),
+                                )
+                                GuestDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                    onOpenConsole = { /* Console handled in other pane */ },
+                                    onOpenLogs = { navController.navigate(Routes.LOG) },
+                                    isEmbeddedInPane = true,
+                                )
+                            }
+                            is DetailPaneSelection.Node -> {
+                                val detailVm: NodeDetailViewModel = viewModel(
+                                    key = "pane-node-${sel.node}",
+                                    factory = NodeDetailViewModel.Factory(app.repository, sel.node),
+                                )
+                                NodeDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                    onOpenConsole = { /* Console handled in other pane */ },
+                                    isEmbeddedInPane = true,
+                                )
+                            }
+                            is DetailPaneSelection.Storage -> {
+                                val detailVm: StorageDetailViewModel = viewModel(
+                                    key = "pane-storage-${sel.node}-${sel.storage}",
+                                    factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
+                                )
+                                StorageDetailScreen(
+                                    viewModel = detailVm,
+                                    onBack = { selectedDetail = null },
+                                    isEmbeddedInPane = true,
+                                )
+                            }
+                        }
+                    },
+                    consolePaneContent = { sel ->
+                        when (sel) {
+                            is DetailPaneSelection.Guest -> {
+                                val guestType = remember(sel.type) {
+                                    GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                                }
+                                val consoleVm: ConsoleViewModel = viewModel(
+                                    key = "console-guest-${sel.node}-${sel.type}-${sel.vmid}",
+                                    factory = ConsoleViewModel.Factory(
+                                        repository = app.repository,
+                                        sessionStore = app.sessionStore,
+                                        node = sel.node,
+                                        guestType = guestType,
+                                        vmid = sel.vmid,
+                                        name = sel.name,
+                                        cmd = null
+                                    ),
+                                )
+                                val consoleState by consoleVm.ui.collectAsStateWithLifecycle()
+                                if (consoleState.session != null) {
+                                    ConsoleScreen(
+                                        session = consoleState.session!!,
+                                        trustSelfSigned = consoleState.trustSelfSigned,
+                                        expectedCertPin = consoleState.certPin,
+                                        onBack = {},
+                                        isTabletop = false
+                                    )
+                                } else {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
+                            }
+                            is DetailPaneSelection.Node -> {
+                                val consoleVm: ConsoleViewModel = viewModel(
+                                    key = "console-node-${sel.node}",
+                                    factory = ConsoleViewModel.Factory(
+                                        repository = app.repository,
+                                        sessionStore = app.sessionStore,
+                                        node = sel.node,
+                                        guestType = GuestType.NODE,
+                                        vmid = 0L,
+                                        name = sel.node,
+                                        cmd = "shell"
+                                    ),
+                                )
+                                val consoleState by consoleVm.ui.collectAsStateWithLifecycle()
+                                if (consoleState.session != null) {
+                                    ConsoleScreen(
+                                        session = consoleState.session!!,
+                                        trustSelfSigned = consoleState.trustSelfSigned,
+                                        expectedCertPin = consoleState.certPin,
+                                        onBack = {},
+                                        isTabletop = false
+                                    )
+                                } else {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
+                            }
+                            is DetailPaneSelection.Storage -> {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text("Console not available for storage.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                )
+            } else if (isTwoPane) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     CompositionLocalProvider(
                         LocalDialogPane provides DialogPane.PRIMARY,
