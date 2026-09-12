@@ -812,7 +812,7 @@ private fun sortIcon(mode: ResourceSort): ImageVector = when (mode) {
 }
 
 @Composable
-private fun StatusSectionHeader(
+fun StatusSectionHeader(
     title: String,
     count: Int,
     collapsed: Boolean,
@@ -903,7 +903,7 @@ private fun ResourceFillBackground(
 }
 
 @Composable
-private fun ResourceCard(
+fun ResourceCard(
     resource: ClusterResource,
     busy: Boolean = false,
     onClick: () -> Unit,

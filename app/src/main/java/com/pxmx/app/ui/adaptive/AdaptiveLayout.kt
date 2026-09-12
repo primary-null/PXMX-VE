@@ -40,7 +40,7 @@ enum class TabletopIntent {
     NONE,
 }
 
-fun isOperatorTwoPane(widthDp: Int): Boolean = widthDp >= OPERATOR_TWO_PANE_MIN_WIDTH_DP
+fun isOperatorTwoPane(widthDp: Int, isDex: Boolean = false): Boolean = isDex || widthDp >= OPERATOR_TWO_PANE_MIN_WIDTH_DP
 
 fun isWideViewport(widthPx: Int, heightPx: Int): Boolean = widthPx > heightPx
 
