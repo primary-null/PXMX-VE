@@ -135,14 +135,16 @@ def check_content(content, source_name):
     """Scan string content against forbidden regex patterns and environment usernames."""
     violations = []
     
-    # Check current host username dynamically from environment
+    # Check current host username dynamically from environment (ignoring common CI runner names)
+    SYSTEM_USERS_IGNORE = {"runner", "root", "admin", "ubuntu", "jenkins", "node", "git", "builder", "actions"}
     env_user = os.environ.get("USERNAME") or os.environ.get("USER")
     
     for line_no, line in enumerate(content.splitlines(), start=1):
         # 1. Check dynamic host username
-        if env_user and len(env_user) > 2:
+        if env_user and env_user.lower() not in SYSTEM_USERS_IGNORE and len(env_user) > 2:
             if re.search(r"\b" + re.escape(env_user) + r"\b", line, re.IGNORECASE):
                 violations.append(f"{source_name}:{line_no} -> Host system username '{env_user}' detected\n   Line: {line.strip()[:120]}")
+
 
         # 2. Check specific protected tokens
         for token, desc in _S_TOKENS:
