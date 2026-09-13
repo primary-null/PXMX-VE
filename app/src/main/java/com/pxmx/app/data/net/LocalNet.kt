@@ -41,7 +41,7 @@ data class SubnetInfo(
  * Verification tiers for a discovered host.
  */
 sealed class ProbeResult {
-    data class Verified(val version: String) : ProbeResult()
+    data class Verified(val version: String, val nodeName: String? = null) : ProbeResult()
     object PveDetected : ProbeResult()
     object NotPve : ProbeResult()
     object Unreachable : ProbeResult()
@@ -57,6 +57,7 @@ data class DiscoveredHost(
     val latencyMs: Long = 0L,
     val isPveDetectedOnly: Boolean = false,
     val isSavedKnown: Boolean = false,
+    val nodeName: String? = null,
 )
 
 /**
@@ -268,13 +269,77 @@ open class LocalNet(
                     ProbeResult.Verified(display)
                 } else {
                     // Modern PVE (post CVE-2025-62577) returns 401 for anonymous /version
-                    if (isPveDaemon) ProbeResult.PveDetected else ProbeResult.NotPve
+                    // Fallback to unauthenticated root Web GUI (GET /) which returns 200 with HTML metadata (NodeName, pvemanagerlib.js version)
+                    if (isPveDaemon) {
+                        val rootResult = probeRootWebGui(client, host, port)
+                        if (rootResult != null) {
+                            return@withContext rootResult
+                        }
+                        ProbeResult.PveDetected
+                    } else {
+                        ProbeResult.NotPve
+                    }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 ProbeResult.Unreachable
             }
         }
+
+    internal fun probeRootWebGui(
+        client: OkHttpClient,
+        host: String,
+        port: Int,
+    ): ProbeResult? {
+        val rootRequest = Request.Builder()
+            .url("https://$host:$port/")
+            .get()
+            .build()
+
+        val rootResponse = try {
+            client.newCall(rootRequest).execute()
+        } catch (_: Exception) {
+            return null
+        }
+
+        if (!rootResponse.isSuccessful) {
+            return null
+        }
+
+        val html = try {
+            rootResponse.body?.string() ?: return null
+        } catch (_: Exception) {
+            return null
+        }
+
+        return parsePveWebGuiHtml(html)
+    }
+
+    internal fun parsePveWebGuiHtml(html: String): ProbeResult? {
+        val isPveHtml = html.contains("Proxmox Virtual Environment", ignoreCase = true) ||
+            html.contains("pvemanagerlib.js", ignoreCase = true) ||
+            html.contains("ext6-pve.css", ignoreCase = true)
+
+        if (!isPveHtml) {
+            return null
+        }
+
+        val nodeNameRegex = Regex("""NodeName:\s*'([^']+)'""")
+        val nodeName = nodeNameRegex.find(html)?.groupValues?.getOrNull(1)
+
+        val jsVerRegex = Regex("""pvemanagerlib\.js\?ver=([^"\s&]+)""")
+        val cssVerRegex = Regex("""ext6-pve\.css\?ver=([^"\s&]+)""")
+        val version = jsVerRegex.find(html)?.groupValues?.getOrNull(1)
+            ?: cssVerRegex.find(html)?.groupValues?.getOrNull(1)
+
+        return if (!version.isNullOrBlank()) {
+            ProbeResult.Verified(version = version, nodeName = nodeName)
+        } else if (!nodeName.isNullOrBlank()) {
+            ProbeResult.Verified(version = "login to confirm", nodeName = nodeName)
+        } else {
+            null
+        }
+    }
 
     /**
      * Tests a server connection, measuring round-trip latency and verifying PVE version.
@@ -424,7 +489,8 @@ open class LocalNet(
                                                 ip = ip,
                                                 port = port,
                                                 version = result.version,
-                                                latencyMs = latency
+                                                latencyMs = latency,
+                                                nodeName = result.nodeName,
                                             )
                                         )
                                     }

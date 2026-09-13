@@ -669,7 +669,18 @@ private fun ConnectionPaneContent(
                 var expandedReason by remember { mutableStateOf(false) }
                 TechPlate(
                     railColor = TechColors.Mute,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            viewModel.update {
+                                it.copy(
+                                    host = ip,
+                                    port = "8006",
+                                    activeProfileId = null,
+                                    error = null,
+                                )
+                            }
+                        },
                 ) {
                     Row(
                         modifier = Modifier
@@ -694,7 +705,7 @@ private fun ConnectionPaneContent(
                                     onClick = { expandedReason = !expandedReason }
                                 ) {
                                     Text(
-                                        text = "NO PVE RESPONSE",
+                                        text = "UNKNOWN",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
@@ -706,7 +717,7 @@ private fun ConnectionPaneContent(
                             if (expandedReason) {
                                 Spacer(Modifier.height(2.dp))
                                 Text(
-                                    text = "Port open but PVE version probe failed",
+                                    text = "Port 8006 open · Not a verified PVE host or VM service",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontFamily = FontFamily.Monospace,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -1112,6 +1123,16 @@ private fun DiscoveredHostCard(
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!candidate.nodeName.isNullOrBlank()) {
+                        Text(
+                            text = candidate.nodeName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                     Text(
                         text = "${candidate.ip}:${candidate.port}",
                         style = MaterialTheme.typography.titleSmall,

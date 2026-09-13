@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -94,6 +95,71 @@ class LocalNetTest {
         assertEquals(ProbeResult.PveDetected, localNet.probePveVersion("detected"))
         assertEquals(ProbeResult.NotPve, localNet.probePveVersion("not_pve"))
         assertEquals(ProbeResult.Unreachable, localNet.probePveVersion("other"))
+    }
+
+    @Test
+    fun parsePveWebGuiHtml_extractsNodeNameAndVersion() {
+        val localNet = object : LocalNet(null, null) {}
+        val sampleHtml = """
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>PVE5 - Proxmox Virtual Environment</title>
+                <link rel="stylesheet" type="text/css" href="/pve2/css/ext6-pve.css?ver=9.2.18" />
+                <script type="text/javascript">
+                    Proxmox = {
+                        Setup: { auth_cookie_name: 'PVEAuthCookie' },
+                        NodeName: 'PVE5',
+                    };
+                </script>
+                <script type="text/javascript" src="/pve2/js/pvemanagerlib.js?ver=9.2.18"></script>
+              </head>
+              <body></body>
+            </html>
+        """.trimIndent()
+
+        val result = localNet.parsePveWebGuiHtml(sampleHtml)
+        assertTrue(result is ProbeResult.Verified)
+        val verified = result as ProbeResult.Verified
+        assertEquals("9.2.18", verified.version)
+        assertEquals("PVE5", verified.nodeName)
+    }
+
+    @Test
+    fun parsePveWebGuiHtml_extractsCssVersionFallback() {
+        val localNet = object : LocalNet(null, null) {}
+        val sampleHtml = """
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>PVE2 - Proxmox Virtual Environment</title>
+                <link rel="stylesheet" type="text/css" href="/pve2/css/ext6-pve.css?ver=8.2.4" />
+                <script type="text/javascript">
+                    Proxmox = { NodeName: 'PVE2' };
+                </script>
+              </head>
+            </html>
+        """.trimIndent()
+
+        val result = localNet.parsePveWebGuiHtml(sampleHtml)
+        assertTrue(result is ProbeResult.Verified)
+        val verified = result as ProbeResult.Verified
+        assertEquals("8.2.4", verified.version)
+        assertEquals("PVE2", verified.nodeName)
+    }
+
+    @Test
+    fun parsePveWebGuiHtml_returnsNullForNonPveHtml() {
+        val localNet = object : LocalNet(null, null) {}
+        val sampleHtml = """
+            <html>
+              <head><title>Generic Apache Server</title></head>
+              <body>Hello World</body>
+            </html>
+        """.trimIndent()
+
+        val result = localNet.parsePveWebGuiHtml(sampleHtml)
+        assertNull(result)
     }
 
     private fun isPrivate(ip: String): Boolean {
