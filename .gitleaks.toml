@@ -1,0 +1,45 @@
+title = "PXMX-VE Gitleaks Security & Anonymity Configuration"
+
+[extend]
+useDefault = true
+
+# Rule 1: Generic Windows & Unix user directory path detection
+[[rules]]
+id = "pxmx-windows-user-path"
+description = "Windows user home directory path detected"
+regex = '''(?i)[cC]:[\\/]+[uU]sers[\\/]+[a-zA-Z0-9_\-\.]+'''
+keywords = ["users", "Users"]
+
+[[rules]]
+id = "pxmx-unix-user-path"
+description = "Unix home directory path detected"
+regex = '''/(home|Users)/[a-zA-Z0-9_\-\.]+'''
+keywords = ["/home/", "/Users/"]
+
+# Rule 2: Generic hardware ADB device serial patterns in source code
+[[rules]]
+id = "pxmx-adb-serial-flag"
+description = "Hardware ADB device serial parameter detected"
+regex = '''scrcpy.*-s\s+([A-Za-z0-9_]{10,20})'''
+keywords = ["scrcpy"]
+
+# Rule 3: Proxmox auth token or ticket
+[[rules]]
+id = "pxmx-pve-token"
+description = "Live Proxmox API Token detected"
+regex = '''(?i)(PVEAPIToken|api_token)\s*[:=]\s*['\"][a-zA-Z0-9_\-=+]{20,}['\"]'''
+keywords = ["PVEAPIToken", "api_token"]
+
+[[rules]]
+id = "pxmx-pve-cookie"
+description = "Live Proxmox Auth Ticket detected"
+regex = '''PVEAuthCookie=[a-zA-Z0-9_\-=+]{20,}'''
+keywords = ["PVEAuthCookie"]
+
+[allowlist]
+description = "Whitelisted configuration files"
+paths = [
+    '''\.gitleaks\.toml$''',
+    '''scripts/security_check\.py$''',
+]
+

@@ -965,7 +965,7 @@ class DemoApi : ProxmoxApi {
                 "address" to "192.168.1.100",
                 "netmask" to "255.255.255.0",
                 "cidr" to "192.168.1.100/24",
-                "gateway" to "10.0.0.1",
+                "gateway" to "192.168.1.1",
                 "bridge_ports" to "eno1",
                 "active" to 1,
                 "autostart" to 1,

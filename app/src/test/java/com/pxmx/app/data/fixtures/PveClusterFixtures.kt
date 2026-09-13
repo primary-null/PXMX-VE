@@ -126,7 +126,7 @@ object PveClusterFixtures {
     val liveSdnZones: List<SdnZoneInfo> = listOf(
         SdnZoneInfo.fromMap(mapOf("zone" to "localnet", "type" to "simple", "mtu" to "1500", "dns" to "10.0.0.1")),
         SdnZoneInfo.fromMap(mapOf("zone" to "vlan_dmz", "type" to "vlan", "bridge" to "vmbr0", "tag" to "100")),
-        SdnZoneInfo.fromMap(mapOf("zone" to "vxlan_mesh", "type" to "vxlan", "peers" to "192.168.1.100,10.0.0.56")),
+        SdnZoneInfo.fromMap(mapOf("zone" to "vxlan_mesh", "type" to "vxlan", "peers" to "192.168.1.100,192.168.1.101")),
     )
 
     val liveSdnVnets: List<SdnVnetInfo> = listOf(
