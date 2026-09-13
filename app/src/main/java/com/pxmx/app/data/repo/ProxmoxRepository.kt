@@ -180,6 +180,20 @@ class ProxmoxRepository(
     }
 
     private val guestConfigCache = ConcurrentHashMap<String, GuestConfigCacheEntry>()
+    private val clusterNodeIps = ConcurrentHashMap<String, String>()
+
+    /** Extract node IPs from `/cluster/status` entries and cache them for direct-node fallback. */
+    private fun cacheNodeIps(statusEntries: List<Map<String, Any?>>) {
+        statusEntries
+            .filter { (it["type"] as? String) == "node" }
+            .forEach { nodeMap ->
+                val name = nodeMap["name"] as? String
+                val ip = nodeMap["ip"] as? String
+                if (!name.isNullOrBlank() && !ip.isNullOrBlank()) {
+                    clusterNodeIps[name.lowercase()] = ip
+                }
+            }
+    }
 
     private data class GuestConfigCacheEntry(
         val ostype: String?,
@@ -558,6 +572,7 @@ class ProxmoxRepository(
         clientFactory.clear()
         clearWebCookies()
         guestConfigCache.clear()
+        clusterNodeIps.clear()
     }
 
     /** Drop console / noVNC PVEAuthCookie so a later user on this device cannot reuse it. */
@@ -586,6 +601,7 @@ class ProxmoxRepository(
         return apiCall { api ->
             val status = runCatching { api.clusterStatus().data.orEmpty() }.getOrDefault(emptyList())
             val nodes = status.filter { (it["type"] as? String) == "node" }
+            cacheNodeIps(nodes)
             val clusterEntry = status.firstOrNull { (it["type"] as? String) == "cluster" }
             val localNode = nodes.firstOrNull { it["local"] == 1 || it["local"] == 1.0 || it["local"] == true }
                 ?: nodes.firstOrNull()
@@ -638,6 +654,11 @@ class ProxmoxRepository(
 
     private suspend fun discoverNodeNames(api: com.pxmx.app.data.api.ProxmoxApi): List<String> {
         val fromNodes = api.nodes().data.orEmpty().mapNotNull { it.node }.filter { it.isNotBlank() }
+        if (clusterNodeIps.isEmpty()) {
+            runCatching {
+                cacheNodeIps(api.clusterStatus().data.orEmpty())
+            }
+        }
         if (fromNodes.isNotEmpty()) return fromNodes.distinct()
         return api.clusterResources("node").data.orEmpty()
             .mapNotNull { it.node }
@@ -1516,10 +1537,72 @@ class ProxmoxRepository(
     suspend fun nodeSyslog(
         node: String,
         start: Int? = null,
-        limit: Int? = null,
-    ): Result<List<ClusterLogEntry>> = apiCall { api ->
-        val rows = api.nodeSyslog(node, start, limit).data.orEmpty()
-        rows.map { ClusterLogEntry.fromSyslogMap(node, it) }
+        limit: Int? = 50,
+    ): Result<List<ClusterLogEntry>> {
+        val initialLimit = limit ?: 50
+
+        fun isTimeout(t: Throwable): Boolean {
+            if (t is PveClusterProxyTimeoutException) return true
+            if (t is java.net.SocketTimeoutException) return true
+            if (t is HttpException && (t.code() == 596 || t.code() == 504)) return true
+            if (t is PveHttpException && (t.code == 596 || t.code == 504)) return true
+            val msg = t.message.orEmpty()
+            return msg.contains("HTTP 596", ignoreCase = true) ||
+                msg.contains("Connection timed out", ignoreCase = true)
+        }
+
+        val firstResult = apiCall { api ->
+            val rows = api.nodeSyslog(node, start, initialLimit).data.orEmpty()
+            rows.map { ClusterLogEntry.fromSyslogMap(node, it) }
+        }
+
+        if (firstResult.isSuccess) return firstResult
+
+        val firstError = firstResult.exceptionOrNull() ?: return firstResult
+        if (!isTimeout(firstError)) {
+            return firstResult
+        }
+
+        // Adaptive limit reduction: If limit > 25, retry with smaller limit (e.g. 50 -> 25 or 200 -> 50)
+        val reducedLimit = when {
+            initialLimit > 50 -> 50
+            initialLimit > 25 -> 25
+            else -> null
+        }
+
+        if (reducedLimit != null) {
+            val retryResult = apiCall { api ->
+                val rows = api.nodeSyslog(node, start, reducedLimit).data.orEmpty()
+                rows.map { ClusterLogEntry.fromSyslogMap(node, it) }
+            }
+            if (retryResult.isSuccess) return retryResult
+        }
+
+        // Direct-node fallback: If inter-node proxy via entrypoint failed, try the target
+        // node's IP directly. Note: reuses the same PVE ticket, which is cluster-wide in
+        // standard PVE setups. The cert pin must match or trustSelfSigned must be true.
+        val directIp = clusterNodeIps[node.lowercase()]
+        val session = sessionStore.session.value
+        if (!directIp.isNullOrBlank() && session != null && !session.config.host.equals(directIp, ignoreCase = true)) {
+            try {
+                val directConfig = session.config.copy(host = directIp)
+                val directApi = clientFactory.apiFor(directConfig)
+                val rows = directApi.nodeSyslog(node, start, reducedLimit ?: initialLimit).data.orEmpty()
+                return Result.success(rows.map { ClusterLogEntry.fromSyslogMap(node, it) })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Direct fallback also failed; fall through to final error
+            }
+        }
+
+        return Result.failure(
+            PveClusterProxyTimeoutException(
+                node = node,
+                message = "HTTP 596: Inter-node proxy timed out for node '$node'. Target node did not respond within the 30-second Proxmox cluster proxy window.",
+                cause = firstError,
+            )
+        )
     }
 
     private suspend fun <T> apiCall(block: suspend (com.pxmx.app.data.api.ProxmoxApi) -> T): Result<T> {
@@ -1604,7 +1687,18 @@ class ProxmoxRepository(
     }
 
     private fun mapError(e: Exception): Exception = when (e) {
-        is PveHttpException -> PveException(formatHttpError(e.code, e.errorBody, e.httpMessage), e)
+        is PveClusterProxyTimeoutException -> e // preserve; node context set by nodeSyslog()
+        is PveHttpException -> if (e.code == 596) {
+            // node="" because mapError lacks call-site context; nodeSyslog() catches 596
+            // before reaching here, so this is a safety net for other API calls.
+            PveClusterProxyTimeoutException(
+                node = "",
+                message = "HTTP 596: Cluster proxy timed out. Target node did not respond within the 30-second Proxmox cluster proxy window.",
+                cause = e,
+            )
+        } else {
+            PveException(formatHttpError(e.code, e.errorBody, e.httpMessage), e)
+        }
         is PveException -> PveException(redactSecrets(e.message) ?: e.message ?: "Unknown error", e.cause)
         is HttpException -> {
             val body = try {
@@ -1612,7 +1706,16 @@ class ProxmoxRepository(
             } catch (_: Exception) {
                 null
             }
-            PveException(formatHttpError(e.code(), body, e.message()), e)
+            if (e.code() == 596) {
+                // Safety net — see comment above on PveHttpException path
+                PveClusterProxyTimeoutException(
+                    node = "",
+                    message = "HTTP 596: Cluster proxy timed out. Target node did not respond within the 30-second Proxmox cluster proxy window.",
+                    cause = e,
+                )
+            } else {
+                PveException(formatHttpError(e.code(), body, e.message()), e)
+            }
         }
         is IOException -> {
             val rootCertEx = generateSequence<Throwable>(e) { it.cause }
@@ -1741,5 +1844,15 @@ class PveHttpException(
     cause: Throwable? = null,
 ) : Exception("HTTP $code: ${errorBody ?: httpMessage}", cause)
 
-class PveException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class PveException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+class PveClusterProxyTimeoutException(
+    val node: String,
+    message: String = if (node.isNotBlank()) {
+        "HTTP 596: Inter-node cluster proxy timeout for node '$node'. Target node did not respond within the 30-second Proxmox cluster proxy window."
+    } else {
+        "HTTP 596: Cluster proxy timed out. Target node did not respond within the 30-second Proxmox cluster proxy window."
+    },
+    cause: Throwable? = null,
+) : PveException(message, cause)
 

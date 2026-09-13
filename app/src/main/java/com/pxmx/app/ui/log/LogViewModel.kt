@@ -24,7 +24,13 @@ data class LogUiState(
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val error: String? = null,
-)
+    val limit: Int = 50,
+    val isProxyTimeout: Boolean = false,
+) {
+    companion object {
+        val AVAILABLE_LIMITS = listOf(25, 50, 100, 200)
+    }
+}
 
 class LogViewModel(
     private val repository: ProxmoxRepository,
@@ -34,7 +40,9 @@ class LogViewModel(
 
     private val logPollingFlow = tickerFlow(6500L, emitImmediately = true)
         .onEach {
-            fetchLogs(isInitial = _uiState.value.logs.isEmpty())
+            if (!_uiState.value.isProxyTimeout) {
+                fetchLogs(isInitial = _uiState.value.logs.isEmpty())
+            }
         }
 
     val ui: StateFlow<LogUiState> = merge(
@@ -59,13 +67,43 @@ class LogViewModel(
     }
 
     fun selectScope(scope: String) {
-        if (_uiState.value.selectedScope == scope) return
+        if (_uiState.value.selectedScope == scope && !_uiState.value.isProxyTimeout) return
         _uiState.update {
             it.copy(
                 selectedScope = scope,
                 logs = emptyList(),
                 loading = true,
                 error = null,
+                isProxyTimeout = false,
+            )
+        }
+        viewModelScope.launch {
+            fetchLogs(isInitial = true)
+        }
+    }
+
+    fun selectLimit(newLimit: Int) {
+        if (_uiState.value.limit == newLimit && !_uiState.value.isProxyTimeout) return
+        _uiState.update {
+            it.copy(
+                limit = newLimit,
+                loading = true,
+                error = null,
+                isProxyTimeout = false,
+            )
+        }
+        viewModelScope.launch {
+            fetchLogs(isInitial = true)
+        }
+    }
+
+    fun retryWithLimit(newLimit: Int) {
+        _uiState.update {
+            it.copy(
+                limit = newLimit,
+                loading = true,
+                error = null,
+                isProxyTimeout = false,
             )
         }
         viewModelScope.launch {
@@ -74,7 +112,7 @@ class LogViewModel(
     }
 
     fun refresh() {
-        _uiState.update { it.copy(refreshing = true, error = null) }
+        _uiState.update { it.copy(refreshing = true, error = null, isProxyTimeout = false) }
         viewModelScope.launch {
             if (_uiState.value.nodeNames.isEmpty()) {
                 repository.listNodeNames().onSuccess { nodes ->
@@ -86,12 +124,14 @@ class LogViewModel(
     }
 
     private suspend fun fetchLogs(isInitial: Boolean) {
-        val scope = _uiState.value.selectedScope
+        val currentState = _uiState.value
+        val scope = currentState.selectedScope
+        val limit = currentState.limit
         try {
             val result = if (scope == "cluster") {
                 repository.logHistory(max = 200)
             } else {
-                repository.nodeSyslog(node = scope, start = 0, limit = 200)
+                repository.nodeSyslog(node = scope, start = 0, limit = limit)
             }
 
             result.fold(
@@ -102,14 +142,17 @@ class LogViewModel(
                             loading = false,
                             refreshing = false,
                             error = null,
+                            isProxyTimeout = false,
                         )
                     }
                 },
                 onFailure = { e ->
+                    val isTimeout = e.isProxyTimeout()
                     _uiState.update {
                         it.copy(
                             loading = false,
                             refreshing = false,
+                            isProxyTimeout = isTimeout,
                             error = if (isInitial || it.logs.isEmpty()) e.message ?: "Failed to load log" else it.error,
                         )
                     }
@@ -118,15 +161,21 @@ class LogViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            val isTimeout = e.isProxyTimeout()
             _uiState.update {
                 it.copy(
                     loading = false,
                     refreshing = false,
+                    isProxyTimeout = isTimeout,
                     error = e.message ?: "Failed to load log",
                 )
             }
         }
     }
+
+    private fun Throwable.isProxyTimeout(): Boolean =
+        this is com.pxmx.app.data.repo.PveClusterProxyTimeoutException ||
+            message?.contains("HTTP 596") == true
 
     class Factory(
         private val repository: ProxmoxRepository,

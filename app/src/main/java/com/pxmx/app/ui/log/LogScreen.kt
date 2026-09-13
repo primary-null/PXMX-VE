@@ -113,18 +113,6 @@ fun LogScreen(
             )
         },
     ) { padding ->
-        if (state.loading && state.logs.isEmpty()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -177,20 +165,52 @@ fun LogScreen(
                                 }
                             }
 
-                            state.error?.let { err ->
-                                item(key = "two-pane-error-header") {
-                                    TechPlate(railColor = MaterialTheme.colorScheme.error) {
-                                        Text(
-                                            err,
-                                            modifier = Modifier.padding(14.dp),
-                                            color = MaterialTheme.colorScheme.error,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
+                            if (state.selectedScope != "cluster") {
+                                item(key = "two-pane-limit-selector") {
+                                    LimitChipRow(
+                                        currentLimit = state.limit,
+                                        availableLimits = LogUiState.AVAILABLE_LIMITS,
+                                        onSelectLimit = { viewModel.selectLimit(it) },
+                                    )
+                                }
+                            }
+
+                            if (state.isProxyTimeout) {
+                                item(key = "two-pane-proxy-timeout") {
+                                    ProxyTimeoutCard(
+                                        node = state.selectedScope,
+                                        onRetry25 = { viewModel.retryWithLimit(25) },
+                                        onRetry50 = { viewModel.retryWithLimit(50) },
+                                        onClusterLog = { viewModel.selectScope("cluster") },
+                                    )
+                                }
+                            } else {
+                                state.error?.let { err ->
+                                    item(key = "two-pane-error-header") {
+                                        TechPlate(railColor = MaterialTheme.colorScheme.error) {
+                                            Text(
+                                                err,
+                                                modifier = Modifier.padding(14.dp),
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                        }
                                     }
                                 }
                             }
 
-                            if (state.logs.isEmpty() && state.error == null) {
+                            if (state.loading && state.logs.isEmpty()) {
+                                item(key = "two-pane-loading") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
+                            } else if (state.logs.isEmpty() && state.error == null) {
                                 item(key = "two-pane-empty-log") {
                                     TechPlate(railColor = TechColors.LinkGreen) {
                                         Text(
@@ -302,20 +322,53 @@ fun LogScreen(
                                 }
                             }
                         }
-                        state.error?.let { err ->
-                            item(key = "error-header") {
-                                TechPlate(railColor = MaterialTheme.colorScheme.error) {
-                                    Text(
-                                        err,
-                                        modifier = Modifier.padding(14.dp),
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontFamily = FontFamily.Monospace,
-                                    )
+
+                        if (state.selectedScope != "cluster") {
+                            item(key = "limit-selector") {
+                                LimitChipRow(
+                                    currentLimit = state.limit,
+                                    availableLimits = LogUiState.AVAILABLE_LIMITS,
+                                    onSelectLimit = { viewModel.selectLimit(it) },
+                                )
+                            }
+                        }
+
+                        if (state.isProxyTimeout) {
+                            item(key = "proxy-timeout") {
+                                ProxyTimeoutCard(
+                                    node = state.selectedScope,
+                                    onRetry25 = { viewModel.retryWithLimit(25) },
+                                    onRetry50 = { viewModel.retryWithLimit(50) },
+                                    onClusterLog = { viewModel.selectScope("cluster") },
+                                )
+                            }
+                        } else {
+                            state.error?.let { err ->
+                                item(key = "error-header") {
+                                    TechPlate(railColor = MaterialTheme.colorScheme.error) {
+                                        Text(
+                                            err,
+                                            modifier = Modifier.padding(14.dp),
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        if (state.logs.isEmpty() && state.error == null) {
+                        if (state.loading && state.logs.isEmpty()) {
+                            item(key = "loading") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        } else if (state.logs.isEmpty() && state.error == null) {
                             item(key = "empty-log") {
                                 TechPlate(railColor = TechColors.LinkGreen) {
                                     Text(
@@ -606,4 +659,143 @@ private fun ScopeTab(
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     )
+}
+
+@Composable
+private fun LimitChipRow(
+    currentLimit: Int,
+    availableLimits: List<Int>,
+    onSelectLimit: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "LIMIT:",
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp,
+        )
+        availableLimits.forEach { lim ->
+            val isSelected = currentLimit == lim
+            val shape = RoundedCornerShape(2.dp)
+            val border = if (isSelected) MaterialTheme.colorScheme.primary else TechColors.Edge
+            val bg = if (isSelected) TechColors.Deck else TechColors.Hull
+            val textColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            Text(
+                text = "$lim LINES",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = textColor,
+                modifier = Modifier
+                    .clip(shape)
+                    .border(1.dp, border, shape)
+                    .background(bg, shape)
+                    .clickable { onSelectLimit(lim) }
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProxyTimeoutCard(
+    node: String,
+    onRetry25: () -> Unit,
+    onRetry50: () -> Unit,
+    onClusterLog: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TechPlate(
+        railColor = MaterialTheme.colorScheme.error,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(MaterialTheme.colorScheme.error, CircleShape),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "CLUSTER PROXY TIMEOUT (HTTP 596)",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                    letterSpacing = 0.8.sp,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Node '${node.uppercase()}' did not respond within the 30-second Proxmox cluster proxy window (pveproxy timeout).",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CyberdeckActionButton(
+                    text = "RETRY (25 LINES)",
+                    onClick = onRetry25,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                )
+                CyberdeckActionButton(
+                    text = "RETRY (50 LINES)",
+                    onClick = onRetry50,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                )
+                CyberdeckActionButton(
+                    text = "VIEW CLUSTER LOG",
+                    onClick = onClusterLog,
+                    accentColor = TechColors.LinkGreen,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CyberdeckActionButton(
+    text: String,
+    onClick: () -> Unit,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    val shape = CutCornerShape(bottomEnd = 6.dp)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .border(1.dp, accentColor, shape)
+            .background(TechColors.Deck, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+            color = accentColor,
+        )
+    }
 }

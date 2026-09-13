@@ -154,4 +154,71 @@ class LogViewModelTest {
         val vm = factory.create(LogViewModel::class.java)
         assertNotNull(vm)
     }
+
+    @Test
+    fun logViewModel_defaultLimit_isFifty() = runBlocking {
+        val vm = LogViewModel(repository)
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val state = vm.ui.value
+        assertEquals(50, state.limit)
+        assertEquals(listOf(25, 50, 100, 200), LogUiState.AVAILABLE_LIMITS)
+        assertFalse(state.isProxyTimeout)
+
+        job.cancel()
+    }
+
+    @Test
+    fun logViewModel_selectLimit_updatesLimitAndReloads() = runBlocking {
+        val vm = LogViewModel(repository)
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        vm.selectLimit(25)
+        assertEquals(25, vm.ui.value.limit)
+
+        vm.selectLimit(100)
+        assertEquals(100, vm.ui.value.limit)
+
+        job.cancel()
+    }
+
+    @Test
+    fun logViewModel_proxyTimeout_setsIsProxyTimeoutFlag() = runBlocking {
+        val timeoutApi = object : ProxmoxApi by demoApi {
+            override suspend fun nodeSyslog(
+                node: String,
+                start: Int?,
+                limit: Int?,
+            ): PveResponse<List<Map<String, Any>>> {
+                throw com.pxmx.app.data.repo.PveClusterProxyTimeoutException(
+                    node = node,
+                    message = "HTTP 596: connection timed out",
+                )
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = timeoutApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(timeoutApi)
+                override fun clear() {}
+            },
+        )
+
+        val vm = LogViewModel(customRepo)
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        vm.selectScope("PVE1")
+        val state = vm.ui.value
+        assertTrue("isProxyTimeout should be true", state.isProxyTimeout)
+        assertNotNull(state.error)
+        assertTrue(state.error!!.contains("596"))
+
+        // Test retryWithLimit resets flag and triggers reload
+        vm.retryWithLimit(25)
+        assertEquals(25, vm.ui.value.limit)
+
+        job.cancel()
+    }
 }

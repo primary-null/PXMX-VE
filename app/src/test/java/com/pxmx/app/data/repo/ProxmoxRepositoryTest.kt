@@ -9,6 +9,7 @@ import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
@@ -188,6 +189,71 @@ class ProxmoxRepositoryTest {
         val entries = result.getOrNull().orEmpty()
         assertTrue(entries.isNotEmpty())
         assertTrue(entries.all { it.node == "alpha" })
+    }
+
+    @Test
+    fun nodeSyslog_withHttp596_triggersAdaptiveRetryAndThrowsTimeoutException() = runBlocking {
+        val attempts = mutableListOf<Int?>()
+        val failingApi = object : ProxmoxApi by demoApi {
+            override suspend fun nodeSyslog(
+                node: String,
+                start: Int?,
+                limit: Int?,
+            ): PveResponse<List<Map<String, Any>>> {
+                attempts.add(limit)
+                throw PveClusterProxyTimeoutException(node = node, message = "HTTP 596: connection timed out")
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = failingApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(failingApi)
+                override fun clear() {}
+            },
+        )
+
+        val result = customRepo.nodeSyslog("pve1", limit = 50)
+        assertTrue(result.isFailure)
+        val ex = result.exceptionOrNull()
+        assertTrue("Exception should be PveClusterProxyTimeoutException", ex is PveClusterProxyTimeoutException)
+        assertEquals("pve1", (ex as PveClusterProxyTimeoutException).node)
+        assertTrue("Should have attempted limit 50, then retried with limit 25", attempts.contains(50) && attempts.contains(25))
+    }
+
+    @Test
+    fun nodeSyslog_withHttp596_recoversIfReducedLimitSucceeds() = runBlocking {
+        val attempts = mutableListOf<Int?>()
+        val recoveringApi = object : ProxmoxApi by demoApi {
+            override suspend fun nodeSyslog(
+                node: String,
+                start: Int?,
+                limit: Int?,
+            ): PveResponse<List<Map<String, Any>>> {
+                attempts.add(limit)
+                if (limit == 50) {
+                    throw PveClusterProxyTimeoutException(node = node, message = "HTTP 596: connection timed out")
+                }
+                return PveResponse(data = listOf(mapOf("n" to 1, "t" to "recovered log line", "time" to 1000L)))
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = recoveringApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(recoveringApi)
+                override fun clear() {}
+            },
+        )
+
+        val result = customRepo.nodeSyslog("pve1", limit = 50)
+        assertTrue("Should recover with reduced limit", result.isSuccess)
+        val entries = result.getOrNull().orEmpty()
+        assertEquals(1, entries.size)
+        assertEquals("pve1", entries.first().node)
+        assertEquals(listOf(50, 25), attempts)
     }
 
     // -------------------------------------------------------------------------

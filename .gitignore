@@ -40,3 +40,14 @@ code_review.md
 Thumbs.db
 code_review.md
 CHANGELOG.md
+.agents/
+AGENTS.md
+
+# Local mirror & helper scripts
+launch_*.bat
+launch_*.py
+
+# Local documentation drafts
+PXMX_User_Manual.*
+docs/manual_assets/
+
