@@ -42,6 +42,8 @@ code_review.md
 CHANGELOG.md
 .agents/
 AGENTS.md
+__pycache__/
+*.pyc
 
 # Local mirror & helper scripts
 launch_*.bat

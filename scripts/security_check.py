@@ -106,10 +106,13 @@ ALLOWED_AUTHOR_EMAILS = {
 def run_git(args):
     """Run a git command and return stdout as string."""
     try:
-        res = subprocess.run(["git"] + args, capture_output=True, text=True, check=True)
-        return res.stdout.strip()
+        res = subprocess.run(["git"] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+        return res.stdout.strip() if res.stdout else ""
     except subprocess.CalledProcessError as e:
         print(f"[SECURITY ERROR] Git command failed: git {' '.join(args)}\n{e.stderr}", file=sys.stderr)
+        return ""
+    except Exception as e:
+        print(f"[SECURITY ERROR] Git execution error: {e}", file=sys.stderr)
         return ""
 
 def check_file_path(file_path):
