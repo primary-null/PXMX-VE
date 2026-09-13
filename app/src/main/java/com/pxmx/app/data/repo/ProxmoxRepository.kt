@@ -103,11 +103,14 @@ data class ActiveAptTask(
 
 class ProxmoxRepository(
     private val context: Context,
-    val sessionStore: SessionStore,
+    // internal so callers within the same module can observe session state;
+    // UI-layer ViewModels that only need session reads receive it via ProxmoxApp.sessionStore.
+    internal val sessionStore: SessionStore,
     private val clientFactory: ProxmoxApiProvider,
     val localNet: LocalNet = LocalNet(context, sessionStore),
 ) {
-    val appContext: Context get() = context
+    // Internal — callers that need a Context should receive it via their own constructor injection.
+    internal val appContext: Context get() = context
 
     private val authMutex = Mutex()
     private val repoScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -296,15 +299,18 @@ class ProxmoxRepository(
             )
             sessionStore.setSession(partial)
 
-            val version = api.version().data
-            val full = partial.copy(version = version)
-            sessionStore.setSession(full)
-
+            // Pin the cert immediately after the first authenticated request succeeds —
+            // before api.version() — to close the timing window where a concurrent
+            // request could succeed against a different (MITM) certificate.
             if (config.trustSelfSigned) {
                 clientFactory.getCapturedFingerprint(config.host)?.let { fp ->
                     sessionStore.saveCertPin(config.host, fp)
                 }
             }
+
+            val version = api.version().data
+            val full = partial.copy(version = version)
+            sessionStore.setSession(full)
 
             commitLoginSideEffects(config, version, enableAutoConnect)
 
@@ -367,15 +373,17 @@ class ProxmoxRepository(
             )
             sessionStore.setSession(partial)
 
-            val version = api.version().data
-            val full = partial.copy(version = version)
-            sessionStore.setSession(full)
-
+            // Pin the cert immediately after TFA verification succeeds — before api.version() —
+            // to close the timing window on first-use connections.
             if (config.trustSelfSigned) {
                 clientFactory.getCapturedFingerprint(config.host)?.let { fp ->
                     sessionStore.saveCertPin(config.host, fp)
                 }
             }
+
+            val version = api.version().data
+            val full = partial.copy(version = version)
+            sessionStore.setSession(full)
 
             commitLoginSideEffects(config, version, enableAutoConnect)
 

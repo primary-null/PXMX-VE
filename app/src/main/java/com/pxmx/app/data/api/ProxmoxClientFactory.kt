@@ -83,9 +83,18 @@ class ProxmoxClientFactory(
 
         // Never log in release — console paths can contain vncticket secrets.
         if (BuildConfig.DEBUG) {
+            val defaultLogger = HttpLoggingInterceptor.Logger.DEFAULT
+            val sanitizedLogger = HttpLoggingInterceptor.Logger { message ->
+                val sanitized = message.replace(
+                    Regex("([?&](?:vncticket|ticket|token)=)[^&\\s]+", RegexOption.IGNORE_CASE),
+                    "$1[REDACTED]",
+                )
+                defaultLogger.log(sanitized)
+            }
             builder.addInterceptor(
-                HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BASIC
+                HttpLoggingInterceptor(sanitizedLogger).apply {
+                    // HEADERS: bodies omitted, headers redacted below.
+                    level = HttpLoggingInterceptor.Level.HEADERS
                     redactHeader("Cookie")
                     redactHeader("Authorization")
                     redactHeader("CSRFPreventionToken")

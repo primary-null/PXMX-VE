@@ -40,6 +40,7 @@ code_review.md
 Thumbs.db
 code_review.md
 CHANGELOG.md
+SECURITY_AUDIT_CHANGELOG.md
 .agents/
 AGENTS.md
 __pycache__/

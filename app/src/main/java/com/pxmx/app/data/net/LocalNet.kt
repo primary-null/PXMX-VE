@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -221,10 +223,12 @@ open class LocalNet(
             }
 
             try {
+                val store = sessionStore
+                    ?: return@withContext ProbeResult.Unreachable
                 val trustManager = TofuTrustManager(
                     host = host,
                     trustSelfSigned = true,
-                    sessionStore = sessionStore!!,
+                    sessionStore = store,
                     onCertCaptured = null, // No cert pin save on probe
                 )
                 val sslSocketFactory = createTofuSslSocketFactory(trustManager)
@@ -455,6 +459,9 @@ open class LocalNet(
         val verifiedList = mutableListOf<DiscoveredHost>()
         val pveDetectedList = mutableListOf<DiscoveredHost>()
         val unverifiedList = mutableListOf<String>()
+        val verifiedMutex = Mutex()
+        val pveDetectedMutex = Mutex()
+        val unverifiedMutex = Mutex()
         val semaphore = Semaphore(concurrency)
 
         send(
@@ -483,7 +490,7 @@ open class LocalNet(
 
                             when (result) {
                                 is ProbeResult.Verified -> {
-                                    synchronized(verifiedList) {
+                                    verifiedMutex.withLock {
                                         verifiedList.add(
                                             DiscoveredHost(
                                                 ip = ip,
@@ -497,7 +504,7 @@ open class LocalNet(
                                 }
 
                                 is ProbeResult.PveDetected -> {
-                                    synchronized(pveDetectedList) {
+                                    pveDetectedMutex.withLock {
                                         pveDetectedList.add(
                                             DiscoveredHost(
                                                 ip = ip,
@@ -511,18 +518,16 @@ open class LocalNet(
                                 }
 
                                 else -> {
-                                    synchronized(unverifiedList) {
+                                    unverifiedMutex.withLock {
                                         if (unverifiedList.size < 32) unverifiedList.add(ip)
                                     }
                                 }
                             }
                         }
                         val currentScanned = scanned.incrementAndGet()
-                        val currentVerified = synchronized(verifiedList) { verifiedList.toList() }
-                        val currentDetected =
-                            synchronized(pveDetectedList) { pveDetectedList.toList() }
-                        val currentUnverified =
-                            synchronized(unverifiedList) { unverifiedList.toList() }
+                        val currentVerified = verifiedMutex.withLock { verifiedList.toList() }
+                        val currentDetected = pveDetectedMutex.withLock { pveDetectedList.toList() }
+                        val currentUnverified = unverifiedMutex.withLock { unverifiedList.toList() }
 
                         send(
                             ScanProgress(
@@ -540,9 +545,9 @@ open class LocalNet(
             }
         }
 
-        val finalVerified = synchronized(verifiedList) { verifiedList.toList() }
-        val finalDetected = synchronized(pveDetectedList) { pveDetectedList.toList() }
-        val finalUnverified = synchronized(unverifiedList) { unverifiedList.toList() }
+        val finalVerified = verifiedMutex.withLock { verifiedList.toList() }
+        val finalDetected = pveDetectedMutex.withLock { pveDetectedList.toList() }
+        val finalUnverified = unverifiedMutex.withLock { unverifiedList.toList() }
         send(
             ScanProgress(
                 scanned = total,

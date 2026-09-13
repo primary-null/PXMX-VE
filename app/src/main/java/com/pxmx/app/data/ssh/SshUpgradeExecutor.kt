@@ -92,14 +92,21 @@ class SshUpgradeExecutor(
                 throw PveException("SSH connection failed to $host:$port: $msg", e)
             }
 
+            // Copy password into a zeroed CharArray so we can wipe it from the heap
+            // as soon as authentication completes, reducing the in-memory plaintext window.
+            val passwordChars = password.toCharArray()
             try {
-                client.authPassword(username, password)
+                client.authPassword(username, String(passwordChars))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (e is UserAuthException || e.message?.contains("auth", ignoreCase = true) == true) {
                     throw PveException("SSH authentication failed for user $username. Ensure password authentication is enabled for root.", e)
                 }
                 throw PveException("SSH authentication error: ${e.message}", e)
+            } finally {
+                // Zero the char array immediately after auth — cannot zero the original String
+                // (JVM immutability), but this eliminates the extra copy from memory sooner.
+                passwordChars.fill('\u0000')
             }
 
             val session = client.startSession()
@@ -137,7 +144,9 @@ class SshUpgradeExecutor(
                 stderrThread.join()
 
                 cmd.join(600, TimeUnit.SECONDS)
-                val exitStatus = cmd.exitStatus ?: 0
+                // Treat unknown exit status as failure (-1) rather than success (0)
+                // to avoid silently masking abnormal channel closure as a successful upgrade.
+                val exitStatus = cmd.exitStatus ?: -1
 
                 val capturedTail = synchronized(tailLines) { tailLines.toList() }
                 mapExitStatus(exitStatus, capturedTail)

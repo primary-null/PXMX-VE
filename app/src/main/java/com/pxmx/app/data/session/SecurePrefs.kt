@@ -16,9 +16,19 @@ object SecurePrefs {
 
     fun open(context: Context): SharedPreferences {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        val secure = openSecurePrefs(context, masterKeyAlias)
+        migrateFromLegacy(context, secure)
+        return secure
+    }
 
-        @Suppress("DEPRECATION")
-        val secure = runCatching {
+    /**
+     * Opens [EncryptedSharedPreferences], recovering from known crypto / IO failures only.
+     * If the failure is not a recognised KeyStore / crypto / IO cause (e.g. OOM), it is
+     * rethrown so we do not silently wipe the user's encrypted store for unrelated errors.
+     */
+    @Suppress("DEPRECATION")
+    private fun openSecurePrefs(context: Context, masterKeyAlias: String): SharedPreferences {
+        return try {
             EncryptedSharedPreferences.create(
                 SECURE_PREFS_NAME,
                 masterKeyAlias,
@@ -26,7 +36,16 @@ object SecurePrefs {
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        }.getOrElse {
+        } catch (e: Exception) {
+            // Only recover from known crypto / IO causes (KeyStore wipe, corrupted ciphertext).
+            // Let unexpected errors propagate — they should not trigger a silent data wipe.
+            val isCryptoError = e is java.security.GeneralSecurityException ||
+                e is java.security.KeyStoreException ||
+                e is java.io.IOException ||
+                e.cause is java.security.GeneralSecurityException ||
+                e.cause is java.security.KeyStoreException
+            if (!isCryptoError) throw e
+
             // Leftover ciphertext from a wiped master key. Drop the file and start fresh.
             context.deleteSharedPreferences(SECURE_PREFS_NAME)
             runCatching {
@@ -34,7 +53,6 @@ object SecurePrefs {
                 java.io.File(prefsDir, "$SECURE_PREFS_NAME.xml").delete()
                 java.io.File(prefsDir, "$SECURE_PREFS_NAME.xml.bak").delete()
             }
-            @Suppress("DEPRECATION")
             EncryptedSharedPreferences.create(
                 SECURE_PREFS_NAME,
                 masterKeyAlias,
@@ -43,10 +61,8 @@ object SecurePrefs {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
         }
-
-        migrateFromLegacy(context, secure)
-        return secure
     }
+
 
     private fun migrateFromLegacy(context: Context, secure: SharedPreferences) {
         if (secure.contains(MIGRATION_DONE_KEY)) return
