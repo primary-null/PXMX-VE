@@ -35,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -120,10 +121,10 @@ fun LogScreen(
         ) {
             val isTwoPane = isOperatorTwoPane(maxWidth.value.toInt())
 
-            BackHandler(enabled = isTwoPane && selectedLogKey != null) {
+            BackHandler(enabled = selectedLogKey != null) {
                 selectedLogKey = null
             }
-            BackHandler(enabled = !isTwoPane || selectedLogKey == null) {
+            BackHandler(enabled = selectedLogKey == null) {
                 onBack()
             }
 
@@ -386,7 +387,39 @@ fun LogScreen(
                             items = state.logs,
                             key = { it.stableKey },
                         ) { entry ->
-                            LogEntryPlate(entry = entry)
+                            LogEntryPlate(
+                                entry = entry,
+                                isSelected = entry.stableKey == selectedLogKey,
+                                onClick = { selectedLogKey = entry.stableKey },
+                            )
+                        }
+                    }
+                }
+
+                if (!isTwoPane && selectedLogKey != null) {
+                    val selectedEntry = state.logs.firstOrNull { it.stableKey == selectedLogKey }
+                    if (selectedEntry != null) {
+                        ModalBottomSheet(
+                            onDismissRequest = { selectedLogKey = null },
+                            containerColor = TechColors.Hull,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            scrimColor = Color.Black.copy(alpha = 0.65f),
+                            dragHandle = {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(vertical = 12.dp)
+                                        .width(40.dp)
+                                        .height(4.dp)
+                                        .background(TechColors.Edge, RoundedCornerShape(2.dp)),
+                                )
+                            },
+                        ) {
+                            LogDetailPane(
+                                entry = selectedEntry,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 32.dp),
+                            )
                         }
                     }
                 }
@@ -548,6 +581,8 @@ private fun LogDetailPane(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
                         color = priColor,
+                        softWrap = false,
+                        maxLines = 1,
                         modifier = Modifier
                             .border(1.dp, priColor.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
                             .background(priColor.copy(alpha = 0.12f))

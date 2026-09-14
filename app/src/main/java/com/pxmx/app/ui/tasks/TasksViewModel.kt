@@ -1,4 +1,4 @@
-﻿package com.pxmx.app.ui.tasks
+package com.pxmx.app.ui.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -26,6 +26,10 @@ data class TasksUiState(
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val error: String? = null,
+    val selectedTask: ClusterTask? = null,
+    val taskLogLines: List<String> = emptyList(),
+    val taskLogLoading: Boolean = false,
+    val taskLogError: String? = null,
 )
 
 class TasksViewModel(
@@ -42,6 +46,66 @@ class TasksViewModel(
     fun refresh() {
         _ui.update { it.copy(refreshing = true, error = null) }
         viewModelScope.launch { fetchTasks() }
+    }
+
+    fun selectTask(task: ClusterTask) {
+        if (_ui.value.selectedTask?.upid == task.upid) return
+        _ui.update {
+            it.copy(
+                selectedTask = task,
+                taskLogLoading = true,
+                taskLogError = null,
+                taskLogLines = emptyList(),
+            )
+        }
+        viewModelScope.launch { fetchTaskLog(task) }
+    }
+
+    fun clearSelectedTask() {
+        _ui.update {
+            it.copy(
+                selectedTask = null,
+                taskLogLoading = false,
+                taskLogError = null,
+                taskLogLines = emptyList(),
+            )
+        }
+    }
+
+    fun refreshTaskLog() {
+        val task = _ui.value.selectedTask ?: return
+        _ui.update { it.copy(taskLogLoading = true, taskLogError = null) }
+        viewModelScope.launch { fetchTaskLog(task) }
+    }
+
+    private suspend fun fetchTaskLog(task: ClusterTask) {
+        repository.taskLog(task.node, task.upid, limit = 50).fold(
+            onSuccess = { lines ->
+                _ui.update {
+                    if (it.selectedTask?.upid == task.upid) {
+                        it.copy(
+                            taskLogLines = lines,
+                            taskLogLoading = false,
+                            taskLogError = null,
+                        )
+                    } else {
+                        it
+                    }
+                }
+            },
+            onFailure = { e ->
+                _ui.update {
+                    if (it.selectedTask?.upid == task.upid) {
+                        it.copy(
+                            taskLogLoading = false,
+                            taskLogError = e.message ?: "Failed to load task log",
+                        )
+                    } else {
+                        it
+                    }
+                }
+            },
+        )
     }
 
     private fun load() {

@@ -192,14 +192,30 @@ fun NodeDetailScreen(
                 item {
                     TechPlate(railColor = TechColors.Amber) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-                            Text(
-                                "CONSOLE",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    "CONSOLE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                if (state.isTokenSession) {
+                                    Text(
+                                        "[TICKET REQUIRED]",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.8.sp,
+                                        color = TechColors.Amber,
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
@@ -207,22 +223,32 @@ fun NodeDetailScreen(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(2.dp),
                                 ) {
-                                    Text("SHELL", fontFamily = FontFamily.Monospace)
+                                    Text(
+                                        if (state.isTokenSession) "SHELL (TICKET REQ)" else "SHELL",
+                                        fontFamily = FontFamily.Monospace,
+                                    )
                                 }
                                 OutlinedButton(
                                     onClick = { onOpenConsole("upgrade") },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(2.dp),
                                 ) {
-                                    Text("UPGRADE", fontFamily = FontFamily.Monospace)
+                                    Text(
+                                        if (state.isTokenSession) "UPGRADE (TICKET REQ)" else "UPGRADE",
+                                        fontFamily = FontFamily.Monospace,
+                                    )
                                 }
                             }
                             Text(
-                                "XTERM.JS · NODE ACCESS",
+                                if (state.isTokenSession) {
+                                    "NODE SHELL REQUIRES PVE TICKET · API TOKENS RESTRICTED BY PVE"
+                                } else {
+                                    "XTERM.JS · NODE ACCESS"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
                                 letterSpacing = 0.6.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (state.isTokenSession) TechColors.Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 4.dp),
                             )
                         }

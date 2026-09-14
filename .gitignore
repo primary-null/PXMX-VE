@@ -53,4 +53,7 @@ launch_*.py
 # Local documentation drafts
 PXMX_User_Manual.*
 docs/manual_assets/
+docs/screenshots/
+docs/*.xml
+issues/
 

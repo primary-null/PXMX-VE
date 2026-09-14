@@ -93,4 +93,48 @@ class TasksViewModelTest {
         assertNull(state.error)
         assertTrue(state.tasks.isNotEmpty())
     }
+
+    @Test
+    fun selectTask_fetchesTaskLogAndUpdatesState() {
+        val vm = TasksViewModel(repository)
+        val firstTask = vm.ui.value.tasks.first()
+
+        vm.selectTask(firstTask)
+
+        val state = vm.ui.value
+        assertEquals(firstTask, state.selectedTask)
+        assertFalse(state.taskLogLoading)
+        assertNull(state.taskLogError)
+        assertNotNull(state.taskLogLines)
+    }
+
+    @Test
+    fun clearSelectedTask_resetsTaskSelectionAndLogs() {
+        val vm = TasksViewModel(repository)
+        val firstTask = vm.ui.value.tasks.first()
+        vm.selectTask(firstTask)
+        assertEquals(firstTask, vm.ui.value.selectedTask)
+
+        vm.clearSelectedTask()
+
+        val state = vm.ui.value
+        assertNull(state.selectedTask)
+        assertFalse(state.taskLogLoading)
+        assertNull(state.taskLogError)
+        assertTrue(state.taskLogLines.isEmpty())
+    }
+
+    @Test
+    fun refreshTaskLog_reloadsLogForSelectedTask() {
+        val vm = TasksViewModel(repository)
+        val firstTask = vm.ui.value.tasks.first()
+        vm.selectTask(firstTask)
+
+        vm.refreshTaskLog()
+
+        val state = vm.ui.value
+        assertEquals(firstTask, state.selectedTask)
+        assertFalse(state.taskLogLoading)
+        assertNull(state.taskLogError)
+    }
 }

@@ -6,6 +6,7 @@ import com.pxmx.app.data.api.DemoApi
 import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ServerConfig
@@ -232,5 +233,30 @@ class GuestDetailViewModelTest {
         // Release gate and clean up
         gate.complete(Unit)
         job.cancel()
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Token vs Ticket Session Distinction (ISSUE-005)
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun isTokenSession_whenPasswordSession_evaluatesToFalse() {
+        assertFalse(vm.ui.value.isTokenSession)
+    }
+
+    @Test
+    fun isTokenSession_whenApiTokenSession_evaluatesToTrue() {
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(
+                    host = "192.168.1.10",
+                    port = 8006,
+                    authMode = AuthMode.API_TOKEN,
+                    apiToken = "user@pam!token=12345",
+                ),
+            )
+        )
+        val tokenVm = GuestDetailViewModel(repository, "pve1", GuestType.QEMU, 100L, "web01")
+        assertTrue(tokenVm.ui.value.isTokenSession)
     }
 }

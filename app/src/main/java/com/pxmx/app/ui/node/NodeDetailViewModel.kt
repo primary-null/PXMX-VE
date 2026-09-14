@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.LivePoll
+import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeTaskInfo
@@ -27,6 +28,7 @@ data class NodeDetailUiState(
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val error: String? = null,
+    val isTokenSession: Boolean = false,
 )
 
 class NodeDetailViewModel(
@@ -34,7 +36,12 @@ class NodeDetailViewModel(
     node: String,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(NodeDetailUiState(node = node))
+    private val _uiState = MutableStateFlow(
+        NodeDetailUiState(
+            node = node,
+            isTokenSession = repository.sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
+        ),
+    )
 
     private val nodePollingFlow = tickerFlow(LivePoll.NODE_MS, emitImmediately = false)
         .onEach {

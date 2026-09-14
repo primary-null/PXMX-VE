@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestStatus
@@ -63,6 +64,7 @@ data class GuestDetailUiState(
     val confirmDeleteSnap: String? = null,
     val confirmRollbackSnap: String? = null,
     val confirmDeleteBackup: BackupVolume? = null,
+    val isTokenSession: Boolean = false,
 )
 
 class GuestDetailViewModel(
@@ -75,7 +77,13 @@ class GuestDetailViewModel(
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
-        GuestDetailUiState(node = node, guestType = guestType, vmid = vmid, name = name),
+        GuestDetailUiState(
+            node = node,
+            guestType = guestType,
+            vmid = vmid,
+            name = name,
+            isTokenSession = repository.sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
+        ),
     )
 
     private val guestPollingFlow = tickerFlow(LivePoll.GUEST_MS, emitImmediately = false)

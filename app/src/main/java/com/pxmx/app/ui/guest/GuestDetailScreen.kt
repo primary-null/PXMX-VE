@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
@@ -69,7 +70,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -126,6 +129,8 @@ fun GuestDetailScreen(
     val busy = state.actionInProgress != null
     var powerMenu by remember { mutableStateOf(false) }
     var pendingDanger by remember { mutableStateOf<GuestAction?>(null) }
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     // Back handling ordering: modal dialogs/menus close first, then pop screen back to Home
     BackHandler(enabled = pendingDanger != null) {
@@ -237,7 +242,7 @@ fun GuestDetailScreen(
                             if (running) {
                                 TechMenuItem(
                                     label = "Console",
-                                    hint = "noVNC / xterm",
+                                    hint = if (state.isTokenSession) "Ticket required" else "noVNC / xterm",
                                     leadingIcon = Icons.Default.Computer,
                                     onClick = {
                                         powerMenu = false
@@ -279,6 +284,7 @@ fun GuestDetailScreen(
         }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -312,7 +318,12 @@ fun GuestDetailScreen(
                     WeakTab(
                         label = "OPS",
                         selected = state.expanded == null,
-                        onClick = { viewModel.selectSection(null) },
+                        onClick = {
+                            viewModel.selectSection(null)
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
                     )
                     GuestSection.entries.forEach { section ->
                         WeakTab(
@@ -325,7 +336,20 @@ fun GuestDetailScreen(
                                 GuestSection.RAW -> "RAW"
                             },
                             selected = state.expanded == section,
-                            onClick = { viewModel.selectSection(section) },
+                            onClick = {
+                                viewModel.selectSection(section)
+                                coroutineScope.launch {
+                                    val targetIndex = when (section) {
+                                        GuestSection.HARDWARE -> 4
+                                        GuestSection.NETWORK -> 5
+                                        GuestSection.OPTIONS -> 6
+                                        GuestSection.SNAPSHOTS -> 7
+                                        GuestSection.BACKUPS -> 8
+                                        GuestSection.RAW -> 9
+                                    }
+                                    listState.animateScrollToItem(targetIndex)
+                                }
+                            },
                         )
                     }
                 }
@@ -362,6 +386,7 @@ fun GuestDetailScreen(
                         viewModel.runPowerAction(it)
                     },
                     onOpenConsole = onOpenConsole,
+                    isTokenSession = state.isTokenSession,
                     onOpenPowerMenu = {
                         powerMenu = true
                         com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
@@ -695,6 +720,7 @@ private fun PowerCard(
     guestType: GuestType,
     onPower: (GuestAction) -> Unit,
     onOpenConsole: () -> Unit,
+    isTokenSession: Boolean = false,
     onOpenPowerMenu: () -> Unit = {},
 ) {
     val actions = availableActions(guestType, running, status)
@@ -702,14 +728,30 @@ private fun PowerCard(
         railColor = if (running) TechColors.Amber else TechColors.Edge,
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text(
-                text = "CONSOLE",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = "CONSOLE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (isTokenSession) {
+                    Text(
+                        text = "[TICKET REQUIRED]",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = TechColors.Amber,
+                    )
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Button(
                 onClick = onOpenConsole,
@@ -720,18 +762,27 @@ private fun PowerCard(
                 Icon(Icons.Default.Computer, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (running) "OPEN CONSOLE" else "CONSOLE (START GUEST FIRST)",
+                    text = when {
+                        !running -> "CONSOLE (START GUEST FIRST)"
+                        isTokenSession -> "CONSOLE (TICKET REQUIRED)"
+                        else -> "OPEN CONSOLE"
+                    },
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.6.sp,
                 )
             }
             Text(
-                if (guestType == GuestType.QEMU) "NOVNC · LIVE FROM SERVER"
-                else "XTERM.JS · LIVE FROM SERVER",
+                text = if (isTokenSession) {
+                    "NOVNC REQUIRES PVE TICKET · API TOKENS RESTRICTED BY PVE"
+                } else if (guestType == GuestType.QEMU) {
+                    "NOVNC · LIVE FROM SERVER"
+                } else {
+                    "XTERM.JS · LIVE FROM SERVER"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 0.6.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isTokenSession) TechColors.Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
