@@ -386,3 +386,56 @@ data class SdnStatusInfo(
         )
     }
 }
+
+// ---- Cluster Status ----
+
+@Serializable
+data class ClusterStatusEntry(
+    val id: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val ip: String? = null,
+    val level: String? = null,
+    val local: Int? = null,
+    val nodeid: Long? = null,
+    val online: Int? = null,
+    val quorate: Int? = null,
+    val version: Long? = null,
+    val nodes: Int? = null,
+) {
+    val isNode: Boolean get() = type.equals("node", ignoreCase = true)
+    val isCluster: Boolean get() = type.equals("cluster", ignoreCase = true)
+    val isLocal: Boolean get() = local == 1
+
+    companion object {
+        fun fromMap(m: Map<String, Any>): ClusterStatusEntry = ClusterStatusEntry(
+            id = str(m, "id"),
+            name = str(m, "name", "node"),
+            type = str(m, "type"),
+            ip = str(m, "ip"),
+            level = str(m, "level"),
+            local = int(m, "local"),
+            nodeid = long(m, "nodeid"),
+            online = int(m, "online"),
+            quorate = int(m, "quorate"),
+            version = long(m, "version"),
+            nodes = int(m, "nodes"),
+        )
+    }
+}
+
+// ---- Task Logs ----
+
+@Serializable
+data class TaskLogEntry(
+    val n: Long? = null,
+    val t: String? = null,
+) {
+    companion object {
+        fun fromMap(m: Map<String, Any>): TaskLogEntry = TaskLogEntry(
+            n = long(m, "n"),
+            t = str(m, "t"),
+        )
+    }
+}
+
