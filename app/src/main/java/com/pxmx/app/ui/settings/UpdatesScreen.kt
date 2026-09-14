@@ -312,7 +312,7 @@ fun UpdatesScreen(
                                             val isActive = (progress?.state == NodeRefreshState.PARSING || progress?.state == NodeRefreshState.UPGRADING) &&
                                                 progress.activePackageIndex == index
 
-                                            if (isUpgrading && progress != null && index < progress.activePackageIndex) {
+                                            if (isUpgrading && index < (progress?.activePackageIndex ?: 0)) {
                                                 return@itemsIndexed
                                             }
 
@@ -477,7 +477,7 @@ fun UpdatesScreen(
                                         progress.activePackageIndex == index
                                     
                                     // Task 1: During UPGRADING, completed rows drop away.
-                                    if (isUpgrading && progress != null && index < progress.activePackageIndex) {
+                                    if (isUpgrading && index < (progress?.activePackageIndex ?: 0)) {
                                         return@itemsIndexed
                                     }
 

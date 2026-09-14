@@ -1,0 +1,9 @@
+﻿# Local sensitive tokens pattern file for PXMX-VE security checker
+# Copy this file to 'security.tokens.local' and add your local hardware serials,
+# local username, or private homelab IP addresses.
+# 'security.tokens.local' is permanently excluded in .gitignore and NEVER committed.
+# Format: <TOKEN>:<Description> or simply <TOKEN>
+
+# MY_DEV_USER:Local dev username
+# SERIAL123456789:Hardware device serial
+# 192.168.1.50:Internal test server IP

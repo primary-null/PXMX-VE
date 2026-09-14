@@ -1124,9 +1124,7 @@ class ProxmoxRepository(
                 Result.success(Unit)
             } catch (e: Exception) {
                 // Cleanup partial file on failure if possible
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
-                    context.contentResolver.delete(uri, null, null)
-                }
+                uri?.let { context.contentResolver.delete(it, null, null) }
                 throw e
             }
         } catch (e: Exception) {

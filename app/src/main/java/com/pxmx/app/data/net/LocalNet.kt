@@ -108,6 +108,7 @@ open class LocalNet(
      * Finds all scannable IPv4 subnets across all active network interfaces.
      * Prioritizes RFC1918 subnets. Recognizes Tailscale/VPN (100.64.0.0/10) to report but not sweep.
      */
+    @Suppress("DEPRECATION")
     fun getScannableSubnets(): List<SubnetInfo> {
         val cm = context?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return emptyList()

@@ -11,6 +11,7 @@ captures/
 *.ap_
 *.dex
 *.class
+gradle/gradle-daemon-jvm.properties
 
 # Android local config (SDK path, and signing secrets if you add them here)
 /local.properties
@@ -27,6 +28,7 @@ captures/
 *.properties.secret
 proxmox.conf
 hosts.local
+security.tokens.local
 
 # Signing
 *.jks

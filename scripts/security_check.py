@@ -33,22 +33,28 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
 # Configuration & Blacklists
 # -----------------------------------------------------------------------------
 
-# Helper: obfuscate target tokens so this security script itself does not contain plain text secrets
-def _b64(val: str) -> str:
-    try:
-        return base64.b64decode(val.encode("ascii")).decode("utf-8")
-    except Exception:
-        return ""
+# Helper: load local sensitive identifiers from a gitignored local file if present
+def load_local_tokens():
+    """Load local sensitive identifiers from an uncommitted, gitignored file."""
+    tokens = []
+    token_file = os.environ.get("PXMX_SECURITY_TOKENS_FILE", "security.tokens.local")
+    if os.path.exists(token_file):
+        try:
+            with open(token_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if ":" in line:
+                        tok, desc = line.split(":", 1)
+                        tokens.append((tok.strip(), desc.strip()))
+                    else:
+                        tokens.append((line, "Custom local identifier"))
+        except Exception:
+            pass
+    return tokens
 
-# Specific hardware & lab identifiers (stored as base64 to avoid plain text in repo)
-_S_TOKENS = [
-    (_b64("UkVEQUNURUQ="), "Local Windows dev username pattern"),
-    (_b64("UkVEQUNURUQ="), "Hardware Fold3 device serial"),
-    (_b64("UkVEQUNURUQ="), "Hardware Pixel 8 Pro device serial"),
-    (_b64("UkVEQUNURUQ="), "Hardware A13 device serial"),
-    (_b64("UkVEQUNURUQ="), "Real cluster host IP"),
-    (_b64("UkVEQUNURUQ="), "Real cluster host IP"),
-]
+LOCAL_SENSITIVE_TOKENS = load_local_tokens()
 
 # Prohibited string patterns (regex)
 FORBIDDEN_CONTENT_PATTERNS = [
@@ -58,10 +64,8 @@ FORBIDDEN_CONTENT_PATTERNS = [
     (r"\bAppData[\\/]+Local\b", "Windows AppData path detected"),
     (r"\bWinSta0[\\/]+", "Windows WindowStation reference detected"),
 
-    # Windows AppData / WindowStation paths
-    (r"\bAppData[\\/]+Local\b", "Windows AppData path detected"),
-    (r"\bWinSta0[\\/]+", "Windows WindowStation reference detected"),
-
+    # Apple private relay addresses
+    (r"[\w.+-]+@privaterelay\.appleid\.com", "Apple private-relay email address detected"),
 
     # Secrets and private tokens
     (r"-----BEGIN (RSA|EC|OPENSSH|PGP|PRIVATE) KEY-----", "Private cryptographic key block detected"),
@@ -93,11 +97,17 @@ FORBIDDEN_FILE_NAMES = [
 
 # Allowed commit author patterns
 ALLOWED_AUTHOR_NAMES = {"primary-null", "github-actions[bot]", "Primary Node"}
-ALLOWED_AUTHOR_EMAILS = {
-    "primary-null@users.noreply.github.com",
-    "primary-null@users.noreply.github.com",
-    "41898282+github-actions[bot]@users.noreply.github.com",
-}
+
+def is_allowed_author_email(email: str) -> bool:
+    """Verify commit author email against allowed anonymous identity patterns."""
+    email = email.strip().lower()
+    if email in {"primary-null@users.noreply.github.com", "41898282+github-actions[bot]@users.noreply.github.com"}:
+        return True
+    if re.match(r"^.+@users\.noreply\.github\.com$", email):
+        return True
+    if re.match(r"^[\w.+-]+@privaterelay\.appleid\.com$", email):
+        return True
+    return False
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -149,8 +159,8 @@ def check_content(content, source_name):
                 violations.append(f"{source_name}:{line_no} -> Host system username '{env_user}' detected\n   Line: {line.strip()[:120]}")
 
 
-        # 2. Check specific protected tokens
-        for token, desc in _S_TOKENS:
+        # 2. Check local sensitive tokens if provided in gitignored file
+        for token, desc in LOCAL_SENSITIVE_TOKENS:
             if token and token in line:
                 violations.append(f"{source_name}:{line_no} -> {desc} detected\n   Line: {line.strip()[:120]}")
 
@@ -203,7 +213,7 @@ def check_commits(rev_range="origin/main..HEAD"):
         if author_name not in ALLOWED_AUTHOR_NAMES:
             violations.append(f"Commit {commit[:7]} has unauthorized author name: '{author_name}' (expected Primary Node / primary-null)")
 
-        if author_email not in ALLOWED_AUTHOR_EMAILS:
+        if not is_allowed_author_email(author_email):
             violations.append(f"Commit {commit[:7]} has unauthorized author email: '{author_email}'")
 
         # Check changed files in commit

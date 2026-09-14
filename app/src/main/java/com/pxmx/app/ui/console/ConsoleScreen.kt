@@ -208,7 +208,6 @@ fun ConsoleScreen(
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.domStorageEnabled = true
-            settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             // Console is always HTTPS to the same PVE host; never allow cleartext mix-in.
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -218,6 +217,7 @@ fun ConsoleScreen(
             settings.displayZoomControls = false
             settings.setSupportZoom(true)
             // Let remote desktop scale; pinch still available
+            @Suppress("DEPRECATION")
             settings.defaultZoom = WebSettings.ZoomDensity.FAR
             @Suppress("DEPRECATION")
             settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING

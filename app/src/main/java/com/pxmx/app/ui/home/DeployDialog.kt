@@ -23,6 +23,7 @@ import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun DeployDialog(
     templates: List<ClusterResource>,

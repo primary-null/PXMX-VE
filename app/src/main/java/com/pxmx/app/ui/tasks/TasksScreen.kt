@@ -338,6 +338,7 @@ private fun TaskCard(
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 private fun TaskDetailPane(
     task: ClusterTask,
