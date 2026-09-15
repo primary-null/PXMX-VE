@@ -11,7 +11,7 @@ import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.NodeStorageEntry
 import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.data.model.StorageDetail
-import com.pxmx.app.data.model.StorageStatus
+
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.data.ssh.SftpDownloader

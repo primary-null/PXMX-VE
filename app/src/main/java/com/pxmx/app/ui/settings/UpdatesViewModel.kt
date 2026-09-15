@@ -42,6 +42,7 @@ data class NodeRefreshProgress(
     val progressFraction: Float = 0f,
     val detail: String? = null,
     val errorDetail: String? = null,
+    val readFailed: Boolean = false,
     val isPrivilegeDenied: Boolean = false,
     val startTimeMs: Long = 0L,
     val elapsedSec: Double = 0.0,
@@ -183,7 +184,7 @@ class UpdatesViewModel(
                         _ui.update { state ->
                             val updatedProgress = state.progress.toMutableMap()
                             list.forEach { snap ->
-                                if (!updatedProgress.containsKey(snap.node)) {
+                                if (!updatedProgress.containsKey(snap.node) || updatedProgress[snap.node]?.readFailed == true) {
                                     updatedProgress[snap.node] = NodeRefreshProgress(
                                         node = snap.node,
                                         state = NodeRefreshState.IDLE,
@@ -217,7 +218,7 @@ class UpdatesViewModel(
                                 error = e.message ?: "Failed to load updates",
                                 progress = it.progress.mapValues { (_, progress) ->
                                     if (progress.state == NodeRefreshState.UPGRADING || progress.state == NodeRefreshState.PARSING) progress
-                                    else progress.copy(state = NodeRefreshState.ERROR, errorDetail = "Update status unknown: ${e.message}")
+                                    else progress.copy(state = NodeRefreshState.ERROR, readFailed = true, errorDetail = "Update status unknown: ${e.message}")
                                 },
                             )
                         }
@@ -231,10 +232,10 @@ class UpdatesViewModel(
                         loading = false,
                         refreshing = false,
                         error = e.message ?: "Failed to load updates",
-                                progress = it.progress.mapValues { (_, progress) ->
-                                    if (progress.state == NodeRefreshState.UPGRADING || progress.state == NodeRefreshState.PARSING) progress
-                                    else progress.copy(state = NodeRefreshState.ERROR, errorDetail = "Update status unknown: ${e.message}")
-                                },
+                        progress = it.progress.mapValues { (_, progress) ->
+                            if (progress.state == NodeRefreshState.UPGRADING || progress.state == NodeRefreshState.PARSING) progress
+                            else progress.copy(state = NodeRefreshState.ERROR, readFailed = true, errorDetail = "Update status unknown: ${e.message}")
+                        },
                     )
                 }
             }

@@ -92,7 +92,30 @@ class OperationsRegressionTest {
             assertEquals(previous, vm.ui.value.nodes)
             assertNotNull(vm.ui.value.error)
             assertTrue(vm.ui.value.nodes.all { vm.ui.value.progress[it.node]?.state == com.pxmx.app.ui.settings.NodeRefreshState.ERROR })
+            fail = false
+            vm.refresh()
+            assertNull(vm.ui.value.error)
+            assertTrue("A successful retry must clear read-failure markers", vm.ui.value.nodes.all { vm.ui.value.progress[it.node]?.state == com.pxmx.app.ui.settings.NodeRefreshState.IDLE })
         } finally { kotlinx.coroutines.Dispatchers.resetMain() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun firewallPartialRefreshRetainsFailedNodeAndShowsItsError() = kotlinx.coroutines.test.runTest {
+        var fail = false
+        val api = object : ProxmoxApi by demo {
+            override suspend fun nodeFirewallRules(node: String): PveResponse<List<Map<String, Any>>> {
+                if (fail && node == "beta") throw java.io.IOException("beta firewall unavailable")
+                return demo.nodeFirewallRules(node)
+            }
+        }
+        val vm = com.pxmx.app.ui.settings.FirewallViewModel(repository(api), backgroundScope)
+        runCurrent()
+        val previous = vm.state.nodeSnapshots["beta"]
+        assertNotNull(previous)
+        fail = true
+        vm.refresh().join()
+        assertEquals(previous, vm.state.nodeSnapshots["beta"])
+        assertTrue(vm.state.error.orEmpty().contains("beta"))
     }
 
     private fun failingEndpoint(endpoint: String, error: Exception): ProxmoxApi = java.lang.reflect.Proxy.newProxyInstance(
@@ -152,6 +175,20 @@ class OperationsRegressionTest {
             endpoint.takeIf { read(repository(failingEndpoint(endpoint, java.io.IOException("$endpoint unavailable")))).isSuccess }
         }
         assertEquals("Read failures must reach the UI, which retains its previous snapshot", emptyList<String>(), swallowed)
+    }
+
+    @Test fun syslogRetryAuthenticationFailureIsNotMaskedAsTimeout() = runBlocking {
+        var calls = 0
+        val api = object : ProxmoxApi by demo {
+            override suspend fun nodeSyslog(node: String, start: Int?, limit: Int?): PveResponse<List<Map<String, Any>>> {
+                calls++
+                if (calls == 1) throw PveHttpException(596, null, "timeout")
+                throw PveHttpException(403, null, "forbidden")
+            }
+        }
+        val result = repository(api).nodeSyslog("alpha", limit = 50)
+        assertTrue(result.isFailure)
+        assertTrue("Authentication failure must not fall through to a synthetic proxy timeout", result.exceptionOrNull()?.message.orEmpty().contains("403"))
     }
 
     @Test fun storageContentEndpointFailureIsNotEmptySuccess() = runBlocking {
@@ -217,6 +254,86 @@ class OperationsRegressionTest {
         storage.backupToDevice("beta", "qemu", 100, "local") {}.getOrThrow()
         assertEquals(listOf("beta", "beta"), nodes)
         assertEquals(listOf("192.0.2.2/root"), contacted)
+    }
+
+    @Test fun unresolvedSshNodeNeverReachesEitherTransportOrBackupCreation() = runBlocking {
+        val config = ServerConfig(host = "entry.example", username = "root", password = "fake")
+        store.saveProfileFromLogin(config, saveCredentials = true)
+        store.setSession(SessionState(config.copy(password = ""), ticket = "fake", username = "root@pam"))
+        var contacted = false
+        var backupStarted = false
+        val api = object : ProxmoxApi by demo {
+            override suspend fun clusterStatus() = PveResponse(data = emptyList<Map<String, Any>>())
+            override suspend fun createBackup(node: String, vmid: Long, storage: String, mode: String?, compress: String?, remove: Int?, notesTemplate: String?): PveResponse<String> {
+                backupStarted = true
+                return PveResponse(data = "UPID:beta:backup")
+            }
+        }
+        val executor = object : com.pxmx.app.data.ssh.SshUpgradeExecutor({ null }, { _, _ -> }) {
+            override suspend fun executeUpgrade(host: String, port: Int, username: String, password: String, command: String, onOutputLine: (String) -> Unit): Result<Int> {
+                contacted = true
+                return Result.success(0)
+            }
+        }
+        assertTrue(UpdateRepository(store, client(api), { listOf("beta") }, executor).sshUpgrade("beta").isFailure)
+        assertTrue(repository(api).backupToDevice("beta", "qemu", 100, "local") {}.isFailure)
+        assertFalse(contacted)
+        assertFalse(backupStarted)
+    }
+
+    @Test fun sshProfileSwitchDuringMetadataCannotStartTransport() = runBlocking {
+        val config = ServerConfig(host = "entry.example", username = "root", password = "fake")
+        store.saveProfileFromLogin(config, saveCredentials = true)
+        store.setSession(SessionState(config.copy(password = ""), ticket = "fake", username = "root@pam"))
+        var contacted = false
+        val api = object : ProxmoxApi by demo {
+            override suspend fun clusterStatus(): PveResponse<List<Map<String, Any>>> {
+                store.setSession(SessionState(config.copy(host = "other.example"), ticket = "other", username = "root@pam"))
+                return demo.clusterStatus()
+            }
+        }
+        val executor = object : com.pxmx.app.data.ssh.SshUpgradeExecutor({ null }, { _, _ -> }) {
+            override suspend fun executeUpgrade(host: String, port: Int, username: String, password: String, command: String, onOutputLine: (String) -> Unit): Result<Int> {
+                contacted = true
+                return Result.success(0)
+            }
+        }
+        assertTrue(UpdateRepository(store, client(api), { listOf("beta") }, executor).sshUpgrade("beta").isFailure)
+        assertFalse(contacted)
+    }
+
+    @Test fun usbMissingDigestRefusesMutationAndPersistentConflictsAreBounded() = runBlocking {
+        for (hasDigest in listOf(false, true)) {
+            var writes = 0
+            val api = object : ProxmoxApi by demo {
+                override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
+                    PveResponse(data = if (hasDigest) mapOf<String, Any>("digest" to "stale") else emptyMap())
+                override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                    writes++
+                    throw PveHttpException(409, null, "conflict")
+                }
+            }
+            assertTrue(repository(api).attachUsb("alpha", GuestType.QEMU, 100, "1234:5678").isFailure)
+            assertEquals(if (hasDigest) 3 else 0, writes)
+        }
+    }
+
+    @Test fun deletionPollsUntilSuccessWithoutRepeatingDelete() = kotlinx.coroutines.test.runTest {
+        var deletes = 0
+        var polls = 0
+        val api = object : ProxmoxApi by demo {
+            override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> {
+                deletes++
+                return PveResponse(data = "UPID:alpha:imgdel")
+            }
+            override suspend fun taskStatus(node: String, upid: String): PveResponse<TaskStatus> {
+                polls++
+                return PveResponse(data = if (polls < 3) TaskStatus(status = "running") else TaskStatus(status = "stopped", exitstatus = "OK"))
+            }
+        }
+        assertTrue(repository(api).deleteStorageVolume("alpha", "local:backup/test").isSuccess)
+        assertEquals(1, deletes)
+        assertEquals(3, polls)
     }
 
     @Test fun sshUpgradeUsesSelectedNodeIpv6NotEntryHost() = runBlocking {
@@ -302,19 +419,19 @@ class OperationsRegressionTest {
     }
 
     @Test fun usbAllocationIncludesPendingConfigAndDigest() = runBlocking {
-        var fields: Map<String, String>? = null
+        var submitted: Map<String, String>? = null
         val api = object : ProxmoxApi by demo {
             override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
                 PveResponse(data = if (current == 0) mapOf<String, Any>("usb0" to "host=old", "digest" to "version1") else mapOf("digest" to "version1"))
-            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, values: Map<String, String>): PveResponse<String?> {
-                fields = values
+            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                submitted = fields
                 return PveResponse(data = "OK")
             }
         }
         repository(api).attachUsb("alpha", GuestType.QEMU, 100, "1234:5678").getOrThrow()
-        assertEquals("host=1234:5678,usb3=1", fields?.get("usb1"))
-        assertEquals("version1", fields?.get("digest"))
-        assertFalse(fields.orEmpty().containsKey("usb0"))
+        assertEquals("host=1234:5678,usb3=1", submitted?.get("usb1"))
+        assertEquals("version1", submitted?.get("digest"))
+        assertFalse(submitted.orEmpty().containsKey("usb0"))
     }
 
     @Test fun sdnStatusRetainsDistinctNodeIdentity() = runBlocking {

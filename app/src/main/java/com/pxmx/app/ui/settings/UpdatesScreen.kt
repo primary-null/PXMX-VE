@@ -131,7 +131,7 @@ fun UpdatesScreen(
                     Column {
                         Text("Updates")
                         Text(
-                            if (state.error != null || state.loading || state.nodes.isEmpty()) "UPDATE STATUS UNKNOWN"
+                            if (state.error != null || state.loading || state.refreshing || state.nodes.isEmpty()) "UPDATE STATUS UNKNOWN"
                             else if (state.totalPending == 0) "ALL NODES CURRENT"
                             else "${state.totalPending} PKG · ${state.nodesWithUpdates} NODE(S)",
                             style = MaterialTheme.typography.labelSmall,
@@ -213,7 +213,7 @@ fun UpdatesScreen(
                                 }
                             }
 
-                            if (state.error == null && !state.loading && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                            if (state.error == null && !state.loading && !state.refreshing && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
                                 item(key = "two-pane-zero-state") {
                                     TechPlate(railColor = TechColors.Edge) {
                                         Column(Modifier.padding(16.dp)) {
@@ -409,7 +409,7 @@ fun UpdatesScreen(
                         }
 
                         // If cluster has 0 pending packages and no jobs running
-                        if (state.error == null && !state.loading && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                        if (state.error == null && !state.loading && !state.refreshing && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
                             item(key = "zero-state") {
                                 TechPlate(railColor = TechColors.Edge) {
                                     Column(Modifier.padding(16.dp)) {

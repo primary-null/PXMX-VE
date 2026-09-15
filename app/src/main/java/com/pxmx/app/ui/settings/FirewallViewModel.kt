@@ -94,20 +94,24 @@ class FirewallViewModel(
                 val clusterDef = async { repository.loadClusterFirewall() }
                 val nodesDef = async { repository.listNodeNames() }
                 val clusterRes = clusterDef.await()
-                val nodeNames = nodesDef.await().getOrDefault(emptyList())
-
-                val nodeSnaps = nodeNames.associateWith { node ->
-                    repository.loadNodeFirewall(node).getOrNull()
-                }.filterValues { it != null }.mapValues { it.value!! }
+                val nodesRes = nodesDef.await()
+                val nodeNames = nodesRes.getOrElse { _ui.value.nodeNames }
+                val nodeResults = nodeNames.associateWith { node -> repository.loadNodeFirewall(node) }
 
                 _ui.update {
                     it.copy(
                         cluster = clusterRes.getOrNull() ?: it.cluster,
-                        nodeNames = if (nodeNames.isNotEmpty()) nodeNames else it.nodeNames,
-                        nodeSnapshots = if (nodeSnaps.isNotEmpty()) nodeSnaps else it.nodeSnapshots,
+                        nodeNames = nodeNames,
+                        nodeSnapshots = nodeResults.mapNotNull { (node, result) ->
+                            (result.getOrNull() ?: it.nodeSnapshots[node])?.let { snapshot -> node to snapshot }
+                        }.toMap(),
                         loading = false,
                         refreshing = false,
-                        error = clusterRes.exceptionOrNull()?.message,
+                        error = clusterRes.exceptionOrNull()?.message
+                            ?: nodesRes.exceptionOrNull()?.message
+                            ?: nodeResults.entries.firstOrNull { entry -> entry.value.isFailure }?.let { entry ->
+                                "${entry.key}: ${entry.value.exceptionOrNull()?.message}"
+                            },
                     )
                 }
             }

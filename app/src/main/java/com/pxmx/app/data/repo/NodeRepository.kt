@@ -300,7 +300,7 @@ class NodeRepository(
                 val rows = api.nodeSyslog(node, start, reducedLimit).data.orEmpty()
                 rows.map { ClusterLogEntry.fromSyslogMap(node, it) }
             }
-            if (retryResult.isSuccess) return retryResult
+            if (retryResult.isSuccess || retryResult.exceptionOrNull()?.let { !isTimeout(it) } == true) return retryResult
         }
 
         val directIp = clusterNodeIps[node.lowercase()]
@@ -313,8 +313,9 @@ class NodeRepository(
                 return Result.success(rows.map { ClusterLogEntry.fromSyslogMap(node, it) })
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // Fall through to final timeout error
+            } catch (e: Exception) {
+                if (!isTimeout(e)) return Result.failure(pveClient.mapError(e))
+                // Fall through only for another timeout, never for an authentication failure.
             }
         }
 
