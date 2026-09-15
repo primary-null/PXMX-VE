@@ -2,14 +2,14 @@ package com.pxmx.app.data.ssh
 
 import com.pxmx.app.data.repo.PveException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+
+
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.userauth.UserAuthException
-import java.io.BufferedReader
-import java.io.InputStream
-import java.io.InputStreamReader
+
+
+
 import java.security.MessageDigest
 import java.security.PublicKey
 import java.util.Base64
@@ -19,6 +19,8 @@ import kotlin.concurrent.thread
 open class SshUpgradeExecutor(
     private val getStoredFingerprint: (String) -> String?,
     private val storeFingerprint: (String, String) -> Unit,
+    private val clientFactory: () -> SSHClient = ::SSHClient,
+    private val timeoutMs: Long = 600_000,
 ) {
 
     companion object {
@@ -68,100 +70,65 @@ open class SshUpgradeExecutor(
         password: String,
         command: String = "apt-get update && apt-get full-upgrade -y",
         onOutputLine: (String) -> Unit = {},
-    ): Result<Int> = withContext(Dispatchers.IO) {
-        val client = SSHClient()
-        val tailLines = ArrayDeque<String>(25)
-        try {
+    ): Result<Int> = try {
+        val client = clientFactory()
+        boundedSshOperation(client, timeoutMs) { checkActive ->
+            val tailLines = ArrayDeque<String>(25)
             client.addHostKeyVerifier(object : HostKeyVerifier {
-                override fun verify(h: String, p: Int, key: PublicKey): Boolean {
-                    val stored = getStoredFingerprint(host)
-                    return verifyHostKey(host, key, stored, storeFingerprint)
-                }
-
+                override fun verify(h: String, p: Int, key: PublicKey): Boolean =
+                    verifyHostKey(host, key, getStoredFingerprint(host), storeFingerprint)
                 override fun findExistingAlgorithms(h: String, p: Int): List<String> = emptyList()
             })
-
+            checkActive()
+            client.connect(host, port)
+            checkActive()
             try {
-                client.connect(host, port)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                val msg = e.message ?: "Connection failed"
-                if (msg.contains("Host key changed")) {
-                    throw PveException(msg, e)
-                }
-                throw PveException("SSH connection failed to $host:$port: $msg", e)
+                client.authPassword(username, password)
+            } catch (e: UserAuthException) {
+                throw PveException("SSH authentication failed for user $username. Ensure password authentication is enabled for root.", e)
             }
-
-            // Copy password into a zeroed CharArray so we can wipe it from the heap
-            // as soon as authentication completes, reducing the in-memory plaintext window.
-            val passwordChars = password.toCharArray()
-            try {
-                client.authPassword(username, String(passwordChars))
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                if (e is UserAuthException || e.message?.contains("auth", ignoreCase = true) == true) {
-                    throw PveException("SSH authentication failed for user $username. Ensure password authentication is enabled for root.", e)
-                }
-                throw PveException("SSH authentication error: ${e.message}", e)
-            } finally {
-                // Zero the char array immediately after auth — cannot zero the original String
-                // (JVM immutability), but this eliminates the extra copy from memory sooner.
-                passwordChars.fill('\u0000')
-            }
-
-            val session = client.startSession()
-            try {
+            checkActive()
+            client.startSession().use { session ->
+                checkActive()
                 val cmd = session.exec(command)
-
-                val readStream = { stream: InputStream ->
-                    BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-                        reader.forEachLine { line ->
-                            val trimmed = line.trimEnd()
-                            if (trimmed.isNotBlank()) {
-                                synchronized(tailLines) {
-                                    if (tailLines.size >= 25) tailLines.removeFirst()
-                                    tailLines.addLast(trimmed)
+                val readers = listOf(cmd.inputStream, cmd.errorStream).mapIndexed { index, stream ->
+                    thread(isDaemon = true, name = "ssh-output-$index") {
+                        try {
+                            stream.bufferedReader(Charsets.UTF_8).useLines { lines ->
+                                lines.forEach { line ->
+                                    checkActive()
+                                    val trimmed = line.trimEnd()
+                                    if (trimmed.isNotBlank()) {
+                                        synchronized(tailLines) {
+                                            if (tailLines.size >= 25) tailLines.removeFirst()
+                                            tailLines.addLast(trimmed)
+                                        }
+                                        onOutputLine(trimmed)
+                                    }
                                 }
-                                onOutputLine(trimmed)
                             }
-                        }
+                        } catch (_: Exception) { /* socket closure wakes readers on cancellation */ }
                     }
                 }
-
-                val stdoutThread = thread(name = "ssh-upgrade-stdout") {
-                    try {
-                        readStream(cmd.inputStream)
-                    } catch (_: Exception) {}
-                }
-
-                val stderrThread = thread(name = "ssh-upgrade-stderr") {
-                    try {
-                        readStream(cmd.errorStream)
-                    } catch (_: Exception) {}
-                }
-
-                stdoutThread.join()
-                stderrThread.join()
-
-                cmd.join(600, TimeUnit.SECONDS)
-                // Treat unknown exit status as failure (-1) rather than success (0)
-                // to avoid silently masking abnormal channel closure as a successful upgrade.
-                val exitStatus = cmd.exitStatus ?: -1
-
-                val capturedTail = synchronized(tailLines) { tailLines.toList() }
-                mapExitStatus(exitStatus, capturedTail)
-            } finally {
                 try {
-                    session.close()
-                } catch (_: Exception) {}
+                    // Never wait for EOF before waiting for the command's bounded lifetime.
+                    cmd.join(timeoutMs, TimeUnit.MILLISECONDS)
+                    checkActive()
+                    readers.forEach { it.join(1_000) }
+                    checkActive()
+                    if (readers.any { it.isAlive }) throw PveException("SSH output did not close before the deadline")
+                    mapExitStatus(cmd.exitStatus ?: -1, synchronized(tailLines) { tailLines.toList() })
+                } finally {
+                    try { cmd.close() } catch (_: Exception) {}
+                    readers.forEach { it.interrupt() }
+                    readers.forEach { reader ->
+                        try { reader.join(250) } catch (_: InterruptedException) {}
+                    }
+                }
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Result.failure(if (e is PveException) e else PveException(e.message ?: "SSH upgrade failed", e))
-        } finally {
-            try {
-                client.disconnect()
-            } catch (_: Exception) {}
         }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        Result.failure(if (e is PveException) e else PveException(e.message ?: "SSH upgrade failed", e))
     }
 }

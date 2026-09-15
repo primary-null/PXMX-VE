@@ -231,7 +231,7 @@ class StorageRepository(
             onProgress("Starting SFTP download...")
 
 
-            val downloadResult = runCatching {
+            val downloadResult = attemptRead {
                 (downloadSink ?: ::saveToDownloadsToStream)(filename) { outputStream ->
                     checkSession()
                     sftp.download(
@@ -286,6 +286,7 @@ class StorageRepository(
                 throw e
             }
         } catch (e: Exception) {
+            e.rethrowAuthOrCancellation()
             Result.failure(e)
         }
     }

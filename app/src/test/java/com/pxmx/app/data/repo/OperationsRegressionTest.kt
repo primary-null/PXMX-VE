@@ -169,6 +169,24 @@ class OperationsRegressionTest {
         assertTrue("A failed apt endpoint is not an empty successful update list", result.isFailure)
     }
 
+    @Test fun backupCancellationPropagatesInsteadOfBecomingDownloadFailure() = runBlocking {
+        val config = ServerConfig(host = "entry.example", username = "root", password = "fake")
+        store.saveProfileFromLogin(config, saveCredentials = true)
+        store.setSession(SessionState(config.copy(password = ""), ticket = "fake", username = "root@pam"))
+        val sftp = object : com.pxmx.app.data.ssh.SftpDownloader({ null }, { _, _ -> }) {
+            override suspend fun download(host: String, port: Int, username: String, password: String, remotePath: String, localSink: java.io.OutputStream, onProgress: (Long, Long) -> Unit) {
+                throw java.util.concurrent.CancellationException("cancel download")
+            }
+        }
+        val storage = StorageRepository(ContextWrapper(null), store, client(demo),
+            { _, _ -> Result.success(TaskStatus(status = "stopped", exitstatus = "OK")) }, sftp,
+            { _, block -> block(java.io.ByteArrayOutputStream()); Result.success(Unit) })
+        var cancelled = false
+        try { storage.backupToDevice("beta", "qemu", 100, "local") {} }
+        catch (e: java.util.concurrent.CancellationException) { cancelled = true }
+        assertTrue("Cancellation must escape all download/save wrappers", cancelled)
+    }
+
     @Test fun backupSftpUsesSelectedNodeAndVerifiedRootPassword() = runBlocking {
         val config = ServerConfig(host = "entry.example", username = "root@pam", password = "fake-root-password")
         store.saveProfileFromLogin(config, saveCredentials = true)
