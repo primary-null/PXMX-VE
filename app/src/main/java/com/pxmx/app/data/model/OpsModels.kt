@@ -17,6 +17,7 @@ data class GuestBundle(
     val backups: List<BackupVolume>,
     val hostUsbs: List<HostUsbDevice>,
     val backupStorages: List<String>,
+    val sectionErrors: Map<String, String> = emptyMap(),
 )
 
 @Serializable

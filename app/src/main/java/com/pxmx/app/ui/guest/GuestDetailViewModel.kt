@@ -158,10 +158,15 @@ class GuestDetailViewModel(
                         it.copy(
                             status = bundle.status,
                             config = bundle.config,
-                            snapshots = bundle.snapshots,
-                            backups = bundle.backups,
-                            hostUsbs = bundle.hostUsbs,
-                            backupStorages = bundle.backupStorages,
+                            snapshots = if ("snapshots" in bundle.sectionErrors) it.snapshots else bundle.snapshots,
+                            backups = if ("backups" in bundle.sectionErrors) it.backups else
+                                (bundle.backups + it.backups.filter { backup ->
+                                    "backups/${backup.volid?.substringBefore(':')}" in bundle.sectionErrors
+                                }).distinctBy { backup -> backup.volid }.sortedByDescending { backup -> backup.ctime ?: 0L },
+                            hostUsbs = if ("USB" in bundle.sectionErrors) it.hostUsbs else bundle.hostUsbs,
+                            backupStorages = if ("backup storages" in bundle.sectionErrors) it.backupStorages else bundle.backupStorages,
+                            error = bundle.sectionErrors.takeIf { errors -> errors.isNotEmpty() }?.entries
+                                ?.joinToString("\n") { (section, message) -> "$section unavailable (retained data may be stale): $message" },
                             name = bundle.status?.name?.takeIf { n -> n.isNotBlank() }
                                 ?: bundle.config.name?.takeIf { n -> n.isNotBlank() }
                                 ?: it.name,

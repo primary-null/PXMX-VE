@@ -166,27 +166,41 @@ class GuestRepository(
                 val configDef = async {
                     api.guestConfig(node, guestType.path, vmid).data.orEmpty()
                 }
-                val snapsDef = async {
+                // Catch inside each child so an auxiliary failure cannot cancel core reads.
+                val snapsDef = async { attemptRead {
                     api.guestSnapshots(node, guestType.path, vmid).data.orEmpty()
-                }
-                val usbDef = async {
-                    api.nodeUsb(node).data.orEmpty()
-                }
-                val storageDef = async {
+                } }
+                val usbDef = async { attemptRead {
+                    if (guestType == GuestType.QEMU) api.nodeUsb(node).data.orEmpty() else emptyList()
+                } }
+                val storageDef = async { attemptRead {
                     api.nodeStorage(node).data.orEmpty()
-                }
+                } }
 
                 val status = statusDef.await()
                 val rawConfig = configDef.await()
-                val hostUsbs = usbDef.await()
+                val errors = linkedMapOf<String, String>()
+                fun <T> section(name: String, result: Result<T>, fallback: T): T = result.getOrElse {
+                    errors[name] = it.message ?: "Read failed"
+                    fallback
+                }
+                val hostUsbs = section("USB", usbDef.await(), emptyList())
                 val parsed = GuestConfigParser.parse(rawConfig, hostUsbs)
-                val storages = storageDef.await()
-                val backups = loadBackupsForVmid(api, node, vmid, storages)
+                val storages = section("backup storages", storageDef.await(), emptyList())
+                val backups = if ("backup storages" in errors) {
+                    errors["backups"] = "Storage discovery unavailable"
+                    emptyList()
+                } else storages.filter { (it.content ?: "").contains("backup") }.flatMap { storage ->
+                    section("backups/${storage.storage}", attemptRead {
+                        loadBackupsForVmid(api, node, vmid, listOf(storage))
+                    }, emptyList())
+                }.distinctBy { it.volid }
+                val snapshots = section("snapshots", snapsDef.await(), emptyList())
 
                 GuestBundle(
                     status = status,
                     config = parsed,
-                    snapshots = snapsDef.await()
+                    snapshots = snapshots
                         .sortedWith(compareBy<SnapshotInfo> { if (it.isCurrent) 0 else 1 }
                             .thenByDescending { it.snaptime ?: 0L }),
                     backups = backups.sortedByDescending { it.ctime ?: 0L },
@@ -194,6 +208,7 @@ class GuestRepository(
                     backupStorages = storages
                         .filter { (it.content ?: "").contains("backup") }
                         .mapNotNull { it.storage },
+                    sectionErrors = errors,
                 )
             }
         }

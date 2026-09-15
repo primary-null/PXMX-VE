@@ -108,10 +108,16 @@ class NodeRepository(
                 nodeNames.map { nodeName ->
                     async {
                         val nodeRes = loadNodeResource(api, nodeName)
-                        val qemu = loadGuests(api, nodeName, "qemu")
-                        val lxc = loadGuests(api, nodeName, "lxc")
-                        val storage = loadStorage(api, nodeName)
-                        listOf(nodeRes) + qemu + lxc + storage
+                        val sections = linkedMapOf(
+                            "qemu" to attemptRead { loadGuests(api, nodeName, "qemu") },
+                            "lxc" to attemptRead { loadGuests(api, nodeName, "lxc") },
+                            "storage" to attemptRead { loadStorage(api, nodeName) },
+                        )
+                        val errors = sections.mapNotNull { (section, result) ->
+                            result.exceptionOrNull()?.let { section to (it.message ?: "Read failed") }
+                        }.toMap()
+                        listOf(nodeRes.copy(readErrors = nodeRes.readErrors + errors)) +
+                            sections.values.flatMap { it.getOrDefault(emptyList()) }
                     }
                 }.flatMap { it.await() }
             }
@@ -142,12 +148,10 @@ class NodeRepository(
         api: ProxmoxApi,
         nodeName: String,
     ): ClusterResource {
-        val status = try {
-            api.nodeStatus(nodeName).data
-        } catch (e: Exception) {
-            e.rethrowAuthOrCancellation()
-            null
+        val statusResult = attemptRead {
+            api.nodeStatus(nodeName).data ?: throw PveException("No node status")
         }
+        val status = statusResult.getOrNull()
         return ClusterResource(
             id = "node/$nodeName",
             type = "node",
@@ -160,6 +164,9 @@ class NodeRepository(
             maxmem = status?.memory?.total,
             disk = status?.rootfs?.used,
             maxdisk = status?.rootfs?.total,
+            readErrors = statusResult.exceptionOrNull()?.let {
+                mapOf("node" to (it.message ?: "Node status unavailable"))
+            }.orEmpty(),
         )
     }
 

@@ -363,33 +363,62 @@ class UpdatesViewModel(
             val elapsedSec = (((endTime - startTime) / 100).toDouble() / 10.0).coerceAtLeast(0.8)
 
             if (backendSuccess) {
+                var verificationFailure: Throwable? = null
                 try {
-                    repository.listClusterUpdates().onSuccess { updatedNodes ->
-                        _ui.update { state -> state.copy(nodes = updatedNodes) }
-                    }
+                    repository.listClusterUpdates().fold(
+                        onSuccess = { updatedNodes ->
+                            _ui.update { state -> state.copy(nodes = updatedNodes) }
+                        },
+                        onFailure = { err ->
+                            if (err is CancellationException) throw err
+                            verificationFailure = err
+                        }
+                    )
                     repository.nodeStatus(node).onSuccess { status ->
                         _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                     }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    verificationFailure = e
+                }
 
-                val finalSnap = _ui.value.nodes.find { it.node == node }
-                val finalCount = finalSnap?.updateCount ?: initialCount
-                val finalSec = finalSnap?.updates?.count { isSecurityUpdate(it) } ?: initialSecCount
+                if (verificationFailure != null) {
+                    val errMessage = verificationFailure?.message ?: "Verification failed"
+                    _ui.update { state ->
+                        val existing = state.progress[node] ?: return@update state
+                        val prog = existing.copy(
+                            state = NodeRefreshState.ERROR,
+                            activePackageIndex = -1,
+                            progressFraction = 0f,
+                            detail = "REFRESH UNVERIFIED",
+                            errorDetail = "Update status unknown: $errMessage",
+                            readFailed = true,
+                            elapsedSec = elapsedSec,
+                        )
+                        state.copy(
+                            progress = state.progress + (node to prog),
+                            error = errMessage,
+                        )
+                    }
+                } else {
+                    val finalSnap = _ui.value.nodes.find { it.node == node }
+                    val finalCount = finalSnap?.updateCount ?: initialCount
+                    val finalSec = finalSnap?.updates?.count { isSecurityUpdate(it) } ?: initialSecCount
 
-                _ui.update { state ->
-                    val existing = state.progress[node] ?: return@update state
-                    val prog = existing.copy(
-                        state = NodeRefreshState.COMPLETE,
-                        activePackageIndex = -1,
-                        progressFraction = 1.0f,
-                        detail = "$finalCount PACKAGES · $finalSec SECURITY · TOOK ${"%.1f".format(Locale.US, elapsedSec)}S",
-                        elapsedSec = elapsedSec,
-                        completedPackagesCount = finalCount,
-                        securityPackagesCount = finalSec,
-                    )
-                    state.copy(progress = state.progress + (node to prog))
+                    _ui.update { state ->
+                        val existing = state.progress[node] ?: return@update state
+                        val prog = existing.copy(
+                            state = NodeRefreshState.COMPLETE,
+                            activePackageIndex = -1,
+                            progressFraction = 1.0f,
+                            detail = "$finalCount PACKAGES · $finalSec SECURITY · TOOK ${"%.1f".format(Locale.US, elapsedSec)}S",
+                            elapsedSec = elapsedSec,
+                            completedPackagesCount = finalCount,
+                            securityPackagesCount = finalSec,
+                        )
+                        state.copy(progress = state.progress + (node to prog))
+                    }
                 }
             } else {
                 _ui.update { state ->
@@ -767,7 +796,11 @@ class UpdatesViewModel(
                 updatedProgress[node] = NodeRefreshProgress(
                     node = node,
                     state = NodeRefreshState.IDLE,
-                    detail = if (state.nodes.find { it.node == node }?.updateCount == 0) "ALL PACKAGES UP TO DATE"
+                    readFailed = current.readFailed,
+                    errorDetail = current.errorDetail,
+                    detail = if (current.readFailed) {
+                        current.errorDetail ?: "Update status unknown"
+                    } else if (state.nodes.find { it.node == node }?.updateCount == 0) "ALL PACKAGES UP TO DATE"
                     else "${state.nodes.find { it.node == node }?.updateCount} PACKAGES AVAILABLE",
                 )
             }

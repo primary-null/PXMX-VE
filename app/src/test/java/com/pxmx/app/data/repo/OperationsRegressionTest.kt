@@ -171,10 +171,23 @@ class OperationsRegressionTest {
     }
 
     @Test fun failedReadSectionsNeverBecomeSuccessfulEmptySnapshots() = runBlocking {
-        val swallowed = readCases().mapNotNull { (endpoint, read) ->
-            endpoint.takeIf { read(repository(failingEndpoint(endpoint, java.io.IOException("$endpoint unavailable")))).isSuccess }
+        val sectionReads = setOf("nodeStorage", "nodeQemu", "nodeLxc", "guestSnapshots", "nodeUsb", "storageContent")
+        val unmarked = mutableListOf<String>()
+        for ((endpoint, read) in readCases()) {
+            val result = read(repository(failingEndpoint(endpoint, java.io.IOException("$endpoint unavailable"))))
+            if (endpoint in sectionReads) {
+                assertTrue("$endpoint must keep unrelated data", result.isSuccess)
+                val marked = when (val value = result.getOrNull()) {
+                    is List<*> -> value.filterIsInstance<ClusterResource>().any { it.readErrors.isNotEmpty() }
+                    is GuestBundle -> value.sectionErrors.isNotEmpty()
+                    else -> false
+                }
+                if (!marked) unmarked += endpoint
+            } else if (result.isSuccess) {
+                unmarked += endpoint
+            }
         }
-        assertEquals("Read failures must reach the UI, which retains its previous snapshot", emptyList<String>(), swallowed)
+        assertEquals("Read failures must be visible on the failed section, not turned into empty success", emptyList<String>(), unmarked)
     }
 
     @Test fun syslogRetryAuthenticationFailureIsNotMaskedAsTimeout() = runBlocking {
