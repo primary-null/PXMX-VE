@@ -218,19 +218,35 @@ class GuestRepository(
         usb3: Boolean = true,
     ): Result<String> = pveClient.apiCall { api ->
         if (guestType != GuestType.QEMU) throw PveException("USB passthrough is QEMU-only")
-        val cfg = api.guestConfig(node, guestType.path, vmid).data.orEmpty()
-        val used = cfg.keys.filter { it.matches(Regex("^usb\\d+$")) }.toSet()
-        val slot = (0..15).firstOrNull { "usb$it" !in used }
-            ?: throw PveException("No free USB slots (usb0–usb15)")
-        val value = buildString {
-            append("host=").append(hostId.lowercase())
-            if (usb3) append(",usb3=1")
+        repeat(3) { attempt ->
+            val cfg = api.guestConfig(node, guestType.path, vmid, current = 0).data.orEmpty()
+            val digest = cfg["digest"]?.toString()?.takeIf { it.isNotBlank() }
+                ?: throw PveException("Cannot attach USB without a configuration digest; refresh and retry")
+            val used = cfg.keys.filter { it.matches(Regex("^usb\\d+$")) }.toSet()
+            val slot = (0..15).firstOrNull { "usb$it" !in used }
+                ?: throw PveException("No free USB slots (usb0–usb15)")
+            val value = buildString {
+                append("host=").append(hostId.lowercase())
+                if (usb3) append(",usb3=1")
+            }
+            try {
+                return@apiCall api.updateGuestConfig(
+                    node, guestType.path, vmid,
+                    mapOf("usb$slot" to value, "digest" to digest),
+                ).data ?: "OK"
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val code = when (e) {
+                    is retrofit2.HttpException -> e.code()
+                    is PveHttpException -> e.code
+                    else -> null
+                }
+                val detail = if (e is retrofit2.HttpException) e.response()?.errorBody()?.string() else e.message
+                val conflict = code == 409 || (code == 500 && detail?.contains("checksum mismatch", true) == true)
+                if (!conflict || attempt == 2) throw e
+            }
         }
-        val resp = api.updateGuestConfig(
-            node, guestType.path, vmid,
-            mapOf("usb$slot" to value),
-        )
-        resp.data ?: "OK"
+        throw PveException("USB configuration changed repeatedly; refresh and retry")
     }
 
     /** Detach guest usbN (e.g. usb0). */

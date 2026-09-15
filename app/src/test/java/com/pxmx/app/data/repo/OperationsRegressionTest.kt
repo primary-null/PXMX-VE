@@ -22,6 +22,43 @@ class OperationsRegressionTest {
     }
     private fun repository(api: ProxmoxApi) = ProxmoxRepository(ContextWrapper(null), store, provider(api))
 
+    @Test fun usbDigestConflictRereadsAndReallocates() = runBlocking {
+        var reads = 0
+        val writes = mutableListOf<Map<String, String>>()
+        val api = object : ProxmoxApi by demo {
+            override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?): PveResponse<Map<String, Any>> {
+                reads++
+                return PveResponse(data = if (reads == 1) mapOf("digest" to "first") else mapOf("usb0" to "host=other", "digest" to "second"))
+            }
+            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                writes += fields
+                if (writes.size == 1) throw PveHttpException(500, "checksum mismatch (file change by other user?)", null)
+                return PveResponse(data = "OK")
+            }
+        }
+        val result = repository(api).attachUsb("alpha", GuestType.QEMU, 100, "1234:5678")
+        assertTrue("A digest conflict should trigger a fresh allocation", result.isSuccess)
+        assertEquals(2, reads)
+        assertEquals("second", writes.last()["digest"])
+        assertTrue(writes.last().containsKey("usb1"))
+    }
+
+    @Test fun usbAllocationIncludesPendingConfigAndDigest() = runBlocking {
+        var fields: Map<String, String>? = null
+        val api = object : ProxmoxApi by demo {
+            override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
+                PveResponse(data = if (current == 0) mapOf<String, Any>("usb0" to "host=old", "digest" to "version1") else mapOf("digest" to "version1"))
+            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, values: Map<String, String>): PveResponse<String?> {
+                fields = values
+                return PveResponse(data = "OK")
+            }
+        }
+        repository(api).attachUsb("alpha", GuestType.QEMU, 100, "1234:5678").getOrThrow()
+        assertEquals("host=1234:5678,usb3=1", fields?.get("usb1"))
+        assertEquals("version1", fields?.get("digest"))
+        assertFalse(fields.orEmpty().containsKey("usb0"))
+    }
+
     @Test fun sdnStatusRetainsDistinctNodeIdentity() = runBlocking {
         val api = object : ProxmoxApi by demo {
             override suspend fun nodeSdnZones(node: String) = PveResponse(data = listOf(mapOf<String, Any>("zone" to "shared", "type" to "simple", "status" to "ok")))
