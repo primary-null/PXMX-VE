@@ -16,6 +16,8 @@ import com.pxmx.app.data.net.ConnectionTestResult
 import com.pxmx.app.data.net.LocalNet
 import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.session.SessionSnapshot
+import com.pxmx.app.data.session.SessionIdentity
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -44,10 +46,16 @@ class AuthRepository(
         label: String = "",
         forceNewProfile: Boolean = false,
         silent: Boolean = false,
+        renewalOf: SessionSnapshot? = null,
     ): LoginOutcome {
+        if (renewalOf != null && (!sessionStore.isCurrent(renewalOf) ||
+                profileId != renewalOf.profileId || SessionIdentity.of(config) != SessionIdentity.of(renewalOf.state.config))) {
+            return LoginOutcome.Failed(PveException("Session changed"))
+        }
+        val attempt = renewalOf?.generation ?: sessionStore.beginLogin()
         return try {
-            clientFactory.clear()
-            val api = clientFactory.apiFor(config)
+            val loginApi = clientFactory.apiForProbe(config)
+            val api = loginApi.api
             var ticket: String? = null
             var csrf: String? = null
             var username: String? = null
@@ -106,45 +114,26 @@ class AuthRepository(
                 }
             }
 
-            // Persist full secrets only in encrypted profile store (if user opted in).
-            // Live session must not keep the password in memory after ticket mint.
-            sessionStore.saveProfileFromLogin(
-                config = config,
-                saveCredentials = saveCredentials,
-                profileId = profileId,
-                label = label,
-                forceNewProfile = forceNewProfile,
-                version = null,
-            )
-
-            val sessionConfig = config.withoutEphemeralSecrets()
-            val partial = SessionState(
-                config = sessionConfig,
-                ticket = ticket,
-                csrf = csrf,
-                username = username,
-            )
-            sessionStore.setSession(partial)
-
-            // Pin cert immediately after first authenticated request succeeds
-            if (config.trustSelfSigned) {
-                clientFactory.getCapturedFingerprint(config.host)?.let { fp ->
-                    sessionStore.saveCertPin(config.host, fp)
-                }
+            // Keep credentials private until every login request succeeds.
+            ticket?.let {
+                pinAuthenticatedCertificate(config, loginApi, attempt)
+                loginApi.probeAuth.set(ProbeAuth(it, csrf))
             }
-
-            val version = api.version().data
-            val full = partial.copy(version = version)
-            sessionStore.setSession(full)
-
-            commitLoginSideEffects(config, version, enableAutoConnect)
-
-            LoginOutcome.Success(full)
+            val version = try { api.version().data } finally { loginApi.probeAuth.set(null) }
+            val full = SessionState(config.withoutEphemeralSecrets(), ticket, csrf, username, version)
+            val published = sessionStore.publishIfGeneration(attempt) {
+                sessionStore.saveProfileFromLogin(config, saveCredentials, profileId, label, forceNewProfile, version?.display)
+                if (config.trustSelfSigned) {
+                    loginApi.capturedFingerprint.get()?.let { sessionStore.saveCertPin(config.host, it) }
+                }
+                if (renewalOf == null) sessionStore.setSession(full) else sessionStore.renewSession(renewalOf, full)
+                commitLoginSideEffects(config, version, enableAutoConnect)
+            }
+            if (published) LoginOutcome.Success(full) else LoginOutcome.Failed(PveException("Session changed"))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             if (!silent) {
-                sessionStore.clearSession()
-                clientFactory.clear()
+                sessionStore.publishIfGeneration(attempt) { sessionStore.clearSession() }
             }
             LoginOutcome.Failed(pveClient.mapError(e))
         }
@@ -160,9 +149,10 @@ class AuthRepository(
         label: String = "",
         forceNewProfile: Boolean = false,
     ): Result<SessionState> {
+        val attempt = sessionStore.beginLogin()
         return try {
-            clientFactory.clear()
-            val api = clientFactory.apiFor(config)
+            val loginApi = clientFactory.apiForProbe(config)
+            val api = loginApi.api
             val resp = api.createTicketTfa(
                 username = PveClient.normalizeUsername(config.username, config.realm),
                 password = "totp:${otp.trim()}",
@@ -175,42 +165,31 @@ class AuthRepository(
             val csrf = data.csrfPreventionToken
             val user = data.username ?: PveClient.normalizeUsername(config.username, config.realm)
 
-            sessionStore.saveProfileFromLogin(
-                config = config,
-                saveCredentials = saveCredentials,
-                profileId = profileId,
-                label = label,
-                forceNewProfile = forceNewProfile,
-                version = null,
-            )
-
-            val sessionConfig = config.withoutEphemeralSecrets()
-            val partial = SessionState(
-                config = sessionConfig,
-                ticket = ticket,
-                csrf = csrf,
-                username = user,
-            )
-            sessionStore.setSession(partial)
-
-            if (config.trustSelfSigned) {
-                clientFactory.getCapturedFingerprint(config.host)?.let { fp ->
-                    sessionStore.saveCertPin(config.host, fp)
+            pinAuthenticatedCertificate(config, loginApi, attempt)
+            loginApi.probeAuth.set(ProbeAuth(ticket, csrf))
+            val version = try { api.version().data } finally { loginApi.probeAuth.set(null) }
+            val full = SessionState(config.withoutEphemeralSecrets(), ticket, csrf, user, version)
+            val published = sessionStore.publishIfGeneration(attempt) {
+                sessionStore.saveProfileFromLogin(config, saveCredentials, profileId, label, forceNewProfile, version?.display)
+                if (config.trustSelfSigned) {
+                    loginApi.capturedFingerprint.get()?.let { sessionStore.saveCertPin(config.host, it) }
                 }
+                sessionStore.setSession(full)
+                commitLoginSideEffects(config, version, enableAutoConnect)
             }
-
-            val version = api.version().data
-            val full = partial.copy(version = version)
-            sessionStore.setSession(full)
-
-            commitLoginSideEffects(config, version, enableAutoConnect)
-
-            Result.success(full)
+            if (published) Result.success(full) else Result.failure(PveException("Session changed"))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            sessionStore.clearSession()
-            clientFactory.clear()
+            sessionStore.publishIfGeneration(attempt) { sessionStore.clearSession() }
             Result.failure(pveClient.mapError(e))
+        }
+    }
+
+    private fun pinAuthenticatedCertificate(config: ServerConfig, client: com.pxmx.app.data.api.ProbeApi, attempt: Long) {
+        if (!config.trustSelfSigned) return
+        val fingerprint = client.capturedFingerprint.get() ?: return
+        sessionStore.publishIfGeneration(attempt) {
+            sessionStore.saveCertPin(config.host, fingerprint)
         }
     }
 
@@ -251,7 +230,7 @@ class AuthRepository(
         AuthMode.API_TOKEN -> this
     }
 
-    suspend fun loginWithProfile(profileId: String, silent: Boolean = false): LoginOutcome {
+    suspend fun loginWithProfile(profileId: String, silent: Boolean = false, renewalOf: SessionSnapshot? = null): LoginOutcome {
         val profile = sessionStore.getProfile(profileId)
             ?: return LoginOutcome.Failed(PveException("Profile not found"))
         if (!profile.hasSavedSecret) {
@@ -262,6 +241,7 @@ class AuthRepository(
             saveCredentials = profile.saveCredentials,
             profileId = profile.id,
             silent = silent,
+            renewalOf = renewalOf,
         )
     }
 

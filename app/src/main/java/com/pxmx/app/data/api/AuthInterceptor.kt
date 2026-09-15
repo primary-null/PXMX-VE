@@ -5,6 +5,9 @@ import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.session.SessionIdentity
+import com.pxmx.app.data.session.SessionSnapshot
+import java.io.IOException
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -18,32 +21,33 @@ import java.util.concurrent.atomic.AtomicReference
  * connection test never borrows the live session's identity and concurrent
  * probes on the same host never swap tickets.
  *
- * Live clients prefer the active [sessionStore] session; requests that don't
- * match the active session fall back to the bound config (background probes).
+ * Live clients are bound to one login generation and canonical server/account
+ * identity. They may observe a ticket renewal, never another login's credentials.
  */
 class AuthInterceptor(
     private val sessionStore: SessionStore,
     private val boundConfig: ServerConfig? = null,
     private val preferBoundConfig: Boolean = false,
     private val probeAuthSlot: AtomicReference<ProbeAuth?>? = null,
+    private val boundSession: SessionSnapshot? = sessionStore.snapshot(),
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        val session = sessionStore.session.value
         val request = chain.request()
         val builder = request.newBuilder()
-        val matchesBound = boundConfig != null &&
-            request.url.toString().startsWith(boundConfig.baseUrl)
-
-        if (preferBoundConfig && matchesBound) {
-            // Probe client: the identity under test is the bound config, always.
-            applyConfig(builder, boundConfig!!, request)
-        } else if (session != null && request.url.toString().startsWith(session.config.baseUrl)) {
-            // Live client: the active session wins.
-            applySession(builder, session, request)
-        } else if (matchesBound) {
-            // Live client with no matching session: fall back to the bound config.
-            applyConfig(builder, boundConfig!!, request)
+        val config = boundConfig ?: boundSession?.state?.config
+        if (config != null && request.url.isWithinApi(config)) {
+            if (preferBoundConfig) {
+                applyConfig(builder, config, request)
+            } else {
+                val expected = boundSession ?: throw IOException("Session changed")
+                val current = sessionStore.currentSession(expected) ?: throw IOException("Session changed")
+                if (SessionIdentity.of(config) != SessionIdentity.of(expected.state.config)) {
+                    throw IOException("Session changed")
+                }
+                // Read refreshed credentials only within the exact login generation.
+                applySession(builder, current, request)
+            }
         }
 
         return chain.proceed(builder.build())

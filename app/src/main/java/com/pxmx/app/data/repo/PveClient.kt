@@ -31,16 +31,17 @@ class PveClient(
     private val context: Context,
     private val sessionStore: SessionStore,
     private val clientFactory: ProxmoxApiProvider,
-    private val reAuthHandler: (suspend (profileId: String) -> LoginOutcome)? = null,
+    private val reAuthHandler: (suspend (profileId: String, expected: com.pxmx.app.data.session.SessionSnapshot) -> LoginOutcome)? = null,
 ) {
     private val authMutex = Mutex()
 
     suspend fun <T> apiCall(block: suspend (ProxmoxApi) -> T): Result<T> {
-        val session = sessionStore.session.value
+        val snapshot = sessionStore.snapshot()
             ?: return Result.failure(PveException("Not connected"))
+        val session = snapshot.state
 
         try {
-            val api = clientFactory.apiFor(session.config)
+            val api = clientFactory.apiForSession(snapshot)
             return Result.success(block(api))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -49,10 +50,11 @@ class PveClient(
             val isPassword = session.config.authMode == AuthMode.PASSWORD
 
             if (is401 && isPassword) {
-                val profileId = sessionStore.lastProfileId()
+                val profileId = snapshot.profileId
                 val profile = profileId?.let { sessionStore.getProfile(it) }
 
                 val (newSession, reAuthMethod) = authMutex.withLock {
+                    if (!sessionStore.isCurrent(snapshot)) return@withLock null to null
                     val currentSession = sessionStore.session.value
                     if (currentSession?.ticket != session.ticket && currentSession != null) {
                         // Already re-logged in by another concurrent call
@@ -62,15 +64,14 @@ class PveClient(
                         var renewed: SessionState? = null
                         if (!session.ticket.isNullOrBlank()) {
                             try {
-                                val api = clientFactory.apiFor(session.config)
+                                val api = clientFactory.apiForSession(snapshot)
                                 val user = normalizeUsername(session.config.username, session.config.realm)
                                 val resp = api.createTicket(user, session.ticket)
                                 val newTicket = resp.data?.ticket
                                 val newCsrf = resp.data?.csrfPreventionToken
                                 if (!newTicket.isNullOrBlank()) {
                                     val updated = session.copy(ticket = newTicket, csrf = newCsrf)
-                                    sessionStore.setSession(updated)
-                                    renewed = updated
+                                    if (sessionStore.renewSession(snapshot, updated)) renewed = updated
                                 }
                             } catch (renewE: Exception) {
                                 if (renewE is CancellationException) throw renewE
@@ -80,8 +81,8 @@ class PveClient(
 
                         if (renewed != null) {
                             renewed to "renewal"
-                        } else if (profile?.hasSavedSecret == true && reAuthHandler != null) {
-                            when (val outcome = reAuthHandler.invoke(profile.id)) {
+                        } else if (sessionStore.isCurrent(snapshot) && profile?.hasSavedSecret == true && reAuthHandler != null) {
+                            when (val outcome = reAuthHandler.invoke(profile.id, snapshot)) {
                                 is LoginOutcome.Success -> outcome.session to "profile"
                                 else -> null to null
                             }
@@ -91,14 +92,15 @@ class PveClient(
                     }
                 }
 
-                if (newSession != null) {
+                if (newSession != null && sessionStore.isCurrent(snapshot)) {
                     if (reAuthMethod != null) {
                         withContext(Dispatchers.Main) {
                             Toasts.show(context, "Session refreshed")
                         }
                     }
                     return try {
-                        val newApi = clientFactory.apiFor(newSession.config)
+                        if (!sessionStore.isCurrent(snapshot)) return Result.failure(PveException("Session changed"))
+                        val newApi = clientFactory.apiForSession(snapshot)
                         // Invoke the SAME block lambda directly for the retry
                         Result.success(block(newApi))
                     } catch (retryE: Exception) {

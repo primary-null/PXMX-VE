@@ -113,7 +113,7 @@ class AuthAndSecurityUnitTest {
 
         // Session re-mint occurs after 401
         val remintedSession = SessionState(config = config, ticket = "reminted-ticket", csrf = "fresh-new-csrf")
-        sessionStore.setSession(remintedSession)
+        assertTrue(sessionStore.renewSession(sessionStore.snapshot()!!, remintedSession))
 
         val retryPostRequest = Request.Builder()
             .url("https://192.0.2.10:8006/api2/json/nodes/alpha/qemu/100/status/stop")
