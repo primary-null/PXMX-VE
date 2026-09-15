@@ -16,6 +16,7 @@ class UpdateRepository(
     private val sessionStore: SessionStore,
     private val pveClient: PveClient,
     private val discoverNodeNames: suspend (ProxmoxApi) -> List<String>,
+    private val executor: SshUpgradeExecutor = SshUpgradeExecutor(sessionStore::getHostKey, sessionStore::saveHostKey),
 ) {
 
     /** Pending apt updates + key package versions per node. */
@@ -55,20 +56,19 @@ class UpdateRepository(
             return simulateDemoSshUpgrade(node, onOutputLine)
         }
 
-        val profile = sessionStore.listProfiles().firstOrNull { it.host == config.host }
-        if (profile == null || profile.authMode != AuthMode.PASSWORD || !profile.hasSavedSecret || profile.password.isBlank()) {
-            return Result.failure(PveException("SSH upgrade needs the saved password for this profile. Reconnect with Save credentials on, or use the node shell."))
-        }
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, s)
+            ?: return Result.failure(PveException("SSH requires the saved password of the exact active root PAM profile. Use the node shell for other accounts."))
 
-        val targetHost = config.host.trim().removePrefix("https://").removePrefix("http://")
-            .substringBefore('/')
-            .substringBefore(':')
+        val targetHost = pveClient.apiCall { api ->
+            if (sessionStore.session.value?.config != config) throw PveException("Session changed before SSH resolution")
+            com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+        }.getOrElse { return Result.failure(it) }
+        if (sessionStore.session.value?.config != config || sessionStore.lastProfileId() != profile.id) {
+            return Result.failure(PveException("Session changed during SSH resolution"))
+        }
         val sshUser = resolveSshUpgradeUser(config.username)
 
-        val executor = SshUpgradeExecutor(
-            getStoredFingerprint = { h -> sessionStore.getHostKey(h) },
-            storeFingerprint = { h, k -> sessionStore.saveHostKey(h, k) },
-        )
+
 
         return executor.executeUpgrade(
             host = targetHost,

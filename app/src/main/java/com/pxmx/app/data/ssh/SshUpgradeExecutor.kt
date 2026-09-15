@@ -16,7 +16,7 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-class SshUpgradeExecutor(
+open class SshUpgradeExecutor(
     private val getStoredFingerprint: (String) -> String?,
     private val storeFingerprint: (String, String) -> Unit,
 ) {
@@ -61,7 +61,7 @@ class SshUpgradeExecutor(
         }
     }
 
-    suspend fun executeUpgrade(
+    open suspend fun executeUpgrade(
         host: String,
         port: Int = 22,
         username: String = "root",

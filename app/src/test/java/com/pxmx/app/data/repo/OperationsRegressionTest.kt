@@ -6,6 +6,8 @@ import com.pxmx.app.data.api.*
 import com.pxmx.app.data.model.*
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -21,6 +23,84 @@ class OperationsRegressionTest {
         override fun clear() {}
     }
     private fun repository(api: ProxmoxApi) = ProxmoxRepository(ContextWrapper(null), store, provider(api))
+
+    @Test fun backupSftpUsesSelectedNodeAndVerifiedRootPassword() = runBlocking {
+        val config = ServerConfig(host = "entry.example", username = "root@pam", password = "fake-root-password")
+        store.saveProfileFromLogin(config, saveCredentials = true)
+        store.setSession(SessionState(config.copy(password = ""), ticket = "fake", username = "root@pam"))
+        val nodes = mutableListOf<String>()
+        val api = object : ProxmoxApi by demo {
+            override suspend fun clusterStatus() = PveResponse(data = listOf(mapOf<String, Any>("name" to "beta", "type" to "node", "ip" to "192.0.2.2")))
+            override suspend fun storageContent(node: String, storage: String, content: String?, vmid: Long?): PveResponse<List<StorageContentItem>> {
+                nodes += node
+                return demo.storageContent(node, storage, content, vmid)
+            }
+            override suspend fun storageVolume(node: String, storage: String, volume: String): PveResponse<StorageContentItem> {
+                nodes += node
+                return demo.storageVolume(node, storage, volume)
+            }
+        }
+        val contacted = mutableListOf<String>()
+        val sftp = object : com.pxmx.app.data.ssh.SftpDownloader({ null }, { _, _ -> }) {
+            override suspend fun download(host: String, port: Int, username: String, password: String, remotePath: String, localSink: java.io.OutputStream, onProgress: (Long, Long) -> Unit) {
+                contacted += "$host/$username"
+                assertEquals("fake-root-password", password)
+                assertTrue(remotePath.startsWith("/var/lib/vz/dump/"))
+            }
+        }
+        val storage = StorageRepository(ContextWrapper(null), store, client(api),
+            { _, _ -> Result.success(TaskStatus(status = "stopped", exitstatus = "OK")) }, sftp,
+            { _, block -> block(java.io.ByteArrayOutputStream()); Result.success(Unit) })
+        storage.backupToDevice("beta", "qemu", 100, "local") {}.getOrThrow()
+        assertEquals(listOf("beta", "beta"), nodes)
+        assertEquals(listOf("192.0.2.2/root"), contacted)
+    }
+
+    @Test fun sshUpgradeUsesSelectedNodeIpv6NotEntryHost() = runBlocking {
+        val config = ServerConfig(host = "entry.example", username = "root", password = "fake-root-password")
+        store.saveProfileFromLogin(config, saveCredentials = true)
+        store.setSession(SessionState(config.copy(password = ""), ticket = "fake", username = "root@pam"))
+        val api = object : ProxmoxApi by demo {
+            override suspend fun clusterStatus() = PveResponse(data = listOf(
+                mapOf<String, Any>("name" to "alpha", "type" to "node", "ip" to "192.0.2.1", "local" to 1),
+                mapOf<String, Any>("name" to "beta", "type" to "node", "ip" to "2001:db8::2"),
+            ))
+        }
+        var contacted: String? = null
+        val executor = object : com.pxmx.app.data.ssh.SshUpgradeExecutor({ null }, { _, _ -> }) {
+            override suspend fun executeUpgrade(host: String, port: Int, username: String, password: String, command: String, onOutputLine: (String) -> Unit): Result<Int> {
+                contacted = host
+                assertEquals("root", username)
+                assertEquals("fake-root-password", password)
+                return Result.success(0)
+            }
+        }
+        UpdateRepository(store, client(api), { listOf("alpha", "beta") }, executor).sshUpgrade("beta").getOrThrow()
+        assertEquals("2001:db8::2", contacted)
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun sshAvailabilityRejectsNonRootPamAndMismatchedActiveProfile() = kotlinx.coroutines.test.runTest {
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+        try {
+            val root = ServerConfig(host = "entry.example", username = "root", password = "fake")
+            val cases = listOf(
+                root.copy(username = "admin") to root.copy(username = "admin"),
+                root.copy(realm = "pve") to root.copy(realm = "pve"),
+                root.copy(port = 443) to root,
+                root.copy(host = "other.example") to root,
+                root.copy(username = "admin") to root,
+                root.copy(realm = "pve") to root,
+                root.copy(authMode = AuthMode.API_TOKEN, apiToken = "fake-token") to root,
+            )
+            val incorrectlyAvailable = cases.filter { (saved, active) ->
+                store.saveProfileFromLogin(saved, saveCredentials = true)
+                store.setSession(SessionState(active.copy(password = ""), ticket = "fake", username = "${active.username}@${active.realm}"))
+                com.pxmx.app.ui.settings.UpdatesViewModel(repository(demo), store).ui.value.isPasswordAuth
+            }
+            assertTrue("Only an exact active root PAM password profile qualifies: ${incorrectlyAvailable.size} invalid identities accepted", incorrectlyAvailable.isEmpty())
+        } finally { kotlinx.coroutines.Dispatchers.resetMain() }
+    }
 
     @Test fun deletionWaitsForTaskAndReportsFailure() = kotlinx.coroutines.test.runTest {
         var polls = 0

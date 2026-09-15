@@ -944,6 +944,8 @@ private fun NodeStatusRectangle(
                                     "No saved password for SSH. Reconnect with Save credentials on, or run the upgrade from the node shell."
                                 SshUpgradeAvailability.API_TOKEN_AUTH ->
                                     "API token auth cannot perform SSH upgrades. Run the upgrade from the node shell."
+                                SshUpgradeAvailability.UNSUPPORTED_IDENTITY ->
+                                    "SSH password reuse requires a verified root PAM login. Use the node shell for this account."
                             }
                             Text(
                                 text = explainerText,

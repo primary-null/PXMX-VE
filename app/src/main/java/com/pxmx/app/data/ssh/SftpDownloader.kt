@@ -12,12 +12,12 @@ import java.security.PublicKey
 import java.security.MessageDigest
 import android.util.Base64
 
-class SftpDownloader(
+open class SftpDownloader(
     private val getStoredFingerprint: (String) -> String?,
     private val storeFingerprint: (String, String) -> Unit
 ) {
 
-    suspend fun download(
+    open suspend fun download(
         host: String,
         port: Int = 22,
         username: String,

@@ -31,6 +31,8 @@ class StorageRepository(
     private val sessionStore: SessionStore,
     private val pveClient: PveClient,
     private val taskStatusProvider: suspend (node: String, upid: String) -> Result<TaskStatus>,
+    private val sftp: SftpDownloader = SftpDownloader(sessionStore::getHostKey, sessionStore::saveHostKey),
+    private val downloadSink: (suspend (String, suspend (OutputStream) -> Unit) -> Result<Unit>)? = null,
 ) {
 
     suspend fun loadStorage(
@@ -186,18 +188,30 @@ class StorageRepository(
         storage: String,
         onProgress: (String) -> Unit
     ): Result<String> {
-        val profileId = sessionStore.lastProfileId()
-        val profile = profileId?.let { sessionStore.getProfile(it) } ?: return Result.failure(PveException("No profile found"))
-        val config = profile.toServerConfig(includeSecrets = true)
+        val session = sessionStore.session.value ?: return Result.failure(PveException("No active session"))
+        val config = session.config
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, session)
+            ?: return Result.failure(PveException("SFTP requires the saved password of the exact active root PAM profile. Use server-side backups for other accounts."))
+        fun checkSession() {
+            if (sessionStore.session.value?.config != config || sessionStore.lastProfileId() != profile.id) {
+                throw PveException("Session changed during backup download")
+            }
+        }
 
         return try {
+            val targetHost = pveClient.apiCall { api ->
+                checkSession()
+                com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+            }.getOrThrow()
             onProgress("Backing up on server...")
+            checkSession()
             val upid = createBackup(node, vmid, storage).getOrThrow()
 
             // Poll for completion (max 10 mins)
             val startTime = System.currentTimeMillis()
             var finished = false
             while (System.currentTimeMillis() - startTime < 600_000) {
+                checkSession()
                 val status = taskStatusProvider(node, upid).getOrThrow()
                 if (!status.isRunning) {
                     if (!status.isOk) throw PveException("Backup task failed: ${status.exitstatus}")
@@ -210,7 +224,7 @@ class StorageRepository(
 
             onProgress("Locating backup volume...")
             // Find newest volume for this VM
-            val resp = pveClient.apiCall { it.storageContent(node, storage, content = "backup", vmid = vmid) }.getOrThrow()
+            val resp = pveClient.apiCall { checkSession(); it.storageContent(node, storage, content = "backup", vmid = vmid) }.getOrThrow()
             val items = resp.data.orEmpty()
             val newest = items.maxByOrNull { it.ctime ?: 0L }
                 ?: throw PveException("Could not find resulting backup volume")
@@ -219,7 +233,7 @@ class StorageRepository(
             val volumeName = volid.substringAfter(':')
 
             // Fetch single volume metadata to get the 'path'
-            val detailResp = pveClient.apiCall { it.storageVolume(node, storage, volumeName) }.getOrThrow()
+            val detailResp = pveClient.apiCall { checkSession(); it.storageVolume(node, storage, volumeName) }.getOrThrow()
             val remotePath = detailResp.data?.path
                 ?: throw PveException("Server did not return file path. SFTP download requires the full path.")
 
@@ -227,18 +241,16 @@ class StorageRepository(
             val filename = sanitizeBackupFilename(rawFilename)
 
             onProgress("Starting SFTP download...")
-            val sftp = SftpDownloader(
-                getStoredFingerprint = { host -> sessionStore.getHostKey(host) },
-                storeFingerprint = { host, key -> sessionStore.saveHostKey(host, key) }
-            )
+
 
             val downloadResult = runCatching {
-                saveToDownloadsToStream(filename) { outputStream ->
+                (downloadSink ?: ::saveToDownloadsToStream)(filename) { outputStream ->
+                    checkSession()
                     sftp.download(
-                        host = config.host,
+                        host = targetHost,
                         port = 22,
-                        username = config.username,
-                        password = config.password,
+                        username = "root",
+                        password = profile.password,
                         remotePath = remotePath,
                         localSink = outputStream,
                         onProgress = { downloaded, total ->

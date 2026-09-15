@@ -30,6 +30,7 @@ enum class SshUpgradeAvailability {
     AVAILABLE,
     NO_SAVED_SECRET,
     API_TOKEN_AUTH,
+    UNSUPPORTED_IDENTITY,
 }
 
 const val PRIVILEGE_DENIED_COPY = "This account lacks package-management privileges on this node. Use an account with Sys.Modify, or run upgrades from the node shell."
@@ -156,16 +157,11 @@ class UpdatesViewModel(
         val s = sessionStore.session.value ?: repository.sessionStore.session.value
         val cfg = s?.config ?: return SshUpgradeAvailability.NO_SAVED_SECRET
         if (cfg.host.equals("demo", ignoreCase = true)) return SshUpgradeAvailability.AVAILABLE
-        val profile = sessionStore.listProfiles().firstOrNull { it.host == cfg.host }
-        val authMode = profile?.authMode ?: cfg.authMode
-        if (authMode != AuthMode.PASSWORD) {
-            return SshUpgradeAvailability.API_TOKEN_AUTH
-        }
-        val hasSecret = (profile?.hasSavedSecret == true && profile.password.isNotBlank()) || cfg.password.isNotBlank()
-        if (!hasSecret) {
-            return SshUpgradeAvailability.NO_SAVED_SECRET
-        }
-        return SshUpgradeAvailability.AVAILABLE
+        if (cfg.authMode != AuthMode.PASSWORD) return SshUpgradeAvailability.API_TOKEN_AUTH
+        if (s.username != "root@pam") return SshUpgradeAvailability.UNSUPPORTED_IDENTITY
+        return if (com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, s) != null) {
+            SshUpgradeAvailability.AVAILABLE
+        } else SshUpgradeAvailability.NO_SAVED_SECRET
     }
 
     fun refresh(initial: Boolean = false) {
