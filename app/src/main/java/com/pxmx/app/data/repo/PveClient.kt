@@ -8,6 +8,10 @@ import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.LoginOutcome
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.session.SessionSnapshot
+import kotlinx.coroutines.currentCoroutineContext
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import com.pxmx.app.ui.util.Toasts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -35,10 +39,21 @@ class PveClient(
 ) {
     private val authMutex = Mutex()
 
+    /** Preserve one login lease across helpers in a multi-stage operation. */
+    suspend fun <T> inSession(expected: SessionSnapshot, block: suspend () -> T): T =
+        withContext(OperationSession(expected)) {
+            if (!sessionStore.isCurrent(expected)) throw PveException("Session changed")
+            block()
+        }
+
+    suspend fun <T> apiCall(expected: SessionSnapshot, block: suspend (ProxmoxApi) -> T): Result<T> =
+        withContext(OperationSession(expected)) { apiCall(block) }
+
     suspend fun <T> apiCall(block: suspend (ProxmoxApi) -> T): Result<T> {
-        val snapshot = sessionStore.snapshot()
+        val snapshot = currentCoroutineContext()[OperationSession]?.snapshot ?: sessionStore.snapshot()
             ?: return Result.failure(PveException("Not connected"))
         val session = snapshot.state
+        if (!sessionStore.isCurrent(snapshot)) return Result.failure(PveException("Session changed"))
 
         try {
             val api = clientFactory.apiForSession(snapshot)
@@ -245,6 +260,10 @@ class PveClient(
             return sanitized
         }
     }
+}
+
+private class OperationSession(val snapshot: SessionSnapshot) : AbstractCoroutineContextElement(Key) {
+    companion object Key : CoroutineContext.Key<OperationSession>
 }
 
 class PveHttpException(

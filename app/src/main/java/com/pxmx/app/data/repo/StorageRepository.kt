@@ -140,8 +140,8 @@ class StorageRepository(
         node: String,
         volid: String,
     ): Result<String> {
-        val config = sessionStore.session.value?.config
-        val response = pveClient.apiCall { api ->
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val response = pveClient.apiCall(snapshot) { api ->
             api.deleteStorageContent(node, volid.substringBefore(':'), volid).data ?: "OK"
         }
         val upid = response.getOrElse { return Result.failure(it) }
@@ -150,8 +150,7 @@ class StorageRepository(
         return try {
             kotlinx.coroutines.withTimeoutOrNull(600_000) {
                 while (true) {
-                    val status = pveClient.apiCall { api ->
-                        if (sessionStore.session.value?.config != config) throw PveException("Session changed during deletion")
+                    val status = pveClient.apiCall(snapshot) { api ->
                         api.taskStatus(node, upid).data ?: throw PveException("No deletion task status")
                     }.getOrThrow()
                     if (!status.isRunning) {
@@ -176,17 +175,17 @@ class StorageRepository(
         storage: String,
         onProgress: (String) -> Unit
     ): Result<String> {
-        val session = sessionStore.session.value ?: return Result.failure(PveException("No active session"))
-        val config = session.config
-        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, session)
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, snapshot)
             ?: return Result.failure(PveException("SFTP requires the saved password of the exact active root PAM profile. Use server-side backups for other accounts."))
         fun checkSession() {
-            if (sessionStore.session.value?.config != config || sessionStore.lastProfileId() != profile.id) {
+            if (!sessionStore.isCurrent(snapshot)) {
                 throw PveException("Session changed during backup download")
             }
         }
 
         return try {
+            pveClient.inSession(snapshot) {
             val targetHost = pveClient.apiCall { api ->
                 checkSession()
                 com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
@@ -252,6 +251,7 @@ class StorageRepository(
             downloadResult.getOrElse { e ->
                 throw PveException("Backup created on server but download failed: ${e.message}. The backup remains on the server.", e)
             }.map { filename }
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Result.failure(e)

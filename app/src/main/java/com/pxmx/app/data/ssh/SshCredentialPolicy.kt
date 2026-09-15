@@ -5,15 +5,24 @@ import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.repo.PveClient
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.session.SessionSnapshot
 
 /** API accounts are not Linux accounts. Only a verified root PAM login can reuse its password. */
 object SshCredentialPolicy {
     fun rootProfile(store: SessionStore, session: SessionState): SavedProfile? {
+        val snapshot = store.snapshot() ?: return null
+        if (snapshot.state != session) return null
+        return rootProfile(store, snapshot)
+    }
+
+    fun rootProfile(store: SessionStore, snapshot: SessionSnapshot): SavedProfile? {
+        if (!store.isCurrent(snapshot)) return null
+        val session = snapshot.state
         val config = session.config
         if (config.authMode != AuthMode.PASSWORD || session.ticket.isNullOrBlank() ||
             session.username != "root@pam" ||
             PveClient.normalizeUsername(config.username, config.realm) != "root@pam") return null
-        val profile = store.lastProfileId()?.let(store::getProfile) ?: return null
+        val profile = snapshot.profileId?.let(store::getProfile) ?: return null
         return profile.takeIf {
             it.host == config.host && it.port == config.port &&
                 it.realm == config.realm && it.authMode == config.authMode &&

@@ -47,21 +47,21 @@ class UpdateRepository(
         node: String,
         onOutputLine: (String) -> Unit = {},
     ): Result<Int> {
-        val s = sessionStore.session.value ?: return Result.failure(PveException("No active session"))
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val s = snapshot.state
         val config = s.config
 
         if (config.host.equals("demo", ignoreCase = true)) {
             return simulateDemoSshUpgrade(node, onOutputLine)
         }
 
-        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, s)
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, snapshot)
             ?: return Result.failure(PveException("SSH requires the saved password of the exact active root PAM profile. Use the node shell for other accounts."))
 
-        val targetHost = pveClient.apiCall { api ->
-            if (sessionStore.session.value?.config != config) throw PveException("Session changed before SSH resolution")
+        val targetHost = pveClient.apiCall(snapshot) { api ->
             com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
         }.getOrElse { return Result.failure(it) }
-        if (sessionStore.session.value?.config != config || sessionStore.lastProfileId() != profile.id) {
+        if (!sessionStore.isCurrent(snapshot)) {
             return Result.failure(PveException("Session changed during SSH resolution"))
         }
         val sshUser = resolveSshUpgradeUser(config.username)
