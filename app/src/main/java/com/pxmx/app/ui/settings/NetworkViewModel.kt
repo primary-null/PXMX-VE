@@ -43,7 +43,7 @@ class NetworkViewModel(
                 it.copy(
                     loading = false,
                     refreshing = false,
-                    nodes = net.getOrDefault(emptyList()),
+                    nodes = net.getOrElse { _ -> it.nodes },
                     error = net.exceptionOrNull()?.message,
                 )
             }

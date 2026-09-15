@@ -45,8 +45,7 @@ class NetworkRepository(
         val nodes = discoverNodeNames(api)
         val allStatuses = mutableListOf<SdnStatusInfo>()
         for (node in nodes) {
-            val statusMap = runCatching { api.nodeSdnZones(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val statusMap = api.nodeSdnZones(node).data.orEmpty()
             allStatuses.addAll(statusMap.map { SdnStatusInfo.fromMap(it).copy(node = node) })
         }
         allStatuses
@@ -61,8 +60,7 @@ class NetworkRepository(
         val options = api.clusterFirewallOptions().data.orEmpty()
         val rules = api.clusterFirewallRules().data.orEmpty()
             .map { FirewallRule.fromMap(it) }
-        val aliases = runCatching { api.clusterFirewallAliases().data.orEmpty() }
-            .getOrDefault(emptyList())
+        val aliases = api.clusterFirewallAliases().data.orEmpty()
             .map { FirewallAlias.fromMap(it) }
         FirewallSnapshot(scope = "cluster", options = options, rules = rules, aliases = aliases)
     }
@@ -77,8 +75,7 @@ class NetworkRepository(
 
     suspend fun loadNodeFirewall(node: String): Result<FirewallSnapshot> = pveClient.apiCall { api ->
         val options = api.nodeFirewallOptions(node).data.orEmpty()
-        val rules = runCatching { api.nodeFirewallRules(node).data.orEmpty() }
-            .getOrDefault(emptyList())
+        val rules = api.nodeFirewallRules(node).data.orEmpty()
             .map { FirewallRule.fromMap(it) }
         FirewallSnapshot(scope = "node/$node", options = options, rules = rules, aliases = emptyList())
     }

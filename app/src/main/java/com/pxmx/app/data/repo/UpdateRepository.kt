@@ -23,12 +23,10 @@ class UpdateRepository(
     suspend fun listClusterUpdates(): Result<List<NodeUpdateSnapshot>> = pveClient.apiCall { api ->
         val nodes = discoverNodeNames(api)
         nodes.map { node ->
-            val updates = runCatching { api.aptUpdateList(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val updates = (api.aptUpdateList(node).data ?: throw PveException("No update list for node '$node'"))
                 .map { AptPackageUpdate.fromMap(it) }
                 .sortedBy { it.packageName.orEmpty() }
-            val versions = runCatching { api.aptVersions(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val versions = api.aptVersions(node).data.orEmpty()
                 .map { AptPackageVersion.fromMap(it) }
             NodeUpdateSnapshot(node = node, updates = updates, versions = versions)
         }

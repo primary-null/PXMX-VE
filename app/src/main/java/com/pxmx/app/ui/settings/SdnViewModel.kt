@@ -100,12 +100,12 @@ class SdnViewModel(
                     it.copy(
                         loading = false,
                         refreshing = false,
-                        zones = zonesRes.getOrDefault(emptyList()),
-                        vnets = vnetsRes.getOrDefault(emptyList()),
-                        statuses = statusRes.getOrDefault(emptyList()),
+                        zones = zonesRes.getOrElse { _ -> it.zones },
+                        vnets = vnetsRes.getOrElse { _ -> it.vnets },
+                        statuses = statusRes.getOrElse { _ -> it.statuses },
                         error = zonesRes.exceptionOrNull()?.message
                             ?: vnetsRes.exceptionOrNull()?.message
-                            ?: statusRes.exceptionOrNull()?.message?.takeUnless { it.contains("501") },
+                            ?: statusRes.exceptionOrNull()?.message,
                     )
                 }
             }

@@ -42,15 +42,10 @@ class GuestRepository(
         nodeName: String,
         guestType: String,
     ): List<ClusterResource> {
-        val rows = try {
-            when (guestType) {
-                "qemu" -> api.nodeQemu(nodeName).data.orEmpty()
-                "lxc" -> api.nodeLxc(nodeName).data.orEmpty()
-                else -> emptyList()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            emptyList()
+        val rows = when (guestType) {
+            "qemu" -> api.nodeQemu(nodeName).data.orEmpty()
+            "lxc" -> api.nodeLxc(nodeName).data.orEmpty()
+            else -> emptyList()
         }
         return coroutineScope {
             rows.map { g ->
@@ -71,7 +66,7 @@ class GuestRepository(
                                 guestConfigCache[cacheKey] = GuestConfigCacheEntry(ostype, onboot, now)
                                 ostype to onboot
                             } catch (e: Exception) {
-                                if (e is CancellationException) throw e
+                                e.rethrowAuthOrCancellation()
                                 cached?.ostype to cached?.onboot
                             }
                         }
@@ -166,24 +161,19 @@ class GuestRepository(
         return pveClient.apiCall { api ->
             coroutineScope {
                 val statusDef = async {
-                    runCatching { api.guestStatus(node, guestType.path, vmid).data }
-                        .getOrNull()
+                    api.guestStatus(node, guestType.path, vmid).data
                 }
                 val configDef = async {
-                    runCatching { api.guestConfig(node, guestType.path, vmid).data.orEmpty() }
-                        .getOrDefault(emptyMap())
+                    api.guestConfig(node, guestType.path, vmid).data.orEmpty()
                 }
                 val snapsDef = async {
-                    runCatching { api.guestSnapshots(node, guestType.path, vmid).data.orEmpty() }
-                        .getOrDefault(emptyList())
+                    api.guestSnapshots(node, guestType.path, vmid).data.orEmpty()
                 }
                 val usbDef = async {
-                    runCatching { api.nodeUsb(node).data.orEmpty() }
-                        .getOrDefault(emptyList())
+                    api.nodeUsb(node).data.orEmpty()
                 }
                 val storageDef = async {
-                    runCatching { api.nodeStorage(node).data.orEmpty() }
-                        .getOrDefault(emptyList())
+                    api.nodeStorage(node).data.orEmpty()
                 }
 
                 val status = statusDef.await()

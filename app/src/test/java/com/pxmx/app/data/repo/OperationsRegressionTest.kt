@@ -6,6 +6,8 @@ import com.pxmx.app.data.api.*
 import com.pxmx.app.data.model.*
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import org.junit.Assert.*
@@ -23,6 +25,149 @@ class OperationsRegressionTest {
         override fun clear() {}
     }
     private fun repository(api: ProxmoxApi) = ProxmoxRepository(ContextWrapper(null), store, provider(api))
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun networkRefreshRetainsPreviousDataOnEndpointFailure() = kotlinx.coroutines.test.runTest {
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+        try {
+            var fail = false
+            val api = object : ProxmoxApi by demo {
+                override suspend fun nodeNetwork(node: String): PveResponse<List<Map<String, Any>>> {
+                    if (fail) throw java.io.IOException("network unavailable")
+                    return demo.nodeNetwork(node)
+                }
+            }
+            val vm = com.pxmx.app.ui.settings.NetworkViewModel(repository(api))
+            val previous = vm.ui.value.nodes
+            assertTrue(previous.isNotEmpty())
+            fail = true
+            vm.refresh()
+            assertEquals(previous, vm.ui.value.nodes)
+            assertNotNull(vm.ui.value.error)
+        } finally { kotlinx.coroutines.Dispatchers.resetMain() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun sdnRefreshRetainsPreviousStatusAndSurfacesUnavailable() = kotlinx.coroutines.test.runTest {
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+        val viewModels = androidx.lifecycle.ViewModelStore()
+        try {
+            var fail = false
+            val api = object : ProxmoxApi by demo {
+                override suspend fun nodeSdnZones(node: String): PveResponse<List<Map<String, Any>>> {
+                    if (fail) throw PveHttpException(501, null, "status unavailable")
+                    return PveResponse(data = listOf(mapOf("zone" to "shared", "status" to "ok")))
+                }
+            }
+            val vm = com.pxmx.app.ui.settings.SdnViewModel(repository(api))
+            viewModels.put("sdn", vm)
+            backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+            runCurrent()
+            val previous = vm.ui.value.statuses
+            assertTrue(previous.isNotEmpty())
+            fail = true
+            vm.refresh()
+            runCurrent()
+            assertEquals(previous, vm.ui.value.statuses)
+            assertNotNull(vm.ui.value.error)
+        } finally { viewModels.clear(); kotlinx.coroutines.Dispatchers.resetMain() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun updatesFailedRefreshMarksRetainedNodesUnknown() = kotlinx.coroutines.test.runTest {
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+        try {
+            var fail = false
+            val api = object : ProxmoxApi by demo {
+                override suspend fun aptUpdateList(node: String): PveResponse<List<Map<String, Any>>> {
+                    if (fail) throw java.io.IOException("apt unavailable")
+                    return PveResponse(data = emptyList())
+                }
+            }
+            val vm = com.pxmx.app.ui.settings.UpdatesViewModel(repository(api))
+            val previous = vm.ui.value.nodes
+            assertTrue(previous.isNotEmpty())
+            fail = true
+            vm.refresh()
+            assertEquals(previous, vm.ui.value.nodes)
+            assertNotNull(vm.ui.value.error)
+            assertTrue(vm.ui.value.nodes.all { vm.ui.value.progress[it.node]?.state == com.pxmx.app.ui.settings.NodeRefreshState.ERROR })
+        } finally { kotlinx.coroutines.Dispatchers.resetMain() }
+    }
+
+    private fun failingEndpoint(endpoint: String, error: Exception): ProxmoxApi = java.lang.reflect.Proxy.newProxyInstance(
+        ProxmoxApi::class.java.classLoader, arrayOf(ProxmoxApi::class.java),
+    ) { _, method, args ->
+        if (method.name == endpoint) throw error
+        try { method.invoke(demo, *(args ?: emptyArray())) }
+        catch (e: java.lang.reflect.InvocationTargetException) { throw e.targetException }
+    } as ProxmoxApi
+
+    private fun readCases(): List<Pair<String, suspend (ProxmoxRepository) -> Result<*>>> = listOf(
+        "aptVersions" to { it.listClusterUpdates() },
+        "storageStatus" to { it.storageDetail("alpha", "local") },
+        "nodeStorage" to { it.listResources() },
+        "nodeQemu" to { it.listResources() },
+        "nodeLxc" to { it.listResources() },
+        "guestStatus" to { it.loadGuestBundle("alpha", GuestType.QEMU, 100) },
+        "guestConfig" to { it.loadGuestBundle("alpha", GuestType.QEMU, 100) },
+        "guestSnapshots" to { it.loadGuestBundle("alpha", GuestType.QEMU, 100) },
+        "nodeUsb" to { it.loadGuestBundle("alpha", GuestType.QEMU, 100) },
+        "storageContent" to { it.loadGuestBundle("alpha", GuestType.QEMU, 100) },
+        "nodeStatus" to { it.loadNodeBundle("alpha") },
+        "nodeServices" to { it.loadNodeBundle("alpha") },
+        "nodeTasks" to { it.loadNodeBundle("alpha") },
+        "nodeNetwork" to { it.listClusterNetwork() },
+        "nodeSdnZones" to { it.listSdnStatus() },
+        "clusterFirewallAliases" to { it.loadClusterFirewall() },
+        "nodeFirewallRules" to { it.loadNodeFirewall("alpha") },
+        "clusterStatus" to { it.siteInfo() },
+    )
+
+    @Test fun authenticationAndCancellationEscapeEveryReadFallback() = runBlocking {
+        val extraCases: List<Pair<String, suspend (ProxmoxRepository) -> Result<*>>> = listOf(
+            "guestConfig" to { it.listResources() },
+            "nodeStatus" to { it.listResources() },
+            "clusterStatus" to { it.listNodeNames() },
+            "nodes" to { it.siteInfo() },
+            "taskLog" to { it.setActiveAptTask("alpha", "UPID:alpha:apt", "aptupdate"); it.logPoll() },
+        )
+        store.setSession(SessionState(ServerConfig(host = "entry.example", authMode = AuthMode.API_TOKEN, apiToken = "fake")))
+        val swallowed = mutableListOf<String>()
+        for ((endpoint, read) in readCases() + extraCases) {
+            for (error in listOf(java.util.concurrent.CancellationException("cancel"), PveHttpException(401, null, "unauthorized"), PveHttpException(403, null, "forbidden"))) {
+                try {
+                    val result = read(repository(failingEndpoint(endpoint, error)))
+                    if (error is java.util.concurrent.CancellationException || result.isSuccess) swallowed += "$endpoint/${error.message}"
+                } catch (e: java.util.concurrent.CancellationException) {
+                    assertEquals(error.message, e.message)
+                }
+            }
+        }
+        assertEquals(emptyList<String>(), swallowed)
+    }
+
+    @Test fun failedReadSectionsNeverBecomeSuccessfulEmptySnapshots() = runBlocking {
+        val swallowed = readCases().mapNotNull { (endpoint, read) ->
+            endpoint.takeIf { read(repository(failingEndpoint(endpoint, java.io.IOException("$endpoint unavailable")))).isSuccess }
+        }
+        assertEquals("Read failures must reach the UI, which retains its previous snapshot", emptyList<String>(), swallowed)
+    }
+
+    @Test fun storageContentEndpointFailureIsNotEmptySuccess() = runBlocking {
+        val api = object : ProxmoxApi by demo {
+            override suspend fun storageContent(node: String, storage: String, content: String?, vmid: Long?): PveResponse<List<StorageContentItem>> = throw java.io.IOException("content unavailable")
+        }
+        assertTrue(repository(api).storageDetail("alpha", "local").isFailure)
+    }
+
+    @Test fun aptEndpointFailureMustNotReportUpToDate() = runBlocking {
+        val api = object : ProxmoxApi by demo {
+            override suspend fun aptUpdateList(node: String): PveResponse<List<Map<String, Any>>> = throw java.io.IOException("apt unavailable")
+        }
+        val result = UpdateRepository(store, client(api), { listOf("alpha") }).listClusterUpdates()
+        assertTrue("A failed apt endpoint is not an empty successful update list", result.isFailure)
+    }
 
     @Test fun backupSftpUsesSelectedNodeAndVerifiedRootPassword() = runBlocking {
         val config = ServerConfig(host = "entry.example", username = "root@pam", password = "fake-root-password")

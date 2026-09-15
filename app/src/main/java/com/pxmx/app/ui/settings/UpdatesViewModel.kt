@@ -215,6 +215,10 @@ class UpdatesViewModel(
                                 loading = false,
                                 refreshing = false,
                                 error = e.message ?: "Failed to load updates",
+                                progress = it.progress.mapValues { (_, progress) ->
+                                    if (progress.state == NodeRefreshState.UPGRADING || progress.state == NodeRefreshState.PARSING) progress
+                                    else progress.copy(state = NodeRefreshState.ERROR, errorDetail = "Update status unknown: ${e.message}")
+                                },
                             )
                         }
                     },
@@ -227,6 +231,10 @@ class UpdatesViewModel(
                         loading = false,
                         refreshing = false,
                         error = e.message ?: "Failed to load updates",
+                                progress = it.progress.mapValues { (_, progress) ->
+                                    if (progress.state == NodeRefreshState.UPGRADING || progress.state == NodeRefreshState.PARSING) progress
+                                    else progress.copy(state = NodeRefreshState.ERROR, errorDetail = "Update status unknown: ${e.message}")
+                                },
                     )
                 }
             }

@@ -71,16 +71,16 @@ class NodeRepository(
      */
     suspend fun siteInfo(): Result<SiteInfo> {
         return pveClient.apiCall { api ->
-            val rawStatus = runCatching { api.clusterStatus().data.orEmpty() }.getOrDefault(emptyList())
+            val rawStatus = api.clusterStatus().data.orEmpty()
             cacheNodeIps(rawStatus)
             val status = rawStatus.map { ClusterStatusEntry.fromMap(it) }
             val nodes = status.filter { it.isNode }
             val clusterEntry = status.firstOrNull { it.isCluster }
             val localNode = nodes.firstOrNull { it.isLocal } ?: nodes.firstOrNull()
             val nodeName = localNode?.name
-                ?: runCatching { api.nodes().data.orEmpty().firstOrNull()?.node }.getOrNull()
+                ?: attemptRead { api.nodes().data.orEmpty().firstOrNull()?.node }.getOrNull()
             val nodeCount = nodes.size.coerceAtLeast(
-                runCatching { api.nodes().data.orEmpty().size }.getOrDefault(1),
+                attemptRead { api.nodes().data.orEmpty().size }.getOrDefault(1),
             )
             val clusterName = clusterEntry?.name
             val isCluster = clusterEntry != null || nodeCount > 1
@@ -127,7 +127,7 @@ class NodeRepository(
     suspend fun discoverNodeNames(api: ProxmoxApi): List<String> {
         val fromNodes = api.nodes().data.orEmpty().mapNotNull { it.node }.filter { it.isNotBlank() }
         if (clusterNodeIps.isEmpty()) {
-            runCatching {
+            attemptRead {
                 cacheNodeIps(api.clusterStatus().data.orEmpty())
             }
         }
@@ -144,7 +144,8 @@ class NodeRepository(
     ): ClusterResource {
         val status = try {
             api.nodeStatus(nodeName).data
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            e.rethrowAuthOrCancellation()
             null
         }
         return ClusterResource(
@@ -170,13 +171,11 @@ class NodeRepository(
 
     /** Full node ops bundle: status, services, recent tasks. */
     suspend fun loadNodeBundle(node: String): Result<NodeBundle> = pveClient.apiCall { api ->
-        val status = runCatching { api.nodeStatus(node).data }.getOrNull()
-        val services = runCatching { api.nodeServices(node).data.orEmpty() }
-            .getOrDefault(emptyList())
+        val status = api.nodeStatus(node).data
+        val services = api.nodeServices(node).data.orEmpty()
             .map { NodeServiceInfo.fromMap(it) }
             .sortedBy { it.name.orEmpty() }
-        val tasks = runCatching { api.nodeTasks(node, start = 0, limit = 25).data.orEmpty() }
-            .getOrDefault(emptyList())
+        val tasks = api.nodeTasks(node, start = 0, limit = 25).data.orEmpty()
             .map { NodeTaskInfo.fromMap(it) }
         NodeBundle(node = node, status = status, services = services, tasks = tasks)
     }
@@ -195,8 +194,7 @@ class NodeRepository(
     suspend fun listClusterNetwork(): Result<List<NodeNetworkSnapshot>> = pveClient.apiCall { api ->
         val nodes = discoverNodeNames(api)
         nodes.map { node ->
-            val ifaces = runCatching { api.nodeNetwork(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val ifaces = api.nodeNetwork(node).data.orEmpty()
                 .map { raw -> NetworkIface.fromMap(raw) }
                 .sortedWith(
                     compareBy<NetworkIface> { it.type.orEmpty() }
@@ -243,7 +241,7 @@ class NodeRepository(
     suspend fun logPoll(max: Int = 10): Result<List<ClusterLogEntry>> = pveClient.apiCall { api ->
         val activeTask = activeTaskProvider()
         if (activeTask != null) {
-            val lines = runCatching {
+            val lines = attemptRead {
                 api.taskLog(activeTask.node, activeTask.upid, limit = 5).data.orEmpty()
             }.getOrDefault(emptyList())
             val lastLine = lines.lastOrNull()?.get("t")?.toString()

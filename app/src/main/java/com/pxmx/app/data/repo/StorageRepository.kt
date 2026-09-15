@@ -39,11 +39,7 @@ class StorageRepository(
         api: ProxmoxApi,
         nodeName: String,
     ): List<ClusterResource> {
-        val rows = try {
-            api.nodeStorage(nodeName).data.orEmpty()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val rows = api.nodeStorage(nodeName).data.orEmpty()
         return rows.map { s ->
             val name = s.storage ?: "storage"
             ClusterResource(
@@ -74,11 +70,10 @@ class StorageRepository(
         contentFilter: String? = null,
     ): Result<StorageDetail> {
         return pveClient.apiCall { api ->
-            val status = runCatching { api.storageStatus(node, storage).data }.getOrNull()
-                ?: StorageStatus(storage = storage)
-            val content = runCatching {
-                api.storageContent(node, storage, content = contentFilter).data.orEmpty()
-            }.getOrDefault(emptyList())
+            val status = api.storageStatus(node, storage).data
+                ?: throw PveException("No status data for storage '$node/$storage'")
+            val content = api.storageContent(node, storage, content = contentFilter).data
+                ?: throw PveException("No content data for storage '$node/$storage'")
             StorageDetail(
                 node = node,
                 storage = storage,
@@ -105,14 +100,7 @@ class StorageRepository(
         for (st in storages) {
             val name = st.storage ?: continue
             if (!(st.content ?: "").contains("backup")) continue
-            val items = runCatching {
-                api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
-            }.getOrElse {
-                runCatching {
-                    api.storageContent(node, name, content = "backup").data.orEmpty()
-                        .filter { it.vmid == vmid || it.volid?.contains("-$vmid-") == true }
-                }.getOrDefault(emptyList())
-            }
+            val items = api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
             out += items
                 .filter { it.vmid == null || it.vmid == vmid || it.volid?.contains("-$vmid-") == true }
                 .map { it.toBackupVolume() }
