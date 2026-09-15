@@ -22,6 +22,21 @@ class OperationsRegressionTest {
     }
     private fun repository(api: ProxmoxApi) = ProxmoxRepository(ContextWrapper(null), store, provider(api))
 
+    @Test fun deletionWaitsForTaskAndReportsFailure() = kotlinx.coroutines.test.runTest {
+        var polls = 0
+        val api = object : ProxmoxApi by demo {
+            override suspend fun deleteStorageContent(node: String, storage: String, volume: String) = PveResponse<String>(data = "UPID:alpha:imgdel")
+            override suspend fun taskStatus(node: String, upid: String): PveResponse<TaskStatus> {
+                polls++
+                return PveResponse(data = if (polls == 1) TaskStatus(status = "running") else TaskStatus(status = "stopped", exitstatus = "permission denied"))
+            }
+        }
+        val result = repository(api).deleteStorageVolume("alpha", "local:backup/test.vma.zst")
+        assertTrue("A failed imgdel task must not be reported as Deleted", result.isFailure)
+        assertEquals(2, polls)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("permission denied"))
+    }
+
     @Test fun usbDigestConflictRereadsAndReallocates() = runBlocking {
         var reads = 0
         val writes = mutableListOf<Map<String, String>>()

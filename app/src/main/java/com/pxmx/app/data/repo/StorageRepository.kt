@@ -149,11 +149,34 @@ class StorageRepository(
     suspend fun deleteBackup(
         node: String,
         volid: String,
-    ): Result<String> = pveClient.apiCall { api ->
-        // volid is storage:path — DELETE content needs storage + volume path
-        val storage = volid.substringBefore(':')
-        val volume = volid
-        api.deleteStorageContent(node, storage, volume).data ?: "OK"
+    ): Result<String> {
+        val config = sessionStore.session.value?.config
+        val response = pveClient.apiCall { api ->
+            api.deleteStorageContent(node, volid.substringBefore(':'), volid).data ?: "OK"
+        }
+        val upid = response.getOrElse { return Result.failure(it) }
+        if (!upid.startsWith("UPID:")) return response
+        // Poll separately: renewing authentication must never replay the DELETE.
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(600_000) {
+                while (true) {
+                    val status = pveClient.apiCall { api ->
+                        if (sessionStore.session.value?.config != config) throw PveException("Session changed during deletion")
+                        api.taskStatus(node, upid).data ?: throw PveException("No deletion task status")
+                    }.getOrThrow()
+                    if (!status.isRunning) {
+                        if (!status.isOk) throw PveException("Deletion task failed: ${status.exitstatus ?: "unknown exit status"}")
+                        break
+                    }
+                    delay(1_000)
+                }
+                Unit
+            } ?: throw PveException("Deletion task timed out: $upid; check task status before retrying")
+            Result.success(upid)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
     }
 
     suspend fun backupToDevice(
