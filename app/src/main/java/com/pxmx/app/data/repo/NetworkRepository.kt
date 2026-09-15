@@ -47,7 +47,7 @@ class NetworkRepository(
         for (node in nodes) {
             val statusMap = runCatching { api.nodeSdnZones(node).data.orEmpty() }
                 .getOrDefault(emptyList())
-            allStatuses.addAll(statusMap.map { SdnStatusInfo.fromMap(it) })
+            allStatuses.addAll(statusMap.map { SdnStatusInfo.fromMap(it).copy(node = node) })
         }
         allStatuses
     }

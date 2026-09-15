@@ -524,14 +524,14 @@ fun SdnScreen(
                         ZeroStateCard(title = "NO STATUS REPORTED", subtitle = "No live SDN controller/zone status reported.")
                     }
                 } else {
-                    items(state.statuses, key = { "${it.name}-${it.type}" }) { statusInfo ->
+                    items(state.statuses, key = { it.rowKey }) { statusInfo ->
                         TechPlate(
                             railColor = if (statusInfo.isOk) TechColors.LinkGreen else MaterialTheme.colorScheme.error,
                         ) {
                             Column(Modifier.padding(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = statusInfo.name.uppercase(),
+                                        text = "${statusInfo.node} · ${statusInfo.name.uppercase()}",
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleSmall,

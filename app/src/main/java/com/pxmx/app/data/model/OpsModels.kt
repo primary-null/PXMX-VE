@@ -371,7 +371,9 @@ data class SdnStatusInfo(
     val type: String?,
     val status: String?,
     val controller: String?,
+    val node: String = "",
 ) {
+    val rowKey: String get() = "$node/$name/${type.orEmpty()}"
     val isOk: Boolean
         get() = status.equals("ok", ignoreCase = true) ||
                 status.equals("running", ignoreCase = true) ||
