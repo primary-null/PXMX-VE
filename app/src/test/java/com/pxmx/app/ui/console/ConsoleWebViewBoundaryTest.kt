@@ -14,6 +14,10 @@ class ConsoleWebViewBoundaryTest {
         assertFalse("Keep authentication cookies out of the native network stack", source.contains("PVEAuthCookie=${'$'}{session.pveAuthCookie}"))
         assertTrue(source.contains("addJavascriptInterface"))
         assertTrue(source.contains("ConsoleWebSocketBridge"))
+        assertTrue("Form POSTs require a pinned body bridge", source.contains("addJavascriptInterface(httpBridge, \"PXMXConsoleHttp\")"))
+        assertTrue(source.contains("httpBridge.closeAll()"))
+        assertTrue(source.contains("httpBridgeHolder[0]?.dispose()"))
+        assertTrue(source.contains("removeJavascriptInterface(\"PXMXConsoleHttp\")"))
         assertTrue(source.contains("WebSettings.LOAD_NO_CACHE"))
     }
 }

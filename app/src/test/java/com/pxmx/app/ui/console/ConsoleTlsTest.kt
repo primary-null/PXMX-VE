@@ -122,14 +122,16 @@ internal class LocalConsoleTlsServer(host: String, private val response: String 
             try {
                 (socket.accept() as SSLSocket).use { connection ->
                     connection.soTimeout = 5000
-                    val reader = connection.inputStream.bufferedReader()
+                    // Do not buffer past the header boundary: serve reads POST bodies
+                    // and WebSocket frames directly from the same socket stream.
+                    val endOfHeaders = listOf(13, 10, 13, 10).map { it.toChar() }.joinToString("")
                     val headers = buildString {
-                        while (true) {
-                            val line = reader.readLine() ?: break
-                            if (line.isEmpty()) break
-                            appendLine(line)
+                        while (!endsWith(endOfHeaders)) {
+                            val next = connection.inputStream.read()
+                            if (next < 0) break
+                            append(next.toChar())
                         }
-                    }
+                    }.replace(13.toChar().toString(), "").trimEnd()
                     if (headers.isNotEmpty()) {
                         requests.add(headers)
                         if (serve != null) serve.invoke(connection, headers)

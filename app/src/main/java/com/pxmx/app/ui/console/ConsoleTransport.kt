@@ -4,6 +4,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Call
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 internal data class ConsoleResource(
     val mime: String,
@@ -41,6 +45,50 @@ internal class ConsoleTransport(
             .apply { if (requestedProtocols.isNotEmpty()) header("Sec-WebSocket-Protocol", requestedProtocols.joinToString(", ")) }
             .build()
         return client.newWebSocket(request, listener)
+    }
+
+    // XHR's body cannot cross shouldInterceptRequest. The explicit API bridge
+    // supplies it, while fetch below continues to deny native POST interception.
+    // Share the TLS policy, but never retry/replay a console mutation or redirect.
+    private val apiClient = this.client.newBuilder().retryOnConnectionFailure(false)
+        .callTimeout(60, TimeUnit.SECONDS)
+        .addNetworkInterceptor { chain ->
+            // OkHttp retries 503 when Retry-After is 0; that would replay a console mutation.
+            chain.proceed(chain.request()).newBuilder().removeHeader("Retry-After").build()
+        }
+        .build()
+
+    fun newConsoleApiCall(url: String, method: String, contentType: String, csrf: String, body: String): Call? {
+        if (!allows(url)) return null
+        val target = url.toHttpUrl()
+        if (target.fragment != null || body.toByteArray(Charsets.UTF_8).size > 65536) return null
+        val path = target.encodedPath
+        val node = "/api2/json/nodes/[A-Za-z0-9][A-Za-z0-9.-]*"
+        val guest = "$node/(?:qemu|lxc)/[1-9][0-9]*"
+        val request = Request.Builder().url(target)
+            .header("Cookie", "PVEAuthCookie=$cookie")
+            .header("Cache-Control", "no-cache")
+        try {
+            when (method) {
+                "POST" -> {
+                    val bootstrap = Regex("(?:$node|$guest)/(?:vncproxy|termproxy)|$node/vncshell")
+                    val control = Regex("$node/qemu/[1-9][0-9]*/status/(?:start|shutdown|stop|reset|suspend|resume)|$node/lxc/[1-9][0-9]*/status/(?:start|shutdown|stop)")
+                    if (target.query != null || (!bootstrap.matches(path) && !control.matches(path))) return null
+                    if (!contentType.equals("application/x-www-form-urlencoded", true) || csrf.isBlank()) return null
+                    request.header("CSRFPreventionToken", csrf)
+                        .post(body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()))
+                }
+                "GET" -> {
+                    if (body.isNotEmpty() || !(path == "/api2/json/cluster/resources" ||
+                            Regex("$guest/(?:status/current|config)").matches(path))) return null
+                    request.get()
+                }
+                else -> return null
+            }
+            return apiClient.newCall(request.build())
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
     }
 
     fun fetch(url: String, method: String, requestHeaders: Map<String, String>): ConsoleResource {

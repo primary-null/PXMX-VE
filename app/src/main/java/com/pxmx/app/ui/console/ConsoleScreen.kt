@@ -114,6 +114,7 @@ fun ConsoleScreen(
         ConsoleTransport(session.cookieHostUrl, session.pveAuthCookie, fetchClient, socketScript)
     }
     val bridgeHolder = remember(transport) { arrayOfNulls<ConsoleWebSocketBridge>(1) }
+    val httpBridgeHolder = remember(transport) { arrayOfNulls<ConsoleHttpBridge>(1) }
 
     val view = LocalView.current
     var userOrientation by remember { mutableStateOf<Int?>(null) }
@@ -165,7 +166,7 @@ fun ConsoleScreen(
             setBackgroundColor(Color.BLACK)
             settings.javaScriptEnabled = true
             // Intercepted resources still work; everything else (including native
-            // WebSockets, POST bodies and worker traffic) fails closed.
+            // WebSockets, native POSTs and worker traffic) fails closed.
             settings.blockNetworkLoads = true
             settings.cacheMode = WebSettings.LOAD_NO_CACHE
             settings.allowFileAccess = false
@@ -203,6 +204,16 @@ fun ConsoleScreen(
             }
             bridgeHolder[0] = bridge
             addJavascriptInterface(bridge, "PXMXConsoleSocket")
+            val httpBridge = ConsoleHttpBridge(transport) { id, response ->
+                post {
+                    val args = listOf(response.reason, response.contentType, response.body)
+                        .joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
+                    val requestId = ConsoleMimeUtils.escapeJsString(id)
+                    evaluateJavascript("window.__pxmxHttpEvent && window.__pxmxHttpEvent($requestId,${response.status},$args)", null)
+                }
+            }
+            httpBridgeHolder[0] = httpBridge
+            addJavascriptInterface(httpBridge, "PXMXConsoleHttp")
 
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -213,6 +224,7 @@ fun ConsoleScreen(
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     bridge.closeAll()
+                    httpBridge.closeAll()
                     loading = true
                     errorText = null
                 }
@@ -277,7 +289,9 @@ fun ConsoleScreen(
                 cm.flush()
             }
             bridgeHolder[0]?.dispose()
+            httpBridgeHolder[0]?.dispose()
             webViewInstance.removeJavascriptInterface("PXMXConsoleSocket")
+            webViewInstance.removeJavascriptInterface("PXMXConsoleHttp")
             fetchClient.dispatcher.cancelAll()
             fetchClient.connectionPool.evictAll()
             webViewInstance.stopLoading()

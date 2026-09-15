@@ -3,6 +3,8 @@
 (() => {
     'use strict';
     const bridge = window.PXMXConsoleSocket;
+    const httpBridge = window.PXMXConsoleHttp;
+    const requests = new Map();
     const sockets = new Map();
     const generation = Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');
     let sequence = 0;
@@ -11,6 +13,89 @@
         const handler = socket['on' + event.type];
         if (typeof handler === 'function') handler.call(socket, event);
     }
+    // Proxmox's API2Request uses asynchronous XHR, including form POST bodies
+    // unavailable to shouldInterceptRequest. Do not recover a native XHR here.
+    class ConsoleXMLHttpRequest extends EventTarget {
+        constructor() {
+            super();
+            this.readyState = 0;
+            this.status = 0;
+            this.statusText = '';
+            this.responseText = '';
+            this.response = '';
+            this.responseType = '';
+            this.onload = this.onerror = this.onabort = this.onloadend = this.onreadystatechange = null;
+            this.headers = {};
+        }
+        open(method, url, async = true, username = null, password = null) {
+            if (!async || username !== null || password !== null) throw new DOMException('Unsupported console request', 'NotSupportedError');
+            this.abort();
+            this.method = String(method).toUpperCase();
+            this.url = new URL(url, location.href).href;
+            this.headers = {};
+            this.status = 0;
+            this.statusText = this.responseText = this.response = '';
+            this.contentType = '';
+            this.readyState = 1;
+            emit(this, new Event('readystatechange'));
+        }
+        setRequestHeader(name, value) {
+            if (this.readyState !== 1 || this.id) throw new DOMException('Request is not open', 'InvalidStateError');
+            name = String(name).toLowerCase();
+            if (!['content-type', 'csrfpreventiontoken', 'cache-control'].includes(name)) {
+                throw new DOMException('Unsupported console header', 'SecurityError');
+            }
+            this.headers[name] = String(value);
+        }
+        getResponseHeader(name) {
+            return this.readyState >= 2 && String(name).toLowerCase() === 'content-type' ? this.contentType : null;
+        }
+        send(body = null) {
+            if (this.readyState !== 1 || this.id) throw new DOMException('Request is not open', 'InvalidStateError');
+            if (body !== null && typeof body !== 'string') throw new DOMException('Expected form string', 'NotSupportedError');
+            if (this.responseType !== '' && this.responseType !== 'text') throw new DOMException('Expected text response', 'NotSupportedError');
+            const id = generation + '-' + (++sequence);
+            this.id = id;
+            requests.set(id, this);
+            try {
+                httpBridge.request(id, this.url, this.method, this.headers['content-type'] || '',
+                    this.headers.csrfpreventiontoken || '', body === null ? '' : body);
+            } catch (_) {
+                // Report through upstream API2Request's onload failure path.
+                setTimeout(() => window.__pxmxHttpEvent(id, 502, 'Console transport failed', 'text/plain', ''), 0);
+            }
+        }
+        abort() {
+            if (this.id) {
+                requests.delete(this.id);
+                httpBridge.abort(this.id);
+                this.id = null;
+                this.readyState = 4;
+                this.status = 0;
+                this.statusText = this.responseText = this.response = '';
+                emit(this, new Event('readystatechange'));
+                emit(this, new Event('abort'));
+                emit(this, new Event('loadend'));
+            }
+            this.readyState = 0;
+        }
+    }
+    Object.defineProperty(window, '__pxmxHttpEvent', {value: (id, status, reason, contentType, body) => {
+        const xhr = requests.get(id);
+        if (!xhr) return;
+        requests.delete(id);
+        xhr.id = null;
+        xhr.status = status;
+        xhr.statusText = reason;
+        xhr.contentType = contentType;
+        xhr.responseText = xhr.response = body;
+        xhr.readyState = 4;
+        emit(xhr, new Event('readystatechange'));
+        emit(xhr, new Event('load'));
+        emit(xhr, new Event('loadend'));
+    }});
+    Object.defineProperty(window, 'XMLHttpRequest', {value: ConsoleXMLHttpRequest, writable: false, configurable: false});
+
     class ConsoleWebSocket extends EventTarget {
         constructor(url, protocols = []) {
             super();
@@ -20,6 +105,8 @@
             this.bufferedAmount = 0;
             this.protocol = '';
             this.extensions = '';
+            // noVNC Websock.attach validates these before assigning handlers.
+            this.onopen = this.onmessage = this.onerror = this.onclose = null;
             this.id = generation + '-' + (++sequence);
             sockets.set(this.id, this);
             bridge.connect(this.id, this.url, typeof protocols === 'string' ? protocols : protocols.join(','));
