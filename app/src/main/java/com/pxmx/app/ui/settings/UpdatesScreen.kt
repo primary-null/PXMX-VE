@@ -131,7 +131,8 @@ fun UpdatesScreen(
                     Column {
                         Text("Updates")
                         Text(
-                            if (state.totalPending == 0) "ALL NODES CURRENT"
+                            if (state.error != null || state.loading || state.refreshing || state.nodes.isEmpty()) "UPDATE STATUS UNKNOWN"
+                            else if (state.totalPending == 0) "ALL NODES CURRENT"
                             else "${state.totalPending} PKG · ${state.nodesWithUpdates} NODE(S)",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
@@ -212,7 +213,7 @@ fun UpdatesScreen(
                                 }
                             }
 
-                            if (state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                            if (state.error == null && !state.loading && !state.refreshing && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
                                 item(key = "two-pane-zero-state") {
                                     TechPlate(railColor = TechColors.Edge) {
                                         Column(Modifier.padding(16.dp)) {
@@ -408,7 +409,7 @@ fun UpdatesScreen(
                         }
 
                         // If cluster has 0 pending packages and no jobs running
-                        if (state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
+                        if (state.error == null && !state.loading && !state.refreshing && state.totalPending == 0 && !state.anyJobActive && state.nodes.isNotEmpty()) {
                             item(key = "zero-state") {
                                 TechPlate(railColor = TechColors.Edge) {
                                     Column(Modifier.padding(16.dp)) {
@@ -622,7 +623,8 @@ private fun UpdateNodePlate(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = if (snap.updateCount > 0) "${snap.updateCount} package updates available" else "All packages up to date",
+                    text = if (state == NodeRefreshState.ERROR) "Update status unknown; showing last data"
+                    else if (snap.updateCount > 0) "${snap.updateCount} package updates available" else "All packages up to date",
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -944,6 +946,8 @@ private fun NodeStatusRectangle(
                                     "No saved password for SSH. Reconnect with Save credentials on, or run the upgrade from the node shell."
                                 SshUpgradeAvailability.API_TOKEN_AUTH ->
                                     "API token auth cannot perform SSH upgrades. Run the upgrade from the node shell."
+                                SshUpgradeAvailability.UNSUPPORTED_IDENTITY ->
+                                    "SSH password reuse requires a verified root PAM login. Use the node shell for this account."
                             }
                             Text(
                                 text = explainerText,

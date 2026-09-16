@@ -3,7 +3,7 @@ package com.pxmx.app.data.repo
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.model.AptPackageUpdate
 import com.pxmx.app.data.model.AptPackageVersion
-import com.pxmx.app.data.model.AuthMode
+
 import com.pxmx.app.data.model.NodeUpdateSnapshot
 import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.data.ssh.SshUpgradeExecutor
@@ -16,18 +16,17 @@ class UpdateRepository(
     private val sessionStore: SessionStore,
     private val pveClient: PveClient,
     private val discoverNodeNames: suspend (ProxmoxApi) -> List<String>,
+    private val executor: SshUpgradeExecutor = SshUpgradeExecutor(sessionStore::getHostKey, sessionStore::saveHostKey),
 ) {
 
     /** Pending apt updates + key package versions per node. */
     suspend fun listClusterUpdates(): Result<List<NodeUpdateSnapshot>> = pveClient.apiCall { api ->
         val nodes = discoverNodeNames(api)
         nodes.map { node ->
-            val updates = runCatching { api.aptUpdateList(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val updates = (api.aptUpdateList(node).data ?: throw PveException("No update list for node '$node'"))
                 .map { AptPackageUpdate.fromMap(it) }
                 .sortedBy { it.packageName.orEmpty() }
-            val versions = runCatching { api.aptVersions(node).data.orEmpty() }
-                .getOrDefault(emptyList())
+            val versions = api.aptVersions(node).data.orEmpty()
                 .map { AptPackageVersion.fromMap(it) }
             NodeUpdateSnapshot(node = node, updates = updates, versions = versions)
         }
@@ -48,27 +47,26 @@ class UpdateRepository(
         node: String,
         onOutputLine: (String) -> Unit = {},
     ): Result<Int> {
-        val s = sessionStore.session.value ?: return Result.failure(PveException("No active session"))
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val s = snapshot.state
         val config = s.config
 
         if (config.host.equals("demo", ignoreCase = true)) {
             return simulateDemoSshUpgrade(node, onOutputLine)
         }
 
-        val profile = sessionStore.listProfiles().firstOrNull { it.host == config.host }
-        if (profile == null || profile.authMode != AuthMode.PASSWORD || !profile.hasSavedSecret || profile.password.isBlank()) {
-            return Result.failure(PveException("SSH upgrade needs the saved password for this profile. Reconnect with Save credentials on, or use the node shell."))
-        }
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, snapshot)
+            ?: return Result.failure(PveException("SSH requires the saved password of the exact active root PAM profile. Use the node shell for other accounts."))
 
-        val targetHost = config.host.trim().removePrefix("https://").removePrefix("http://")
-            .substringBefore('/')
-            .substringBefore(':')
+        val targetHost = pveClient.apiCall(snapshot) { api ->
+            com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+        }.getOrElse { return Result.failure(it) }
+        if (!sessionStore.isCurrent(snapshot)) {
+            return Result.failure(PveException("Session changed during SSH resolution"))
+        }
         val sshUser = resolveSshUpgradeUser(config.username)
 
-        val executor = SshUpgradeExecutor(
-            getStoredFingerprint = { h -> sessionStore.getHostKey(h) },
-            storeFingerprint = { h, k -> sessionStore.saveHostKey(h, k) },
-        )
+
 
         return executor.executeUpgrade(
             host = targetHost,

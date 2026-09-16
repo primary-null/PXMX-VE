@@ -11,7 +11,7 @@ import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.NodeStorageEntry
 import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.data.model.StorageDetail
-import com.pxmx.app.data.model.StorageStatus
+
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.data.ssh.SftpDownloader
@@ -31,17 +31,15 @@ class StorageRepository(
     private val sessionStore: SessionStore,
     private val pveClient: PveClient,
     private val taskStatusProvider: suspend (node: String, upid: String) -> Result<TaskStatus>,
+    private val sftp: SftpDownloader = SftpDownloader(sessionStore::getHostKey, sessionStore::saveHostKey),
+    private val downloadSink: (suspend (String, suspend (OutputStream) -> Unit) -> Result<Unit>)? = null,
 ) {
 
     suspend fun loadStorage(
         api: ProxmoxApi,
         nodeName: String,
     ): List<ClusterResource> {
-        val rows = try {
-            api.nodeStorage(nodeName).data.orEmpty()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val rows = api.nodeStorage(nodeName).data.orEmpty()
         return rows.map { s ->
             val name = s.storage ?: "storage"
             ClusterResource(
@@ -72,11 +70,10 @@ class StorageRepository(
         contentFilter: String? = null,
     ): Result<StorageDetail> {
         return pveClient.apiCall { api ->
-            val status = runCatching { api.storageStatus(node, storage).data }.getOrNull()
-                ?: StorageStatus(storage = storage)
-            val content = runCatching {
-                api.storageContent(node, storage, content = contentFilter).data.orEmpty()
-            }.getOrDefault(emptyList())
+            val status = api.storageStatus(node, storage).data
+                ?: throw PveException("No status data for storage '$node/$storage'")
+            val content = api.storageContent(node, storage, content = contentFilter).data
+                ?: throw PveException("No content data for storage '$node/$storage'")
             StorageDetail(
                 node = node,
                 storage = storage,
@@ -103,14 +100,7 @@ class StorageRepository(
         for (st in storages) {
             val name = st.storage ?: continue
             if (!(st.content ?: "").contains("backup")) continue
-            val items = runCatching {
-                api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
-            }.getOrElse {
-                runCatching {
-                    api.storageContent(node, name, content = "backup").data.orEmpty()
-                        .filter { it.vmid == vmid || it.volid?.contains("-$vmid-") == true }
-                }.getOrDefault(emptyList())
-            }
+            val items = api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
             out += items
                 .filter { it.vmid == null || it.vmid == vmid || it.volid?.contains("-$vmid-") == true }
                 .map { it.toBackupVolume() }
@@ -149,11 +139,33 @@ class StorageRepository(
     suspend fun deleteBackup(
         node: String,
         volid: String,
-    ): Result<String> = pveClient.apiCall { api ->
-        // volid is storage:path — DELETE content needs storage + volume path
-        val storage = volid.substringBefore(':')
-        val volume = volid
-        api.deleteStorageContent(node, storage, volume).data ?: "OK"
+    ): Result<String> {
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val response = pveClient.apiCall(snapshot) { api ->
+            api.deleteStorageContent(node, volid.substringBefore(':'), volid).data ?: "OK"
+        }
+        val upid = response.getOrElse { return Result.failure(it) }
+        if (!upid.startsWith("UPID:")) return response
+        // Poll separately: renewing authentication must never replay the DELETE.
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(600_000) {
+                while (true) {
+                    val status = pveClient.apiCall(snapshot) { api ->
+                        api.taskStatus(node, upid).data ?: throw PveException("No deletion task status")
+                    }.getOrThrow()
+                    if (!status.isRunning) {
+                        if (!status.isOk) throw PveException("Deletion task failed: ${status.exitstatus ?: "unknown exit status"}")
+                        break
+                    }
+                    delay(1_000)
+                }
+                Unit
+            } ?: throw PveException("Deletion task timed out: $upid; check task status before retrying")
+            Result.success(upid)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
     }
 
     suspend fun backupToDevice(
@@ -163,18 +175,30 @@ class StorageRepository(
         storage: String,
         onProgress: (String) -> Unit
     ): Result<String> {
-        val profileId = sessionStore.lastProfileId()
-        val profile = profileId?.let { sessionStore.getProfile(it) } ?: return Result.failure(PveException("No profile found"))
-        val config = profile.toServerConfig(includeSecrets = true)
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+        val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, snapshot)
+            ?: return Result.failure(PveException("SFTP requires the saved password of the exact active root PAM profile. Use server-side backups for other accounts."))
+        fun checkSession() {
+            if (!sessionStore.isCurrent(snapshot)) {
+                throw PveException("Session changed during backup download")
+            }
+        }
 
         return try {
+            pveClient.inSession(snapshot) {
+            val targetHost = pveClient.apiCall { api ->
+                checkSession()
+                com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+            }.getOrThrow()
             onProgress("Backing up on server...")
+            checkSession()
             val upid = createBackup(node, vmid, storage).getOrThrow()
 
             // Poll for completion (max 10 mins)
             val startTime = System.currentTimeMillis()
             var finished = false
             while (System.currentTimeMillis() - startTime < 600_000) {
+                checkSession()
                 val status = taskStatusProvider(node, upid).getOrThrow()
                 if (!status.isRunning) {
                     if (!status.isOk) throw PveException("Backup task failed: ${status.exitstatus}")
@@ -187,7 +211,7 @@ class StorageRepository(
 
             onProgress("Locating backup volume...")
             // Find newest volume for this VM
-            val resp = pveClient.apiCall { it.storageContent(node, storage, content = "backup", vmid = vmid) }.getOrThrow()
+            val resp = pveClient.apiCall { checkSession(); it.storageContent(node, storage, content = "backup", vmid = vmid) }.getOrThrow()
             val items = resp.data.orEmpty()
             val newest = items.maxByOrNull { it.ctime ?: 0L }
                 ?: throw PveException("Could not find resulting backup volume")
@@ -196,7 +220,7 @@ class StorageRepository(
             val volumeName = volid.substringAfter(':')
 
             // Fetch single volume metadata to get the 'path'
-            val detailResp = pveClient.apiCall { it.storageVolume(node, storage, volumeName) }.getOrThrow()
+            val detailResp = pveClient.apiCall { checkSession(); it.storageVolume(node, storage, volumeName) }.getOrThrow()
             val remotePath = detailResp.data?.path
                 ?: throw PveException("Server did not return file path. SFTP download requires the full path.")
 
@@ -204,18 +228,16 @@ class StorageRepository(
             val filename = sanitizeBackupFilename(rawFilename)
 
             onProgress("Starting SFTP download...")
-            val sftp = SftpDownloader(
-                getStoredFingerprint = { host -> sessionStore.getHostKey(host) },
-                storeFingerprint = { host, key -> sessionStore.saveHostKey(host, key) }
-            )
 
-            val downloadResult = runCatching {
-                saveToDownloadsToStream(filename) { outputStream ->
+
+            val downloadResult = attemptRead {
+                (downloadSink ?: ::saveToDownloadsToStream)(filename) { outputStream ->
+                    checkSession()
                     sftp.download(
-                        host = config.host,
+                        host = targetHost,
                         port = 22,
-                        username = config.username,
-                        password = config.password,
+                        username = "root",
+                        password = profile.password,
                         remotePath = remotePath,
                         localSink = outputStream,
                         onProgress = { downloaded, total ->
@@ -229,6 +251,7 @@ class StorageRepository(
             downloadResult.getOrElse { e ->
                 throw PveException("Backup created on server but download failed: ${e.message}. The backup remains on the server.", e)
             }.map { filename }
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Result.failure(e)
@@ -263,6 +286,7 @@ class StorageRepository(
                 throw e
             }
         } catch (e: Exception) {
+            e.rethrowAuthOrCancellation()
             Result.failure(e)
         }
     }

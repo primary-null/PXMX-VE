@@ -55,6 +55,30 @@ class AuthInterceptorIsolationTest {
         .build()
 
     @Test
+    fun queuedLiveClientCannotBorrowAnotherLoginEvenForTheSameAccount() {
+        val store = SessionStore(injectedPrefs = FakeSharedPreferences())
+        val config = ServerConfig(host = "pve.example", username = "alice")
+        store.setSession(SessionState(config, ticket = "old-ticket"))
+        val queued = AuthInterceptor(store, config)
+        store.clearSession()
+        store.setSession(SessionState(config, ticket = "new-login-ticket"))
+        val chain = FakeChain(requestFor(config.baseUrl))
+        org.junit.Assert.assertThrows(java.io.IOException::class.java) { queued.intercept(chain) }
+        assertNull(chain.interceptedRequest)
+    }
+
+    @Test
+    fun clientForAnotherAccountNeverBorrowsTheActiveAccount() {
+        val store = SessionStore(injectedPrefs = FakeSharedPreferences())
+        val alice = ServerConfig(host = "pve.example", username = "alice")
+        store.setSession(SessionState(alice, ticket = "alice-ticket"))
+        val bobClient = AuthInterceptor(store, alice.copy(username = "bob"))
+        val chain = FakeChain(requestFor(alice.baseUrl))
+        org.junit.Assert.assertThrows(java.io.IOException::class.java) { bobClient.intercept(chain) }
+        assertNull(chain.interceptedRequest)
+    }
+
+    @Test
     fun twoProbeClientsOnSameHostEachSendOnlyTheirOwnTicket() {
         val store = SessionStore(injectedPrefs = FakeSharedPreferences())
         val config = ServerConfig(host = "192.0.2.10", port = 8006, authMode = AuthMode.PASSWORD)

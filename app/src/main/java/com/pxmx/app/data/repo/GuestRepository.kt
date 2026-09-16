@@ -42,15 +42,10 @@ class GuestRepository(
         nodeName: String,
         guestType: String,
     ): List<ClusterResource> {
-        val rows = try {
-            when (guestType) {
-                "qemu" -> api.nodeQemu(nodeName).data.orEmpty()
-                "lxc" -> api.nodeLxc(nodeName).data.orEmpty()
-                else -> emptyList()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            emptyList()
+        val rows = when (guestType) {
+            "qemu" -> api.nodeQemu(nodeName).data.orEmpty()
+            "lxc" -> api.nodeLxc(nodeName).data.orEmpty()
+            else -> emptyList()
         }
         return coroutineScope {
             rows.map { g ->
@@ -71,7 +66,7 @@ class GuestRepository(
                                 guestConfigCache[cacheKey] = GuestConfigCacheEntry(ostype, onboot, now)
                                 ostype to onboot
                             } catch (e: Exception) {
-                                if (e is CancellationException) throw e
+                                e.rethrowAuthOrCancellation()
                                 cached?.ostype to cached?.onboot
                             }
                         }
@@ -166,37 +161,46 @@ class GuestRepository(
         return pveClient.apiCall { api ->
             coroutineScope {
                 val statusDef = async {
-                    runCatching { api.guestStatus(node, guestType.path, vmid).data }
-                        .getOrNull()
+                    api.guestStatus(node, guestType.path, vmid).data
                 }
                 val configDef = async {
-                    runCatching { api.guestConfig(node, guestType.path, vmid).data.orEmpty() }
-                        .getOrDefault(emptyMap())
+                    api.guestConfig(node, guestType.path, vmid).data.orEmpty()
                 }
-                val snapsDef = async {
-                    runCatching { api.guestSnapshots(node, guestType.path, vmid).data.orEmpty() }
-                        .getOrDefault(emptyList())
-                }
-                val usbDef = async {
-                    runCatching { api.nodeUsb(node).data.orEmpty() }
-                        .getOrDefault(emptyList())
-                }
-                val storageDef = async {
-                    runCatching { api.nodeStorage(node).data.orEmpty() }
-                        .getOrDefault(emptyList())
-                }
+                // Catch inside each child so an auxiliary failure cannot cancel core reads.
+                val snapsDef = async { attemptRead {
+                    api.guestSnapshots(node, guestType.path, vmid).data.orEmpty()
+                } }
+                val usbDef = async { attemptRead {
+                    if (guestType == GuestType.QEMU) api.nodeUsb(node).data.orEmpty() else emptyList()
+                } }
+                val storageDef = async { attemptRead {
+                    api.nodeStorage(node).data.orEmpty()
+                } }
 
                 val status = statusDef.await()
                 val rawConfig = configDef.await()
-                val hostUsbs = usbDef.await()
+                val errors = linkedMapOf<String, String>()
+                fun <T> section(name: String, result: Result<T>, fallback: T): T = result.getOrElse {
+                    errors[name] = it.message ?: "Read failed"
+                    fallback
+                }
+                val hostUsbs = section("USB", usbDef.await(), emptyList())
                 val parsed = GuestConfigParser.parse(rawConfig, hostUsbs)
-                val storages = storageDef.await()
-                val backups = loadBackupsForVmid(api, node, vmid, storages)
+                val storages = section("backup storages", storageDef.await(), emptyList())
+                val backups = if ("backup storages" in errors) {
+                    errors["backups"] = "Storage discovery unavailable"
+                    emptyList()
+                } else storages.filter { (it.content ?: "").contains("backup") }.flatMap { storage ->
+                    section("backups/${storage.storage}", attemptRead {
+                        loadBackupsForVmid(api, node, vmid, listOf(storage))
+                    }, emptyList())
+                }.distinctBy { it.volid }
+                val snapshots = section("snapshots", snapsDef.await(), emptyList())
 
                 GuestBundle(
                     status = status,
                     config = parsed,
-                    snapshots = snapsDef.await()
+                    snapshots = snapshots
                         .sortedWith(compareBy<SnapshotInfo> { if (it.isCurrent) 0 else 1 }
                             .thenByDescending { it.snaptime ?: 0L }),
                     backups = backups.sortedByDescending { it.ctime ?: 0L },
@@ -204,6 +208,7 @@ class GuestRepository(
                     backupStorages = storages
                         .filter { (it.content ?: "").contains("backup") }
                         .mapNotNull { it.storage },
+                    sectionErrors = errors,
                 )
             }
         }
@@ -218,19 +223,35 @@ class GuestRepository(
         usb3: Boolean = true,
     ): Result<String> = pveClient.apiCall { api ->
         if (guestType != GuestType.QEMU) throw PveException("USB passthrough is QEMU-only")
-        val cfg = api.guestConfig(node, guestType.path, vmid).data.orEmpty()
-        val used = cfg.keys.filter { it.matches(Regex("^usb\\d+$")) }.toSet()
-        val slot = (0..15).firstOrNull { "usb$it" !in used }
-            ?: throw PveException("No free USB slots (usb0–usb15)")
-        val value = buildString {
-            append("host=").append(hostId.lowercase())
-            if (usb3) append(",usb3=1")
+        repeat(3) { attempt ->
+            val cfg = api.guestConfig(node, guestType.path, vmid, current = 0).data.orEmpty()
+            val digest = cfg["digest"]?.toString()?.takeIf { it.isNotBlank() }
+                ?: throw PveException("Cannot attach USB without a configuration digest; refresh and retry")
+            val used = cfg.keys.filter { it.matches(Regex("^usb\\d+$")) }.toSet()
+            val slot = (0..15).firstOrNull { "usb$it" !in used }
+                ?: throw PveException("No free USB slots (usb0–usb15)")
+            val value = buildString {
+                append("host=").append(hostId.lowercase())
+                if (usb3) append(",usb3=1")
+            }
+            try {
+                return@apiCall api.updateGuestConfig(
+                    node, guestType.path, vmid,
+                    mapOf("usb$slot" to value, "digest" to digest),
+                ).data ?: "OK"
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val code = when (e) {
+                    is retrofit2.HttpException -> e.code()
+                    is PveHttpException -> e.code
+                    else -> null
+                }
+                val detail = if (e is retrofit2.HttpException) e.response()?.errorBody()?.string() else e.message
+                val conflict = code == 409 || (code == 500 && detail?.contains("checksum mismatch", true) == true)
+                if (!conflict || attempt == 2) throw e
+            }
         }
-        val resp = api.updateGuestConfig(
-            node, guestType.path, vmid,
-            mapOf("usb$slot" to value),
-        )
-        resp.data ?: "OK"
+        throw PveException("USB configuration changed repeatedly; refresh and retry")
     }
 
     /** Detach guest usbN (e.g. usb0). */

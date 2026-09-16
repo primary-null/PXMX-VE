@@ -4,12 +4,14 @@ import com.pxmx.app.BuildConfig
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.session.ProbeAuth
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.session.SessionSnapshot
+import com.pxmx.app.data.session.SessionIdentity
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
-import java.util.concurrent.ConcurrentHashMap
+
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -22,21 +24,28 @@ class ProxmoxClientFactory(
     @Volatile
     private var cachedApi: ProxmoxApi? = null
 
-    private val capturedFingerprints = ConcurrentHashMap<String, String>()
 
     /** Single demo instance: keeps the simulation's state alive across requests. */
     private val demoApi: ProxmoxApi by lazy { DemoApi() }
 
     @Synchronized
     override fun apiFor(config: ServerConfig): ProxmoxApi {
-        // Demo mode: canned offline backend, never a real network call.
+        val session = sessionStore.snapshot()
+        require(session != null && SessionIdentity.of(session.state.config) == SessionIdentity.of(config)) {
+            "No matching active session; use a private login/probe client"
+        }
+        return apiForSession(session)
+    }
+
+    @Synchronized
+    override fun apiForSession(session: SessionSnapshot): ProxmoxApi {
+        val config = session.state.config
+        check(sessionStore.isCurrent(session)) { "Session changed" }
         if (config.host.equals("demo", ignoreCase = true)) return demoApi
         val pin = sessionStore.getCertPin(config.host).orEmpty()
-        val key = "${config.baseUrl}|${config.trustSelfSigned}|$pin"
-        cachedApi?.let { existing ->
-            if (cachedKey == key) return existing
-        }
-        return build(config, preferBoundConfig = false).also {
+        val key = "${SessionIdentity.of(config)}|${session.generation}|${config.trustSelfSigned}|$pin"
+        cachedApi?.let { existing -> if (cachedKey == key) return existing }
+        return build(config, preferBoundConfig = false, boundSession = session).also {
             cachedKey = key
             cachedApi = it
         }
@@ -44,8 +53,10 @@ class ProxmoxClientFactory(
 
     @Synchronized
     override fun apiForProbe(config: ServerConfig): ProbeApi {
+        if (config.host.equals("demo", ignoreCase = true)) return ProbeApi(demoApi)
         val slot = AtomicReference<ProbeAuth?>(null)
-        return ProbeApi(build(config, preferBoundConfig = true, probeAuthSlot = slot), slot)
+        val fingerprint = AtomicReference<String?>(null)
+        return ProbeApi(build(config, preferBoundConfig = true, probeAuthSlot = slot, fingerprintSlot = fingerprint), slot, fingerprint)
     }
 
     @Synchronized
@@ -54,20 +65,20 @@ class ProxmoxClientFactory(
         cachedApi = null
     }
 
-    override fun getCapturedFingerprint(host: String): String? =
-        capturedFingerprints[host.trim().lowercase()]
 
     private fun build(
         config: ServerConfig,
         preferBoundConfig: Boolean,
         probeAuthSlot: AtomicReference<ProbeAuth?>? = null,
+        fingerprintSlot: AtomicReference<String?>? = null,
+        boundSession: SessionSnapshot? = null,
     ): ProxmoxApi {
         val trustManager = TofuTrustManager(
             host = config.host,
             trustSelfSigned = config.trustSelfSigned,
             sessionStore = sessionStore,
             onCertCaptured = { _, fp ->
-                capturedFingerprints[config.host.trim().lowercase()] = fp
+                fingerprintSlot?.set(fp)
             },
         )
         val sslSocketFactory = createTofuSslSocketFactory(trustManager)
@@ -79,7 +90,7 @@ class ProxmoxClientFactory(
             .writeTimeout(60, TimeUnit.SECONDS)
             .sslSocketFactory(sslSocketFactory, trustManager)
             .hostnameVerifier(hostnameVerifier)
-            .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig, probeAuthSlot))
+            .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig, probeAuthSlot, boundSession))
 
         // Never log in release — console paths can contain vncticket secrets.
         if (BuildConfig.DEBUG) {

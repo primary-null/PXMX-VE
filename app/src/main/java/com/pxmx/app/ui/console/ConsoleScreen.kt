@@ -60,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import com.pxmx.app.data.api.CertUtils
 import com.pxmx.app.data.model.ConsoleSession
 import com.pxmx.app.ui.adaptive.isWideViewport
 import com.pxmx.app.ui.components.TechActionPlate
@@ -76,16 +75,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.util.findActivity
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.ByteArrayInputStream
-import java.security.SecureRandom
-import java.security.cert.CertificateException
-import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 /**
  * Proxmox noVNC / xterm.js console with mobile fit:
@@ -113,49 +103,19 @@ fun ConsoleScreen(
         if (h.isNullOrBlank() || h.equals("demo", ignoreCase = true)) "demo" else h
     }
 
-    // Fetches the console host's traffic through the app's own TLS stack.
-    // The WebView never dials TLS for the console host itself, which avoids
-    // the WebView's SSL-proceed path (it breaks ES module script execution,
-    // and noVNC 1.7+ ships as a module). The same pin policy as the API layer
-    // is enforced inside the trust manager below.
-    val fetchClient = remember(session.cookieHostUrl, trustSelfSigned, expectedCertPin) {
-        val defaultTm = javax.net.ssl.TrustManagerFactory
-            .getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
-            .apply { init(null as java.security.KeyStore?) }
-            .trustManagers.filterIsInstance<X509TrustManager>().first()
-        val tm = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) =
-                defaultTm.checkClientTrusted(chain, authType)
-
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-                if (trustSelfSigned) {
-                    val leaf = chain?.firstOrNull() ?: throw CertificateException("Empty certificate chain")
-                    val pin = expectedCertPin
-                    if (pin != null &&
-                        CertUtils.normalizeFingerprint(CertUtils.computeSha256Fingerprint(leaf)) !=
-                        CertUtils.normalizeFingerprint(pin)
-                    ) {
-                        throw CertificateException("Certificate changed for host — possible MITM attack!")
-                    }
-                    // Unpinned: first use of a self-signed host; login already authorized it.
-                } else {
-                    defaultTm.checkServerTrusted(chain, authType)
-                }
-            }
-
-            override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTm.acceptedIssuers
-        }
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, arrayOf<TrustManager>(tm), SecureRandom())
-        OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, tm)
-            .hostnameVerifier { hostname, _ -> hostname.equals(allowedHost, ignoreCase = true) }
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .build()
-    }
-
     val context = LocalContext.current
+    // Resources and WebSockets share the app's TLS client. WebView's native
+    // network stack cannot enforce a pin on a platform-trusted replacement.
+    val fetchClient = remember(session.cookieHostUrl, trustSelfSigned, expectedCertPin) {
+        createConsoleClient(allowedHost, trustSelfSigned, expectedCertPin)
+    }
+    val transport = remember(session, fetchClient) {
+        val socketScript = context.assets.open("console-websocket.js").bufferedReader().use { it.readText() }
+        ConsoleTransport(session.cookieHostUrl, session.pveAuthCookie, fetchClient, socketScript)
+    }
+    val bridgeHolder = remember(transport) { arrayOfNulls<ConsoleWebSocketBridge>(1) }
+    val httpBridgeHolder = remember(transport) { arrayOfNulls<ConsoleHttpBridge>(1) }
+
     val view = LocalView.current
     var userOrientation by remember { mutableStateOf<Int?>(null) }
 
@@ -197,7 +157,7 @@ fun ConsoleScreen(
     }
 
     // Allocate one WebView instance per ConsoleScreen session to survive recompositions and layout switches.
-    val webViewInstance = remember(session) {
+    val webViewInstance = remember(session, transport) {
         WebView(context).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -205,6 +165,10 @@ fun ConsoleScreen(
             )
             setBackgroundColor(Color.BLACK)
             settings.javaScriptEnabled = true
+            // Intercepted resources still work; everything else (including native
+            // WebSockets, native POSTs and worker traffic) fails closed.
+            settings.blockNetworkLoads = true
+            settings.cacheMode = WebSettings.LOAD_NO_CACHE
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.domStorageEnabled = true
@@ -222,14 +186,34 @@ fun ConsoleScreen(
             @Suppress("DEPRECATION")
             settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
 
+            // Do not give WebView an authentication cookie. Clear older console
+            // cookies; only ConsoleTransport attaches the current ticket.
             val cm = CookieManager.getInstance()
-            cm.setAcceptCookie(true)
             cm.setAcceptThirdPartyCookies(this, false)
-            cm.setCookie(
-                session.cookieHostUrl,
-                "PVEAuthCookie=${session.pveAuthCookie}; Path=/; Secure",
-            )
+            cm.setCookie(session.cookieHostUrl, "PVEAuthCookie=; Max-Age=0; Path=/; Secure")
             cm.flush()
+            val bridge = ConsoleWebSocketBridge(transport) { id, event, data ->
+                post {
+                    if (event == "error") {
+                        loading = false
+                        errorText = "Console TLS or WebSocket connection failed. Check the certificate pin and sign in again."
+                    }
+                    val args = listOf(id, event, data).joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
+                    evaluateJavascript("window.__pxmxSocketEvent && window.__pxmxSocketEvent($args)", null)
+                }
+            }
+            bridgeHolder[0] = bridge
+            addJavascriptInterface(bridge, "PXMXConsoleSocket")
+            val httpBridge = ConsoleHttpBridge(transport) { id, response ->
+                post {
+                    val args = listOf(response.reason, response.contentType, response.body)
+                        .joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
+                    val requestId = ConsoleMimeUtils.escapeJsString(id)
+                    evaluateJavascript("window.__pxmxHttpEvent && window.__pxmxHttpEvent($requestId,${response.status},$args)", null)
+                }
+            }
+            httpBridgeHolder[0] = httpBridge
+            addJavascriptInterface(httpBridge, "PXMXConsoleHttp")
 
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -239,6 +223,8 @@ fun ConsoleScreen(
             }
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    bridge.closeAll()
+                    httpBridge.closeAll()
                     loading = true
                     errorText = null
                 }
@@ -248,82 +234,34 @@ fun ConsoleScreen(
                     view?.let { injectFitScript(it, isWide) }
                 }
 
-                @SuppressLint("WebViewClientOnReceivedSslError")
                 override fun onReceivedSslError(
                     view: WebView?,
                     handler: SslErrorHandler?,
                     errorSsl: SslError?,
                 ) {
-                    // Guard for any direct load the interceptor did not cover.
-                    val sslCert = errorSsl?.certificate
-                    val x509Cert = sslCert?.let { CertUtils.getX509Certificate(it) }
-                    val presentedFp = x509Cert?.let { CertUtils.computeSha256Fingerprint(it) }
-
-                    if (trustSelfSigned && presentedFp != null && expectedCertPin != null &&
-                        CertUtils.normalizeFingerprint(presentedFp) == CertUtils.normalizeFingerprint(expectedCertPin)
-                    ) {
-                        handler?.proceed()
-                    } else {
-                        handler?.cancel()
-                        loading = false
-                        errorText = when {
-                            !trustSelfSigned -> "TLS error: untrusted certificate (enable Trust self-signed on login)"
-                            expectedCertPin == null -> "TLS error: certificate pin not found for host"
-                            presentedFp != null && CertUtils.normalizeFingerprint(presentedFp) != CertUtils.normalizeFingerprint(expectedCertPin) ->
-                                "Certificate changed for host — possible MITM attack! (pinned: $expectedCertPin, presented: $presentedFp)"
-                            else -> "TLS error: ${errorSsl?.primaryError ?: "Untrusted certificate"}"
-                        }
-                    }
+                    handler?.cancel()
+                    loading = false
+                    errorText = "Blocked native console TLS load"
                 }
 
                 override fun shouldOverrideUrlLoading(
                     view: WebView?,
                     request: WebResourceRequest?,
-                ): Boolean {
-                    val url = request?.url
-                    return url != null && url.scheme != "data" && url.host != allowedHost && allowedHost != "demo"
-                }
+                ): Boolean = request?.url?.toString()?.let { !transport.allows(it) } ?: true
 
                 override fun shouldInterceptRequest(
                     view: WebView?,
                     request: WebResourceRequest?,
                 ): WebResourceResponse? {
-                    val reqUrl = request?.url ?: return null
-                    val reqStr = reqUrl.toString()
-                    if (reqUrl.scheme != "https" || !reqStr.startsWith(session.cookieHostUrl)) {
-                        return null
-                    }
-                    if (request.method != "GET" && request.method != "HEAD") {
-                        return null
-                    }
-                    return try {
-                        val rb = Request.Builder().url(reqStr)
-                        request.requestHeaders.forEach { (k, v) ->
-                            if (!k.equals("Cookie", ignoreCase = true)) rb.addHeader(k, v)
+                    val resource = transport.fetch(request?.url?.toString().orEmpty(), request?.method.orEmpty(), request?.requestHeaders.orEmpty())
+                    if (resource.status >= 400 && request?.isForMainFrame == true) {
+                        view?.post {
+                            loading = false
+                            errorText = resource.reason
                         }
-                        rb.addHeader("Cookie", "PVEAuthCookie=${session.pveAuthCookie}")
-                        fetchClient.newCall(rb.build()).execute().use { resp ->
-                            val rawBody = resp.body?.bytes() ?: byteArrayOf()
-                            val rawContentType = resp.header("Content-Type")
-                            val mime = ConsoleMimeUtils.coerceMimeType(reqStr, rawContentType)
-                            val encoding = ConsoleMimeUtils.extractCharset(rawContentType)
-                            val headers = ConsoleMimeUtils.buildResponseHeaders(
-                                resp.headers.map { it.first to it.second },
-                                mime,
-                                encoding,
-                            )
-                            WebResourceResponse(
-                                mime,
-                                encoding,
-                                resp.code,
-                                resp.message.ifBlank { "OK" },
-                                headers,
-                                ByteArrayInputStream(rawBody),
-                            )
-                        }
-                    } catch (e: Exception) {
-                        null
                     }
+                    return WebResourceResponse(resource.mime, resource.encoding, resource.status,
+                        resource.reason, resource.headers, ByteArrayInputStream(resource.body))
                 }
             }
 
@@ -343,13 +281,19 @@ fun ConsoleScreen(
         }
     }
 
-    DisposableEffect(session) {
+    DisposableEffect(webViewInstance) {
         onDispose {
             runCatching {
                 val cm = CookieManager.getInstance()
                 cm.setCookie(session.cookieHostUrl, "PVEAuthCookie=; Max-Age=0; Path=/")
                 cm.flush()
             }
+            bridgeHolder[0]?.dispose()
+            httpBridgeHolder[0]?.dispose()
+            webViewInstance.removeJavascriptInterface("PXMXConsoleSocket")
+            webViewInstance.removeJavascriptInterface("PXMXConsoleHttp")
+            fetchClient.dispatcher.cancelAll()
+            fetchClient.connectionPool.evictAll()
             webViewInstance.stopLoading()
             webViewInstance.destroy()
         }

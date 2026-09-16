@@ -144,7 +144,7 @@ class ProxmoxRepository(
         context = context,
         sessionStore = sessionStore,
         clientFactory = clientFactory,
-        reAuthHandler = { profileId -> authRepo.loginWithProfile(profileId, silent = true) },
+        reAuthHandler = { profileId, expected -> authRepo.loginWithProfile(profileId, silent = true, renewalOf = expected) },
     )
 
     val authRepo: AuthRepository = AuthRepository(

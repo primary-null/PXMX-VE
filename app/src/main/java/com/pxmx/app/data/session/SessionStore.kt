@@ -61,10 +61,49 @@ class SessionStore(
 
     // ---- session ----
 
+    private var generation = 0L
+    private var activeProfileId: String? = null
+
+    /** Reserve a login attempt; newer attempts and logout invalidate it. */
+    @Synchronized
+    fun beginLogin(): Long = ++generation
+
+    /** Guard publication and its profile/pin side effects under the logout lock. No suspension. */
+    @Synchronized
+    fun publishIfGeneration(expected: Long, publish: () -> Unit): Boolean {
+        if (generation != expected) return false
+        publish()
+        return true
+    }
+
+    @Synchronized
+    fun snapshot(): SessionSnapshot? = _session.value?.let { SessionSnapshot(generation, it, activeProfileId) }
+
+    @Synchronized
+    fun isCurrent(expected: SessionSnapshot): Boolean = generation == expected.generation &&
+        _session.value?.let { SessionIdentity.of(it.config) == SessionIdentity.of(expected.state.config) } == true
+
+    @Synchronized
+    fun currentSession(expected: SessionSnapshot): SessionState? = if (isCurrent(expected)) _session.value else null
+
+    /** Atomic guarded renewal; never resurrect logout or replace another login. */
+    @Synchronized
+    fun renewSession(expected: SessionSnapshot, state: SessionState): Boolean {
+        if (!isCurrent(expected) || SessionIdentity.of(state.config) != SessionIdentity.of(expected.state.config)) return false
+        _session.value = state
+        return true
+    }
+
+    @Synchronized
     fun setSession(state: SessionState) {
+        generation++
+        activeProfileId = lastProfileId()?.takeIf { id ->
+            getProfile(id)?.let { SessionIdentity.of(it.toServerConfig()) == SessionIdentity.of(state.config) } == true
+        }
         _session.value = state
     }
 
+    @Synchronized
     fun updateVersion(version: VersionInfo?) {
         val current = _session.value ?: return
         _session.value = current.copy(version = version)
@@ -73,7 +112,10 @@ class SessionStore(
     /**
      * End live session. If [rememberAsPrevious], stash a jump-back card for the login screen.
      */
+    @Synchronized
     fun clearSession(rememberAsPrevious: Boolean = false) {
+        generation++
+        activeProfileId = null
         if (rememberAsPrevious) {
             snapshotCurrentAsPrevious()
         }

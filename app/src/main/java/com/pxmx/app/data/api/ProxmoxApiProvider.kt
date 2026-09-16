@@ -8,10 +8,13 @@ import java.util.concurrent.atomic.AtomicReference
 data class ProbeApi(
     val api: ProxmoxApi,
     val probeAuth: AtomicReference<ProbeAuth?> = AtomicReference(null),
+    val capturedFingerprint: AtomicReference<String?> = AtomicReference(null),
 )
 
 interface ProxmoxApiProvider {
     fun apiFor(config: ServerConfig): ProxmoxApi
+    /** Live HTTP implementations must bind interception to this exact generation. */
+    fun apiForSession(session: com.pxmx.app.data.session.SessionSnapshot): ProxmoxApi = apiFor(session.state.config)
     /**
      * Probe client: bypasses the cache, always authenticates with its own bound
      * config. Abstract on purpose: every HTTP provider must wire the same

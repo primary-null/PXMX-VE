@@ -104,6 +104,8 @@ data class ClusterResource(
     val hastate: String? = null,
     val active: Int? = null,
     val enabled: Int? = null,
+    /** Failed reads keyed by section (node/qemu/lxc/storage or config). */
+    val readErrors: Map<String, String> = emptyMap(),
 ) {
     val isGuest: Boolean get() = type == "qemu" || type == "lxc"
     val isRunning: Boolean get() = status == "running" || status == "online"

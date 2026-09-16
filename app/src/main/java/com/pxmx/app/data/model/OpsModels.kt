@@ -17,6 +17,7 @@ data class GuestBundle(
     val backups: List<BackupVolume>,
     val hostUsbs: List<HostUsbDevice>,
     val backupStorages: List<String>,
+    val sectionErrors: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -371,7 +372,9 @@ data class SdnStatusInfo(
     val type: String?,
     val status: String?,
     val controller: String?,
+    val node: String = "",
 ) {
+    val rowKey: String get() = "$node/$name/${type.orEmpty()}"
     val isOk: Boolean
         get() = status.equals("ok", ignoreCase = true) ||
                 status.equals("running", ignoreCase = true) ||

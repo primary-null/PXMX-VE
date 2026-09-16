@@ -326,9 +326,27 @@ class HomeViewModel(
     /** Refresh metrics without spinners or error flash. */
     private suspend fun silentRefresh() {
         repository.listResources().onSuccess { list ->
-            _ui.update { it.copy(resources = list) }
+            _ui.update { it.copy(resources = mergeResourceSections(it.resources, list), error = resourceReadError(list)) }
         }
     }
+
+    private fun mergeResourceSections(previous: List<ClusterResource>, fresh: List<ClusterResource>): List<ClusterResource> {
+        val nodeErrors = fresh.filter { it.type == "node" }.associate { it.node to it.readErrors }
+        val current = fresh.map { resource ->
+            if (resource.type == "node" && "node" in resource.readErrors) {
+                previous.find { it.id == resource.id }?.copy(status = "unknown", readErrors = resource.readErrors) ?: resource
+            } else resource
+        }
+        val currentIds = current.mapNotNull { it.id }.toSet()
+        val stale = previous.filter { resource ->
+            resource.type != "node" && resource.type in nodeErrors[resource.node].orEmpty() && resource.id !in currentIds
+        }.map { it.copy(status = "unknown") }
+        return current + stale
+    }
+
+    private fun resourceReadError(resources: List<ClusterResource>): String? = resources.flatMap { resource ->
+        resource.readErrors.map { (section, message) -> "${resource.node}/$section unavailable (retained data may be stale): $message" }
+    }.takeIf { it.isNotEmpty() }?.joinToString("\n")
 
     fun setFilter(filter: ResourceFilter) {
         _ui.update { it.copy(filter = filter) }
@@ -381,10 +399,10 @@ class HomeViewModel(
                         _ui.update {
                             it.copy(
                                 site = site ?: it.site,
-                                resources = list,
+                                resources = mergeResourceSections(it.resources, list),
                                 loading = false,
                                 refreshing = false,
-                                error = null,
+                                error = resourceReadError(list),
                             )
                         }
                     },
