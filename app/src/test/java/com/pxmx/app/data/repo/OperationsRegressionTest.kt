@@ -204,6 +204,20 @@ class OperationsRegressionTest {
         assertTrue("Authentication failure must not fall through to a synthetic proxy timeout", result.exceptionOrNull()?.message.orEmpty().contains("403"))
     }
 
+    @Test fun syslogProxyTimeoutIsNotReportedAsSessionChange() = runBlocking {
+        val api = object : ProxmoxApi by demo {
+            override suspend fun nodeSyslog(node: String, start: Int?, limit: Int?): PveResponse<List<Map<String, Any>>> {
+                throw PveHttpException(596, null, "proxy timeout")
+            }
+        }
+        val result = repository(api).nodeSyslog("alpha", limit = 50)
+        assertTrue(result.isFailure)
+        val err = result.exceptionOrNull()
+        assertTrue(err is PveClusterProxyTimeoutException)
+        assertFalse(err?.message.orEmpty().contains("matching active session", ignoreCase = true))
+        assertFalse(err?.message.orEmpty().contains("Session changed", ignoreCase = true))
+    }
+
     @Test fun storageContentEndpointFailureIsNotEmptySuccess() = runBlocking {
         val api = object : ProxmoxApi by demo {
             override suspend fun storageContent(node: String, storage: String, content: String?, vmid: Long?): PveResponse<List<StorageContentItem>> = throw java.io.IOException("content unavailable")

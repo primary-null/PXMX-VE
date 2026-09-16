@@ -111,7 +111,15 @@ fun ConsoleScreen(
     }
     val transport = remember(session, fetchClient) {
         val socketScript = context.assets.open("console-websocket.js").bufferedReader().use { it.readText() }
-        ConsoleTransport(session.cookieHostUrl, session.pveAuthCookie, fetchClient, socketScript)
+        ConsoleTransport(
+            session.cookieHostUrl,
+            session.pveAuthCookie,
+            fetchClient,
+            socketScript,
+            session.node,
+            session.guestType,
+            session.vmid,
+        )
     }
     val bridgeHolder = remember(transport) { arrayOfNulls<ConsoleWebSocketBridge>(1) }
     val httpBridgeHolder = remember(transport) { arrayOfNulls<ConsoleHttpBridge>(1) }
