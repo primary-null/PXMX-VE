@@ -1,5 +1,6 @@
 package com.pxmx.app.ui.console
 
+import com.pxmx.app.data.model.GuestType
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -24,6 +25,9 @@ internal class ConsoleTransport(
     private val cookie: String,
     client: OkHttpClient,
     private val socketScript: String = "",
+    private val node: String = "",
+    private val guestType: GuestType? = null,
+    private val vmid: Long = 0,
 ) {
     private val endpoint = origin.toHttpUrl()
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
@@ -59,28 +63,37 @@ internal class ConsoleTransport(
         .build()
 
     fun newConsoleApiCall(url: String, method: String, contentType: String, csrf: String, body: String): Call? {
-        if (!allows(url)) return null
+        if (!allows(url) || guestType == null || node.isEmpty()) return null
         val target = url.toHttpUrl()
         if (target.fragment != null || body.toByteArray(Charsets.UTF_8).size > 65536) return null
         val path = target.encodedPath
-        val node = "/api2/json/nodes/[A-Za-z0-9][A-Za-z0-9.-]*"
-        val guest = "$node/(?:qemu|lxc)/[1-9][0-9]*"
+        val nodePrefix = "/api2/json/nodes/${Regex.escape(node)}"
+        val guestPrefix = when (guestType) {
+            GuestType.QEMU, GuestType.LXC -> "$nodePrefix/${guestType.path}/$vmid"
+            GuestType.NODE -> nodePrefix
+        }
         val request = Request.Builder().url(target)
             .header("Cookie", "PVEAuthCookie=$cookie")
             .header("Cache-Control", "no-cache")
         try {
             when (method) {
                 "POST" -> {
-                    val bootstrap = Regex("(?:$node|$guest)/(?:vncproxy|termproxy)|$node/vncshell")
-                    val control = Regex("$node/qemu/[1-9][0-9]*/status/(?:start|shutdown|stop|reset|suspend|resume)|$node/lxc/[1-9][0-9]*/status/(?:start|shutdown|stop)")
-                    if (target.query != null || (!bootstrap.matches(path) && !control.matches(path))) return null
+                    val allowed = when (guestType) {
+                        GuestType.NODE -> Regex("$nodePrefix/(?:vncproxy|termproxy|vncshell)")
+                        GuestType.QEMU -> Regex("$guestPrefix/(?:vncproxy|termproxy)|$guestPrefix/status/(?:start|shutdown|stop|reset|suspend|resume)")
+                        GuestType.LXC -> Regex("$guestPrefix/(?:vncproxy|termproxy)|$guestPrefix/status/(?:start|shutdown|stop)")
+                    }
+                    if (target.query != null || !allowed.matches(path)) return null
                     if (!contentType.equals("application/x-www-form-urlencoded", true) || csrf.isBlank()) return null
                     request.header("CSRFPreventionToken", csrf)
                         .post(body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()))
                 }
                 "GET" -> {
-                    if (body.isNotEmpty() || !(path == "/api2/json/cluster/resources" ||
-                            Regex("$guest/(?:status/current|config)").matches(path))) return null
+                    val guestRead = when (guestType) {
+                        GuestType.QEMU, GuestType.LXC -> Regex("$guestPrefix/(?:status/current|config)")
+                        GuestType.NODE -> null
+                    }
+                    if (body.isNotEmpty() || !(path == "/api2/json/cluster/resources" || guestRead?.matches(path) == true)) return null
                     request.get()
                 }
                 else -> return null

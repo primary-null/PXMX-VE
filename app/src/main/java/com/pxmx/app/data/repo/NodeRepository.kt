@@ -310,22 +310,6 @@ class NodeRepository(
             if (retryResult.isSuccess || retryResult.exceptionOrNull()?.let { !isTimeout(it) } == true) return retryResult
         }
 
-        val directIp = clusterNodeIps[node.lowercase()]
-        val session = sessionStore.session.value
-        if (!directIp.isNullOrBlank() && session != null && !session.config.host.equals(directIp, ignoreCase = true)) {
-            try {
-                val directConfig = session.config.copy(host = directIp)
-                val directApi = clientFactory.apiFor(directConfig)
-                val rows = directApi.nodeSyslog(node, start, reducedLimit ?: initialLimit).data.orEmpty()
-                return Result.success(rows.map { ClusterLogEntry.fromSyslogMap(node, it) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (!isTimeout(e)) return Result.failure(pveClient.mapError(e))
-                // Fall through only for another timeout, never for an authentication failure.
-            }
-        }
-
         return Result.failure(
             PveClusterProxyTimeoutException(
                 node = node,
