@@ -18,6 +18,9 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # Obsolete 'tools' package is no longer on Google's SDK repo
+          packages: platform-tools
       - name: Test and assemble debug APK
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
       - name: Name APK from tag
