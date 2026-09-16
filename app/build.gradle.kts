@@ -15,8 +15,8 @@ android {
         applicationId = "com.pxmx.app"
         minSdk = 27
         targetSdk = 36
-        versionCode = 45
-        versionName = "0.8.8"
+        versionCode = 46
+        versionName = "0.8.9"
         testInstrumentationRunner = "com.pxmx.app.CustomTestRunner"
     }
 
