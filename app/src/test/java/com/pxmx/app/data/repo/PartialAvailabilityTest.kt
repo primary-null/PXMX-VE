@@ -120,7 +120,8 @@ class PartialAvailabilityTest {
                 override suspend fun guestSnapshots(node: String, type: String, vmid: Long) =
                     PveResponse(data = if (fail) emptyList() else listOf(SnapshotInfo(name = "old")))
                 override suspend fun nodeStorage(node: String) = PveResponse(data = listOf(
-                    NodeStorageEntry(storage = "healthy", content = "backup"), NodeStorageEntry(storage = "offline", content = "backup")))
+                    NodeStorageEntry(storage = "healthy", content = "backup", active = 1, enabled = 1),
+                    NodeStorageEntry(storage = "offline", content = "backup", active = 1, enabled = 1)))
                 override suspend fun storageContent(node: String, storage: String, content: String?, vmid: Long?): PveResponse<List<StorageContentItem>> {
                     if (fail && storage == "offline") throw IOException("backup storage offline")
                     return PveResponse(data = listOf(StorageContentItem(volid = "$storage:backup/${if (fail) "fresh" else "old"}", vmid = vmid)))
@@ -208,6 +209,62 @@ class PartialAvailabilityTest {
             assertTrue(state.error.orEmpty().contains("beta"))
             assertTrue(state.error.orEmpty().contains("qemu"))
             assertTrue(state.error.orEmpty().contains("storage"))
+        } finally { models.clear(); Dispatchers.resetMain() }
+    }
+
+    @Test fun inactiveOrDisabledBackupStorageIsNeverQueriedAndProducesNoSectionError() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val models = ViewModelStore()
+        try {
+            val queriedStorages = mutableListOf<String>()
+            val api = object : ProxmoxApi by demo {
+                override suspend fun nodeStorage(node: String) = PveResponse(data = listOf(
+                    NodeStorageEntry(storage = "active-backup", content = "backup", active = 1, enabled = 1),
+                    NodeStorageEntry(storage = "inactive-backup", content = "backup", active = 0, enabled = 1),
+                    NodeStorageEntry(storage = "disabled-backup", content = "backup", active = 1, enabled = 0),
+                    NodeStorageEntry(storage = "iso-storage", content = "iso", active = 1, enabled = 1),
+                ))
+                override suspend fun storageContent(
+                    node: String,
+                    storage: String,
+                    content: String?,
+                    vmid: Long?,
+                ): PveResponse<List<StorageContentItem>> {
+                    queriedStorages.add(storage)
+                    if (storage == "inactive-backup" || storage == "disabled-backup") {
+                        throw IOException("HTTP 500 storage '$storage' is not available on node '$node'")
+                    }
+                    return PveResponse(
+                        data = listOf(
+                            StorageContentItem(volid = "$storage:backup/vzdump-qemu-100.vma.zst", vmid = vmid)
+                        )
+                    )
+                }
+            }
+
+            val repo = repository(api)
+            val bundle = repo.loadGuestBundle("alpha", GuestType.QEMU, 100).getOrThrow()
+
+            // Inactive / disabled backup storages must never be requested
+            assertEquals(listOf("active-backup"), queriedStorages)
+            // No section error for inactive or disabled storage
+            assertFalse(bundle.sectionErrors.containsKey("backups/inactive-backup"))
+            assertFalse(bundle.sectionErrors.containsKey("backups/disabled-backup"))
+            assertTrue("Section errors should be empty but was ${bundle.sectionErrors}", bundle.sectionErrors.isEmpty())
+            // Only active storage is included in backupStorages
+            assertEquals(listOf("active-backup"), bundle.backupStorages)
+            // Active storage backup content is preserved
+            assertEquals(listOf("active-backup:backup/vzdump-qemu-100.vma.zst"), bundle.backups.map { it.volid })
+
+            // Also verify via GuestDetailViewModel that no banner error is surfaced
+            val vm = com.pxmx.app.ui.guest.GuestDetailViewModel(repo, "alpha", GuestType.QEMU, 100, "guest")
+            models.put("guest", vm)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+            runCurrent()
+            val state = vm.ui.value
+            assertNull("No error banner should appear on guest detail for inactive storage", state.error)
+            assertEquals(listOf("active-backup:backup/vzdump-qemu-100.vma.zst"), state.backups.map { it.volid })
+            assertEquals(listOf("active-backup"), state.backupStorages)
         } finally { models.clear(); Dispatchers.resetMain() }
     }
 }

@@ -107,6 +107,8 @@ import com.pxmx.app.ui.components.techRailColor
 import com.pxmx.app.ui.guest.detail.*
 import com.pxmx.app.ui.icons.GuestIcons
 import com.pxmx.app.ui.util.formatBytes
+import com.pxmx.app.ui.util.formatDiskProgress
+import com.pxmx.app.ui.util.formatDiskUsage
 import com.pxmx.app.ui.util.formatEpoch
 import com.pxmx.app.ui.util.formatMemoryMiB
 import com.pxmx.app.ui.util.formatPercent
@@ -675,12 +677,10 @@ private fun HeroCard(
                 valueText = "${formatBytes(mem)} / ${formatBytes(maxmem)}",
                 progress = memPct,
             )
-            val diskPct = if (disk != null && maxdisk != null && maxdisk > 0) {
-                (disk.toDouble() / maxdisk.toDouble()).toFloat().coerceIn(0f, 1f)
-            } else null
+            val diskPct = formatDiskProgress(disk, maxdisk)
             MetricBar(
                 label = "Disk",
-                valueText = "${formatBytes(disk)} / ${formatBytes(maxdisk)}",
+                valueText = formatDiskUsage(disk, maxdisk),
                 progress = diskPct,
             )
 

@@ -100,6 +100,7 @@ class StorageRepository(
         for (st in storages) {
             val name = st.storage ?: continue
             if (!(st.content ?: "").contains("backup")) continue
+            if (st.active != 1 || st.enabled == 0) continue
             val items = api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
             out += items
                 .filter { it.vmid == null || it.vmid == vmid || it.volid?.contains("-$vmid-") == true }

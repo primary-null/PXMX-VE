@@ -1,6 +1,7 @@
 package com.pxmx.app.ui.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,5 +72,36 @@ class FormatTest {
         assertEquals("not-a-number", formatMemoryMiB("not-a-number"))
         assertEquals("1.0 GiB", formatMemoryMiB("1024"))
         assertEquals("512.0 MiB", formatMemoryMiB("512"))
+    }
+
+    @Test
+    fun formatDiskUsage_nullOrZeroUsedShowsHonestEmDash() {
+        assertEquals("— / 64.0 GiB", formatDiskUsage(null, 64L * 1024L * 1024L * 1024L))
+        assertEquals("— / 64.0 GiB", formatDiskUsage(0L, 64L * 1024L * 1024L * 1024L))
+        assertEquals("— / 64.0 GiB", formatDiskUsage(-1L, 64L * 1024L * 1024L * 1024L))
+        assertEquals("— / —", formatDiskUsage(null, null))
+        assertEquals("— / —", formatDiskUsage(0L, null))
+    }
+
+    @Test
+    fun formatDiskUsage_realUsage() {
+        assertEquals("16.0 GiB / 64.0 GiB", formatDiskUsage(16L * 1024L * 1024L * 1024L, 64L * 1024L * 1024L * 1024L))
+        assertEquals("500 B / 1000 B", formatDiskUsage(500L, 1000L))
+    }
+
+    @Test
+    fun formatDiskProgress_nullOrZeroUsedReturnsNull() {
+        assertNull(formatDiskProgress(null, 64L * 1024L * 1024L * 1024L))
+        assertNull(formatDiskProgress(0L, 64L * 1024L * 1024L * 1024L))
+        assertNull(formatDiskProgress(-5L, 64L * 1024L * 1024L * 1024L))
+        assertNull(formatDiskProgress(100L, null))
+        assertNull(formatDiskProgress(100L, 0L))
+        assertNull(formatDiskProgress(100L, -10L))
+    }
+
+    @Test
+    fun formatDiskProgress_realUsageReturnsRatio() {
+        assertEquals(0.25f, formatDiskProgress(16L * 1024L * 1024L * 1024L, 64L * 1024L * 1024L * 1024L)!!, 0.001f)
+        assertEquals(1.0f, formatDiskProgress(80L * 1024L * 1024L * 1024L, 64L * 1024L * 1024L * 1024L)!!, 0.001f)
     }
 }

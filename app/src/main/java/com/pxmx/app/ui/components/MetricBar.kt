@@ -62,16 +62,18 @@ fun MetricBar(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        Spacer(Modifier.height(5.dp))
-        LinearProgressIndicator(
-            progress = { animated },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(barHeight)
-                .clip(RoundedCornerShape(1.dp)),
-            color = fillColor,
-            trackColor = trackColor,
-            strokeCap = StrokeCap.Butt,
-        )
+        if (progress != null) {
+            Spacer(Modifier.height(5.dp))
+            LinearProgressIndicator(
+                progress = { animated },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(barHeight)
+                    .clip(RoundedCornerShape(1.dp)),
+                color = fillColor,
+                trackColor = trackColor,
+                strokeCap = StrokeCap.Butt,
+            )
+        }
     }
 }

@@ -62,3 +62,23 @@ fun formatMemoryMiB(value: String?): String {
     val mib = value.toLongOrNull() ?: return value
     return formatBytes(mib * 1024L * 1024L)
 }
+
+/**
+ * Format disk usage for hero cards where QEMU /status/current often reports disk=0
+ * without a guest agent. When disk is null or 0, display an honest unknown "— / <max>".
+ */
+fun formatDiskUsage(disk: Long?, maxdisk: Long?): String {
+    val usedStr = if (disk == null || disk <= 0L) "—" else formatBytes(disk)
+    val maxStr = formatBytes(maxdisk)
+    return "$usedStr / $maxStr"
+}
+
+/**
+ * Calculate disk progress (0f..1f) or null if used is unknown (null or <= 0) or max is invalid.
+ * Prevents showing a misleading 0% empty bar when disk agent metrics are unavailable.
+ */
+fun formatDiskProgress(disk: Long?, maxdisk: Long?): Float? {
+    if (disk == null || disk <= 0L || maxdisk == null || maxdisk <= 0L) return null
+    return (disk.toDouble() / maxdisk.toDouble()).toFloat().coerceIn(0f, 1f)
+}
+

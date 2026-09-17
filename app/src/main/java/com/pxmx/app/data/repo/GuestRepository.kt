@@ -187,10 +187,16 @@ class GuestRepository(
                 val hostUsbs = section("USB", usbDef.await(), emptyList())
                 val parsed = GuestConfigParser.parse(rawConfig, hostUsbs)
                 val storages = section("backup storages", storageDef.await(), emptyList())
+                val availableBackupStorages = storages.filter {
+                    !it.storage.isNullOrBlank() &&
+                        (it.content ?: "").contains("backup") &&
+                        it.active == 1 &&
+                        it.enabled != 0
+                }
                 val backups = if ("backup storages" in errors) {
                     errors["backups"] = "Storage discovery unavailable"
                     emptyList()
-                } else storages.filter { (it.content ?: "").contains("backup") }.flatMap { storage ->
+                } else availableBackupStorages.flatMap { storage ->
                     section("backups/${storage.storage}", attemptRead {
                         loadBackupsForVmid(api, node, vmid, listOf(storage))
                     }, emptyList())
@@ -205,8 +211,7 @@ class GuestRepository(
                             .thenByDescending { it.snaptime ?: 0L }),
                     backups = backups.sortedByDescending { it.ctime ?: 0L },
                     hostUsbs = hostUsbs,
-                    backupStorages = storages
-                        .filter { (it.content ?: "").contains("backup") }
+                    backupStorages = availableBackupStorages
                         .mapNotNull { it.storage },
                     sectionErrors = errors,
                 )
