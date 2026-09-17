@@ -6,6 +6,8 @@ jobs:
     env:
       ANDROID_HOME: /opt/android-sdk
       JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+      GRADLE_USER_HOME: /root/.gradle
+      GRADLE_OPTS: -Dorg.gradle.caching=true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +18,7 @@ jobs:
         run: python3 scripts/security_check.py --all
 
       - name: Unit Tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2 --build-cache
 
       - name: Update Proven Green
         if: success()
