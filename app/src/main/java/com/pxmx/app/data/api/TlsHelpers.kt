@@ -89,12 +89,29 @@ object TofuDecision {
  *     - If mismatched -> throws CertificateException (MITM protection).
  *     - If unpinned (first connection) -> captures fingerprint via [onCertCaptured] and allows handshake.
  */
-class TofuTrustManager(
+class TofuTrustManager private constructor(
     val host: String,
     val trustSelfSigned: Boolean,
-    private val sessionStore: SessionStore,
-    private val onCertCaptured: ((X509Certificate, String) -> Unit)? = null,
+    private val sessionStore: SessionStore?,
+    private val onCertCaptured: ((X509Certificate, String) -> Unit)?,
+    private val pinLookup: (String) -> String?,
+    @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : X509TrustManager {
+
+    constructor(
+        host: String,
+        trustSelfSigned: Boolean,
+        sessionStore: SessionStore,
+        onCertCaptured: ((X509Certificate, String) -> Unit)? = null,
+        pinLookup: (String) -> String? = { sessionStore.getCertPin(it) },
+    ) : this(host, trustSelfSigned, sessionStore, onCertCaptured, pinLookup, Unit)
+
+    internal constructor(
+        host: String,
+        trustSelfSigned: Boolean,
+        pinLookup: (String) -> String?,
+        onCertCaptured: ((X509Certificate, String) -> Unit)? = null,
+    ) : this(host, trustSelfSigned, null, onCertCaptured, pinLookup, Unit)
 
     private val defaultTrustManager: X509TrustManager by lazy {
         val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
@@ -114,7 +131,7 @@ class TofuTrustManager(
         val presentedFp = CertUtils.computeSha256Fingerprint(serverCert)
         onCertCaptured?.invoke(serverCert, presentedFp)
 
-        when (val verdict = TofuDecision.evaluate(trustSelfSigned, sessionStore.getCertPin(host), presentedFp)) {
+        when (val verdict = TofuDecision.evaluate(trustSelfSigned, pinLookup(host), presentedFp)) {
             TofuVerdict.DelegateToSystem -> defaultTrustManager.checkServerTrusted(chain, authType)
             TofuVerdict.Allow -> Unit
             is TofuVerdict.Reject -> throw CertificateException(verdict.reason)

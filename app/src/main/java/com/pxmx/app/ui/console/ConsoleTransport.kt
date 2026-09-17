@@ -64,6 +64,7 @@ internal class ConsoleTransport(
 
     fun newConsoleApiCall(url: String, method: String, contentType: String, csrf: String, body: String): Call? {
         if (!allows(url) || guestType == null || node.isEmpty()) return null
+        if ((guestType == GuestType.QEMU || guestType == GuestType.LXC) && vmid <= 0) return null
         val target = url.toHttpUrl()
         if (target.fragment != null || body.toByteArray(Charsets.UTF_8).size > 65536) return null
         val path = target.encodedPath

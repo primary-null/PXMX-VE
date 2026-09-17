@@ -84,6 +84,28 @@ class ConsoleHttpBridgeTest {
     }
 
     @Test
+    fun `QEMU and LXC with non positive vmid deny API calls while NODE allows vncshell`() {
+        val qemuAllowedAt100 = "$base/api2/json/nodes/pve/qemu/100/vncproxy"
+        val qemuAt100 = apiTransport(base, "app-cookie", OkHttpClient(), type = GuestType.QEMU, vmid = 100)
+        assertNotNull(qemuAt100.newConsoleApiCall(qemuAllowedAt100, "POST", formType, "test-csrf", ""))
+
+        val qemuZero = apiTransport(base, "app-cookie", OkHttpClient(), type = GuestType.QEMU, vmid = 0)
+        assertNull(qemuZero.newConsoleApiCall(qemuAllowedAt100, "POST", formType, "test-csrf", ""))
+        assertNull(qemuZero.newConsoleApiCall("$base/api2/json/nodes/pve/qemu/0/vncproxy", "POST", formType, "test-csrf", ""))
+
+        val lxcAllowedAt100 = "$base/api2/json/nodes/pve/lxc/100/vncproxy"
+        val lxcAt100 = apiTransport(base, "app-cookie", OkHttpClient(), type = GuestType.LXC, vmid = 100)
+        assertNotNull(lxcAt100.newConsoleApiCall(lxcAllowedAt100, "POST", formType, "test-csrf", ""))
+
+        val lxcZero = apiTransport(base, "app-cookie", OkHttpClient(), type = GuestType.LXC, vmid = 0)
+        assertNull(lxcZero.newConsoleApiCall(lxcAllowedAt100, "POST", formType, "test-csrf", ""))
+        assertNull(lxcZero.newConsoleApiCall("$base/api2/json/nodes/pve/lxc/0/vncproxy", "POST", formType, "test-csrf", ""))
+
+        val nodeShell = apiTransport(base, "app-cookie", OkHttpClient(), type = GuestType.NODE, vmid = 0)
+        assertNotNull(nodeShell.newConsoleApiCall("$base/api2/json/nodes/pve/vncshell", "POST", formType, "test-csrf", ""))
+    }
+
+    @Test
     fun `API denies foreign origins unsupported endpoints methods and unsafe forms before networking`() {
         val transport = apiTransport(base, "app-cookie", OkHttpClient())
         for (url in listOf("http://pve.example:8006$proxyPath", "https://pve.example:8007$proxyPath",
