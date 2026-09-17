@@ -21,4 +21,4 @@ jobs:
       - name: Update Proven Green
         if: success()
         run: |
-          git push origin HEAD:refs/heads/proven-green
+          git push --force-with-lease origin HEAD:refs/heads/proven-green
