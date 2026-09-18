@@ -69,7 +69,7 @@ class NetworkViewModelTest {
 
     @Test
     fun networkViewModel_initialLoad_populatesNodeNetworks() = runBlocking {
-        val vm = NetworkViewModel(repository)
+        val vm = NetworkViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -87,7 +87,7 @@ class NetworkViewModelTest {
 
     @Test
     fun networkViewModel_refresh_reloadsClusterNetwork() = runBlocking {
-        val vm = NetworkViewModel(repository)
+        val vm = NetworkViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         vm.refresh()
@@ -115,7 +115,7 @@ class NetworkViewModelTest {
             }
         )
 
-        val vm = NetworkViewModel(customRepo)
+        val vm = NetworkViewModel(customRepo.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -130,6 +130,12 @@ class NetworkViewModelTest {
     fun networkViewModel_factory_createsInstance() {
         val factory = NetworkViewModel.Factory(repository)
         val vm = factory.create(NetworkViewModel::class.java)
+        assertNotNull(vm)
+    }
+
+    @Test
+    fun networkViewModel_secondaryConstructor_compatibility() {
+        val vm = NetworkViewModel(repository)
         assertNotNull(vm)
     }
 }

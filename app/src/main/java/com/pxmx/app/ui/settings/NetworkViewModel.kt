@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.NodeNetworkSnapshot
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +21,7 @@ data class NetworkUiState(
 )
 
 class NetworkViewModel(
-    private val repository: ProxmoxRepository,
+    private val nodeRepo: NodeRepository,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(NetworkUiState())
@@ -38,7 +40,10 @@ class NetworkViewModel(
                     error = null,
                 )
             }
-            val net = repository.listClusterNetwork()
+            val net = nodeRepo.listClusterNetwork()
+            net.exceptionOrNull()?.let { e ->
+                if (e is CancellationException) throw e
+            }
             _ui.update {
                 it.copy(
                     loading = false,
@@ -50,12 +55,18 @@ class NetworkViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+    ) : this(
+        nodeRepo = repository.nodeRepo,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NetworkViewModel(repository) as T
+            return NetworkViewModel(repository.nodeRepo) as T
         }
     }
 }
