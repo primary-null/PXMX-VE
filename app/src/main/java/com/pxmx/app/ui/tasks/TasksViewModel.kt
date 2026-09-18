@@ -3,7 +3,9 @@ package com.pxmx.app.ui.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +35,7 @@ data class TasksUiState(
 )
 
 class TasksViewModel(
-    private val repository: ProxmoxRepository,
+    private val nodeRepo: NodeRepository,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(TasksUiState())
@@ -79,7 +81,7 @@ class TasksViewModel(
     }
 
     private suspend fun fetchTaskLog(task: ClusterTask) {
-        repository.taskLog(task.node, task.upid, limit = 50).fold(
+        nodeRepo.taskLog(task.node, task.upid, limit = 50).fold(
             onSuccess = { lines ->
                 _ui.update {
                     if (it.selectedTask?.upid == task.upid) {
@@ -94,6 +96,7 @@ class TasksViewModel(
                 }
             },
             onFailure = { e ->
+                if (e is CancellationException) throw e
                 _ui.update {
                     if (it.selectedTask?.upid == task.upid) {
                         it.copy(
@@ -114,7 +117,7 @@ class TasksViewModel(
     }
 
     private suspend fun fetchTasks() {
-        repository.clusterTasks().fold(
+        nodeRepo.clusterTasks().fold(
             onSuccess = { raw ->
                 val tasks = raw.mapNotNull { map ->
                     val upid = map["upid"] as? String ?: return@mapNotNull null
@@ -134,6 +137,7 @@ class TasksViewModel(
                 }
             },
             onFailure = { e ->
+                if (e is CancellationException) throw e
                 _ui.update {
                     it.copy(
                         loading = false,
@@ -145,11 +149,17 @@ class TasksViewModel(
         )
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+    ) : this(
+        nodeRepo = repository.nodeRepo,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            TasksViewModel(repository) as T
+            TasksViewModel(repository.nodeRepo) as T
     }
 }

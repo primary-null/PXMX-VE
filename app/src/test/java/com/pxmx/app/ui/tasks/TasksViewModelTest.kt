@@ -63,7 +63,7 @@ class TasksViewModelTest {
 
     @Test
     fun initialState_loadsTasksSortedByStartTimeDesc() {
-        val vm = TasksViewModel(repository)
+        val vm = TasksViewModel(repository.nodeRepo)
         val state = vm.ui.value
 
         assertFalse(state.loading)
@@ -84,7 +84,7 @@ class TasksViewModelTest {
 
     @Test
     fun refresh_updatesTasksSuccessfully() {
-        val vm = TasksViewModel(repository)
+        val vm = TasksViewModel(repository.nodeRepo)
         vm.refresh()
 
         val state = vm.ui.value
@@ -96,7 +96,7 @@ class TasksViewModelTest {
 
     @Test
     fun selectTask_fetchesTaskLogAndUpdatesState() {
-        val vm = TasksViewModel(repository)
+        val vm = TasksViewModel(repository.nodeRepo)
         val firstTask = vm.ui.value.tasks.first()
 
         vm.selectTask(firstTask)
@@ -110,7 +110,7 @@ class TasksViewModelTest {
 
     @Test
     fun clearSelectedTask_resetsTaskSelectionAndLogs() {
-        val vm = TasksViewModel(repository)
+        val vm = TasksViewModel(repository.nodeRepo)
         val firstTask = vm.ui.value.tasks.first()
         vm.selectTask(firstTask)
         assertEquals(firstTask, vm.ui.value.selectedTask)
@@ -126,7 +126,7 @@ class TasksViewModelTest {
 
     @Test
     fun refreshTaskLog_reloadsLogForSelectedTask() {
-        val vm = TasksViewModel(repository)
+        val vm = TasksViewModel(repository.nodeRepo)
         val firstTask = vm.ui.value.tasks.first()
         vm.selectTask(firstTask)
 
@@ -136,5 +136,20 @@ class TasksViewModelTest {
         assertEquals(firstTask, state.selectedTask)
         assertFalse(state.taskLogLoading)
         assertNull(state.taskLogError)
+    }
+
+    @Test
+    fun factory_createsInstance() {
+        val factory = TasksViewModel.Factory(repository)
+        val vm = factory.create(TasksViewModel::class.java)
+        assertNotNull(vm)
+        assertTrue(vm.ui.value.tasks.isNotEmpty())
+    }
+
+    @Test
+    fun secondaryConstructor_compatibility() {
+        val vm = TasksViewModel(repository)
+        assertNotNull(vm)
+        assertTrue(vm.ui.value.tasks.isNotEmpty())
     }
 }
