@@ -70,7 +70,7 @@ class LogViewModelTest {
 
     @Test
     fun logViewModel_initialLoad_fetchesClusterLogsAndNodes() = runBlocking {
-        val vm = LogViewModel(repository)
+        val vm = LogViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -87,7 +87,7 @@ class LogViewModelTest {
 
     @Test
     fun logViewModel_selectScope_switchesToNodeSyslog() = runBlocking {
-        val vm = LogViewModel(repository)
+        val vm = LogViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         // Switch scope to "alpha"
@@ -109,7 +109,7 @@ class LogViewModelTest {
 
     @Test
     fun logViewModel_refresh_updatesLogs() = runBlocking {
-        val vm = LogViewModel(repository)
+        val vm = LogViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         vm.refresh()
@@ -137,7 +137,7 @@ class LogViewModelTest {
             }
         )
 
-        val vm = LogViewModel(customRepo)
+        val vm = LogViewModel(customRepo.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -157,7 +157,7 @@ class LogViewModelTest {
 
     @Test
     fun logViewModel_defaultLimit_isFifty() = runBlocking {
-        val vm = LogViewModel(repository)
+        val vm = LogViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -170,7 +170,7 @@ class LogViewModelTest {
 
     @Test
     fun logViewModel_selectLimit_updatesLimitAndReloads() = runBlocking {
-        val vm = LogViewModel(repository)
+        val vm = LogViewModel(repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         vm.selectLimit(25)
@@ -206,7 +206,7 @@ class LogViewModelTest {
             },
         )
 
-        val vm = LogViewModel(customRepo)
+        val vm = LogViewModel(customRepo.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         vm.selectScope("PVE1")
@@ -220,5 +220,11 @@ class LogViewModelTest {
         assertEquals(25, vm.ui.value.limit)
 
         job.cancel()
+    }
+
+    @Test
+    fun logViewModel_secondaryConstructor_compatibility() {
+        val vm = LogViewModel(repository)
+        assertNotNull(vm)
     }
 }

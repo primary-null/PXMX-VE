@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
@@ -33,7 +34,7 @@ data class LogUiState(
 }
 
 class LogViewModel(
-    private val repository: ProxmoxRepository,
+    private val nodeRepo: NodeRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LogUiState())
@@ -60,7 +61,7 @@ class LogViewModel(
 
     private fun loadNodes() {
         viewModelScope.launch {
-            repository.listNodeNames().onSuccess { nodes ->
+            nodeRepo.listNodeNames().onSuccess { nodes ->
                 _uiState.update { it.copy(nodeNames = nodes) }
             }
         }
@@ -115,7 +116,7 @@ class LogViewModel(
         _uiState.update { it.copy(refreshing = true, error = null, isProxyTimeout = false) }
         viewModelScope.launch {
             if (_uiState.value.nodeNames.isEmpty()) {
-                repository.listNodeNames().onSuccess { nodes ->
+                nodeRepo.listNodeNames().onSuccess { nodes ->
                     _uiState.update { it.copy(nodeNames = nodes) }
                 }
             }
@@ -129,9 +130,9 @@ class LogViewModel(
         val limit = currentState.limit
         try {
             val result = if (scope == "cluster") {
-                repository.logHistory(max = 200)
+                nodeRepo.logHistory(max = 200)
             } else {
-                repository.nodeSyslog(node = scope, start = 0, limit = limit)
+                nodeRepo.nodeSyslog(node = scope, start = 0, limit = limit)
             }
 
             result.fold(
@@ -177,11 +178,17 @@ class LogViewModel(
         this is com.pxmx.app.data.repo.PveClusterProxyTimeoutException ||
             message?.contains("HTTP 596") == true
 
+    constructor(
+        repository: ProxmoxRepository,
+    ) : this(
+        nodeRepo = repository.nodeRepo,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            LogViewModel(repository) as T
+            LogViewModel(repository.nodeRepo) as T
     }
 }
