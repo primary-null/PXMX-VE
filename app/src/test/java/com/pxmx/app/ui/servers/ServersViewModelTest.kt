@@ -64,7 +64,7 @@ class ServersViewModelTest {
     @Test
     fun serversViewModel_withNoProfiles_returnsEmptyList() = runBlocking {
         sessionStore.clearSession()
-        val vm = ServersViewModel(repository, sessionStore)
+        val vm = ServersViewModel(repository.authRepo, sessionStore)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         assertTrue(vm.ui.value.servers.isEmpty())
@@ -103,7 +103,7 @@ class ServersViewModelTest {
         sessionStore.upsertProfile(p1)
         sessionStore.upsertProfile(p2)
 
-        val vm = ServersViewModel(repository, sessionStore)
+        val vm = ServersViewModel(repository.authRepo, sessionStore)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val servers = vm.ui.value.servers
@@ -150,7 +150,7 @@ class ServersViewModelTest {
         sessionStore.upsertProfile(demoProfile)
         sessionStore.upsertProfile(realProfile)
 
-        val vm = ServersViewModel(repository, sessionStore)
+        val vm = ServersViewModel(repository.authRepo, sessionStore)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val servers = vm.ui.value.servers
@@ -164,6 +164,12 @@ class ServersViewModelTest {
     fun serversViewModel_factory_createsInstance() {
         val factory = ServersViewModel.Factory(repository, sessionStore)
         val vm = factory.create(ServersViewModel::class.java)
+        assertNotNull(vm)
+    }
+
+    @Test
+    fun serversViewModel_secondaryConstructor_compatibility() {
+        val vm = ServersViewModel(repository, sessionStore)
         assertNotNull(vm)
     }
 }

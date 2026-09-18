@@ -3,8 +3,10 @@ package com.pxmx.app.ui.servers
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.pxmx.app.data.repo.AuthRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,7 @@ data class ServersUiState(
 )
 
 class ServersViewModel(
-    private val repository: ProxmoxRepository,
+    private val authRepo: AuthRepository,
     private val sessionStore: SessionStore
 ) : ViewModel() {
 
@@ -82,7 +84,7 @@ class ServersViewModel(
                 profiles.map { profile ->
                     async {
                         val result = if (profile.hasSavedSecret || profile.host.lowercase() == "demo") {
-                            repository.probeProfile(profile)
+                            authRepo.probeProfile(profile)
                         } else {
                             Result.failure(Exception("No saved credentials"))
                         }
@@ -104,6 +106,7 @@ class ServersViewModel(
                                                 )
                                             },
                                             onFailure = { e ->
+                                                if (e is CancellationException) throw e
                                                 s.copy(
                                                     loading = false,
                                                     online = false,
@@ -122,13 +125,21 @@ class ServersViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        sessionStore: SessionStore
+    ) : this(
+        authRepo = repository.authRepo,
+        sessionStore = sessionStore
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
         private val sessionStore: SessionStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return ServersViewModel(repository, sessionStore) as T
+            return ServersViewModel(repository.authRepo, sessionStore) as T
         }
     }
 }
