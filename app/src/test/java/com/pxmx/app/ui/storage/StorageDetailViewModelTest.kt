@@ -71,7 +71,7 @@ class StorageDetailViewModelTest {
 
     @Test
     fun storageDetailViewModel_initialLoad_populatesStatusAndContent() = runBlocking {
-        val vm = StorageDetailViewModel(repository, "alpha", "local")
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -93,7 +93,7 @@ class StorageDetailViewModelTest {
 
     @Test
     fun storageDetailViewModel_filtering_filtersContentClientSide() = runBlocking {
-        val vm = StorageDetailViewModel(repository, "alpha", "local")
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val initialContent = vm.ui.value.content
@@ -115,7 +115,7 @@ class StorageDetailViewModelTest {
 
     @Test
     fun storageDetailViewModel_deleteLifecycle_confirmsAndExecutes() = runBlocking {
-        val vm = StorageDetailViewModel(repository, "alpha", "local")
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val itemToDelete = vm.ui.value.content.firstOrNull()
@@ -152,7 +152,7 @@ class StorageDetailViewModelTest {
             }
         )
 
-        val vm = StorageDetailViewModel(customRepo, "alpha", "local-zfs")
+        val vm = StorageDetailViewModel(customRepo.storageRepo, "alpha", "local-zfs")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val item = StorageContentItem(volid = "local-zfs:vm-100-disk-0", content = "images", size = 1000L)
@@ -173,5 +173,12 @@ class StorageDetailViewModelTest {
         assertNotNull(vm)
         assertEquals("beta", vm.ui.value.node)
         assertEquals("backup-nfs", vm.ui.value.storage)
+    }
+
+    @Test
+    fun storageDetailViewModel_secondaryConstructor_compatibility() {
+        val vm = StorageDetailViewModel(repository, "gamma", "local-lvm")
+        assertEquals("gamma", vm.ui.value.node)
+        assertEquals("local-lvm", vm.ui.value.storage)
     }
 }

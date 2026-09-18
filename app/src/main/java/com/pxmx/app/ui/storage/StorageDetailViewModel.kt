@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.data.model.StorageStatus
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.StorageRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +37,7 @@ data class StorageDetailUiState(
 }
 
 class StorageDetailViewModel(
-    private val repository: ProxmoxRepository,
+    private val storageRepo: StorageRepository,
     node: String,
     storage: String,
 ) : ViewModel() {
@@ -62,7 +64,7 @@ class StorageDetailViewModel(
                 )
             }
             // Load all content; filter client-side for chips
-            repository.storageDetail(s.node, s.storage, contentFilter = null).fold(
+            storageRepo.storageDetail(s.node, s.storage, contentFilter = null).fold(
                 onSuccess = { detail ->
                     _ui.update {
                         it.copy(
@@ -74,6 +76,7 @@ class StorageDetailViewModel(
                     }
                 },
                 onFailure = { e ->
+                    if (e is CancellationException) throw e
                     _ui.update {
                         it.copy(
                             loading = false,
@@ -96,12 +99,13 @@ class StorageDetailViewModel(
         val node = _ui.value.node
         _ui.update { it.copy(confirmDelete = null, busy = true, message = null, error = null) }
         viewModelScope.launch {
-            repository.deleteStorageVolume(node, volid).fold(
+            storageRepo.deleteStorageVolume(node, volid).fold(
                 onSuccess = {
                     _ui.update { it.copy(busy = false, message = "Deleted $volid") }
                     refresh()
                 },
                 onFailure = { e ->
+                    if (e is CancellationException) throw e
                     _ui.update {
                         it.copy(busy = false, error = e.message ?: "Delete failed")
                     }
@@ -110,6 +114,16 @@ class StorageDetailViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        node: String,
+        storage: String,
+    ) : this(
+        storageRepo = repository.storageRepo,
+        node = node,
+        storage = storage,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
         private val node: String,
@@ -117,7 +131,7 @@ class StorageDetailViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return StorageDetailViewModel(repository, node, storage) as T
+            return StorageDetailViewModel(repository.storageRepo, node, storage) as T
         }
     }
 }
