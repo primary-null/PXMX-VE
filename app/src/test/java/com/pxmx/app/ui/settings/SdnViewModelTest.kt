@@ -9,7 +9,6 @@ import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
-import com.pxmx.app.data.model.TaskLogEntry
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.PveException
@@ -157,10 +156,15 @@ class SdnViewModelTest {
         val upidApi = object : ProxmoxApi by demoApi {
             override suspend fun applySdn(): PveResponse<String?> =
                 PveResponse(data = "UPID:demo-node:00001234:00000000:60000000:sdnreload:root@pam:")
-            override suspend fun getTaskStatus(node: String, upid: String): PveResponse<TaskStatus> =
+            override suspend fun taskStatus(node: String, upid: String): PveResponse<TaskStatus> =
                 PveResponse(data = TaskStatus(status = "stopped", exitstatus = "OK"))
-            override suspend fun getTaskLog(node: String, upid: String, limit: Int): PveResponse<List<TaskLogEntry>> =
-                PveResponse(data = listOf(TaskLogEntry(n = 1, t = "Applying SDN configuration")))
+            override suspend fun taskLog(
+                node: String,
+                upid: String,
+                start: Int?,
+                limit: Int?,
+            ): PveResponse<List<Map<String, Any>>> =
+                PveResponse(data = listOf(mapOf("n" to 1, "t" to "Applying SDN configuration")))
         }
         val customRepo = ProxmoxRepository(
             context = ContextWrapper(null),
