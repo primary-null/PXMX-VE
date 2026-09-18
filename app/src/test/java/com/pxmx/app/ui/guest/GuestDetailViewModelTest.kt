@@ -65,13 +65,13 @@ class GuestDetailViewModelTest {
             sessionStore = sessionStore,
             clientFactory = apiProvider,
         )
-        vm = GuestDetailViewModel(
+        vm = GuestDetailViewModel.Factory(
             repository = repository,
             node = "pve1",
             guestType = GuestType.QEMU,
             vmid = 100L,
             name = "web01",
-        )
+        ).create(GuestDetailViewModel::class.java)
         collectJob = CoroutineScope(UnconfinedTestDispatcher()).launch {
             vm.ui.collect()
         }
@@ -219,7 +219,8 @@ class GuestDetailViewModelTest {
                 override fun clear() {}
             },
         )
-        val testVm = GuestDetailViewModel(customRepo, "pve1", GuestType.QEMU, 100L, "web01")
+        val testVm = GuestDetailViewModel.Factory(customRepo, "pve1", GuestType.QEMU, 100L, "web01")
+            .create(GuestDetailViewModel::class.java)
         val job = launch(UnconfinedTestDispatcher()) { testVm.ui.collect() }
 
         // Trigger first action — suspends waiting for gate
@@ -256,7 +257,34 @@ class GuestDetailViewModelTest {
                 ),
             )
         )
-        val tokenVm = GuestDetailViewModel(repository, "pve1", GuestType.QEMU, 100L, "web01")
+        val tokenVm = GuestDetailViewModel.Factory(repository, "pve1", GuestType.QEMU, 100L, "web01")
+            .create(GuestDetailViewModel::class.java)
         assertTrue(tokenVm.ui.value.isTokenSession)
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Direct Domain Repositories Constructor (No ProxmoxRepository Required)
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun directConstructor_wiresDomainRepositoriesWithoutProxmoxRepository() {
+        val directVm = GuestDetailViewModel(
+            guestRepo = repository.guestRepo,
+            storageRepo = repository.storageRepo,
+            nodeRepo = repository.nodeRepo,
+            sessionStore = repository.sessionStore,
+            recentActionRegistry = repository.recentActionRegistry,
+            context = ContextWrapper(null),
+            clusterLogCache = repository.clusterLogCache,
+            activeAptTask = repository.activeAptTask,
+            activeAptLogLine = repository.activeAptLogLine,
+            isUpdatesScreenActive = repository.isUpdatesScreenActive,
+            node = "pve1",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        )
+        assertEquals(100L, directVm.ui.value.vmid)
+        assertEquals("pve1", directVm.ui.value.node)
     }
 }

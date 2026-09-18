@@ -14,8 +14,14 @@ import com.pxmx.app.data.model.ParsedGuestConfig
 import com.pxmx.app.data.model.SnapshotInfo
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.repo.ActiveAptTask
+import com.pxmx.app.data.repo.GuestRepository
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.RecentActionRegistry
+import com.pxmx.app.data.repo.StorageRepository
 import com.pxmx.app.data.repo.filterLatestLogForStrip
+import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.ui.util.Toasts
 import com.pxmx.app.ui.util.tickerFlow
@@ -68,12 +74,20 @@ data class GuestDetailUiState(
 )
 
 class GuestDetailViewModel(
-    private val repository: ProxmoxRepository,
+    private val guestRepo: GuestRepository,
+    private val storageRepo: StorageRepository,
+    private val nodeRepo: NodeRepository,
+    private val sessionStore: SessionStore,
+    private val recentActionRegistry: RecentActionRegistry,
+    private val context: Context,
+    clusterLogCache: StateFlow<List<ClusterLogEntry>>,
+    activeAptTask: StateFlow<ActiveAptTask?>,
+    activeAptLogLine: StateFlow<ClusterLogEntry?>,
+    isUpdatesScreenActive: StateFlow<Boolean>,
     node: String,
     guestType: GuestType,
     vmid: Long,
     name: String,
-    private val context: Context = repository.appContext,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
@@ -82,7 +96,7 @@ class GuestDetailViewModel(
             guestType = guestType,
             vmid = vmid,
             name = name,
-            isTokenSession = repository.sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
+            isTokenSession = sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
         ),
     )
 
@@ -95,7 +109,7 @@ class GuestDetailViewModel(
 
     private val logPollingFlow = tickerFlow(8_000L, emitImmediately = true)
         .onEach {
-            repository.logPoll(max = 5)
+            nodeRepo.logPoll(max = 5)
         }
 
     val ui: StateFlow<GuestDetailUiState> = merge(
@@ -109,19 +123,19 @@ class GuestDetailViewModel(
     )
 
     val latestLog: StateFlow<ClusterLogEntry?> = combine(
-        repository.clusterLogCache,
-        repository.activeAptTask,
-        repository.activeAptLogLine,
-        repository.isUpdatesScreenActive,
+        clusterLogCache,
+        activeAptTask,
+        activeAptLogLine,
+        isUpdatesScreenActive,
     ) { entries, aptTask, aptLine, updatesActive ->
-        val sessionUser = repository.sessionStore.session.value?.username
-            ?: repository.sessionStore.session.value?.config?.username
+        val sessionUser = sessionStore.session.value?.username
+            ?: sessionStore.session.value?.config?.username
         if (!updatesActive && aptTask != null && aptLine != null) {
             aptLine
         } else {
             filterLatestLogForStrip(
                 entries = entries,
-                recentRegistry = repository.recentActionRegistry,
+                recentRegistry = recentActionRegistry,
                 sessionUser = sessionUser,
                 targetVmid = _ui.value.vmid,
                 isUpdatesScreenActive = updatesActive,
@@ -152,7 +166,7 @@ class GuestDetailViewModel(
         val s = _ui.value
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
-            repository.guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
+            guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
                         it.copy(
@@ -185,7 +199,7 @@ class GuestDetailViewModel(
 
     private suspend fun pollLiveStatus() {
         val s = _ui.value
-        repository.guestRepo.guestStatus(s.node, s.guestType, s.vmid).onSuccess { status ->
+        guestRepo.guestStatus(s.node, s.guestType, s.vmid).onSuccess { status ->
             _ui.update {
                 it.copy(
                     status = status,
@@ -199,7 +213,7 @@ class GuestDetailViewModel(
         if (_ui.value.actionInProgress != null) return
         val guestName = _ui.value.name
         runTask("power:${action.apiName}", action.label) { s ->
-            repository.guestRepo.guestAction(s.node, s.guestType, s.vmid, action).fold(
+            guestRepo.guestAction(s.node, s.guestType, s.vmid, action).fold(
                 onSuccess = { upid ->
                     showGuestActionToast(action, guestName)
                     Result.success(upid)
@@ -251,7 +265,7 @@ class GuestDetailViewModel(
         }
         _ui.update { it.copy(showCreateSnapshot = false) }
         runTask("snapshot:create", "Create snapshot") { s ->
-            repository.guestRepo.createSnapshot(
+            guestRepo.createSnapshot(
                 s.node, s.guestType, s.vmid, name.trim(),
                 description.ifBlank { null }, includeRam,
             )
@@ -261,14 +275,14 @@ class GuestDetailViewModel(
     fun deleteSnapshot(name: String) {
         _ui.update { it.copy(confirmDeleteSnap = null) }
         runTask("snapshot:delete", "Delete snapshot") { s ->
-            repository.guestRepo.deleteSnapshot(s.node, s.guestType, s.vmid, name)
+            guestRepo.deleteSnapshot(s.node, s.guestType, s.vmid, name)
         }
     }
 
     fun rollbackSnapshot(name: String) {
         _ui.update { it.copy(confirmRollbackSnap = null) }
         runTask("snapshot:rollback", "Rollback") { s ->
-            repository.guestRepo.rollbackSnapshot(s.node, s.guestType, s.vmid, name)
+            guestRepo.rollbackSnapshot(s.node, s.guestType, s.vmid, name)
         }
     }
 
@@ -280,7 +294,7 @@ class GuestDetailViewModel(
         _ui.update { it.copy(showCreateBackup = false) }
         AppToast.BACKUP_SERVER_STARTED.show(context)
         runTask("backup:create", "Backup") { s ->
-            repository.storageRepo.createBackup(s.node, s.vmid, storage, mode = mode)
+            storageRepo.createBackup(s.node, s.vmid, storage, mode = mode)
         }
     }
 
@@ -288,26 +302,26 @@ class GuestDetailViewModel(
         val volid = vol.volid ?: return
         _ui.update { it.copy(confirmDeleteBackup = null) }
         runTask("backup:delete", "Delete backup") { s ->
-            repository.storageRepo.deleteBackup(s.node, volid)
+            storageRepo.deleteBackup(s.node, volid)
         }
     }
 
     fun attachUsb(hostId: String, usb3: Boolean = true) {
         runTask("usb:attach", "Attach USB") { s ->
-            repository.guestRepo.attachUsb(s.node, s.guestType, s.vmid, hostId, usb3)
+            guestRepo.attachUsb(s.node, s.guestType, s.vmid, hostId, usb3)
         }
     }
 
     fun detachUsb(usbKey: String) {
         runTask("usb:detach", "Detach USB") { s ->
-            repository.guestRepo.detachUsb(s.node, s.guestType, s.vmid, usbKey)
+            guestRepo.detachUsb(s.node, s.guestType, s.vmid, usbKey)
         }
     }
 
     fun refreshUsbOnly() {
         val s = _ui.value
         viewModelScope.launch {
-            repository.guestRepo.listHostUsb(s.node).fold(
+            guestRepo.listHostUsb(s.node).fold(
                 onSuccess = { list -> _ui.update { it.copy(hostUsbs = list) } },
                 onFailure = { e -> _ui.update { it.copy(error = e.message) } },
             )
@@ -336,7 +350,7 @@ class GuestDetailViewModel(
                             return@fold
                         }
                         _ui.update { it.copy(message = "$label started…") }
-                        repository.awaitTask(s.node, upid, timeoutMs = 120_000).fold(
+                        nodeRepo.awaitTask(s.node, upid, timeoutMs = 120_000).fold(
                             onSuccess = { task ->
                                 val msg = if (task.isOk) {
                                     "$label completed"
@@ -374,6 +388,30 @@ class GuestDetailViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+        name: String,
+        context: Context = repository.appContext,
+    ) : this(
+        guestRepo = repository.guestRepo,
+        storageRepo = repository.storageRepo,
+        nodeRepo = repository.nodeRepo,
+        sessionStore = repository.sessionStore,
+        recentActionRegistry = repository.recentActionRegistry,
+        context = context,
+        clusterLogCache = repository.clusterLogCache,
+        activeAptTask = repository.activeAptTask,
+        activeAptLogLine = repository.activeAptLogLine,
+        isUpdatesScreenActive = repository.isUpdatesScreenActive,
+        node = node,
+        guestType = guestType,
+        vmid = vmid,
+        name = name,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
         private val node: String,
@@ -384,7 +422,22 @@ class GuestDetailViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return GuestDetailViewModel(repository, node, guestType, vmid, name, context) as T
+            return GuestDetailViewModel(
+                guestRepo = repository.guestRepo,
+                storageRepo = repository.storageRepo,
+                nodeRepo = repository.nodeRepo,
+                sessionStore = repository.sessionStore,
+                recentActionRegistry = repository.recentActionRegistry,
+                context = context,
+                clusterLogCache = repository.clusterLogCache,
+                activeAptTask = repository.activeAptTask,
+                activeAptLogLine = repository.activeAptLogLine,
+                isUpdatesScreenActive = repository.isUpdatesScreenActive,
+                node = node,
+                guestType = guestType,
+                vmid = vmid,
+                name = name,
+            ) as T
         }
     }
 }
