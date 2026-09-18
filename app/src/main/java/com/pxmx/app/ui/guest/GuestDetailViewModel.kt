@@ -152,7 +152,7 @@ class GuestDetailViewModel(
         val s = _ui.value
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
-            repository.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
+            repository.guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
                         it.copy(
@@ -185,7 +185,7 @@ class GuestDetailViewModel(
 
     private suspend fun pollLiveStatus() {
         val s = _ui.value
-        repository.guestStatus(s.node, s.guestType, s.vmid).onSuccess { status ->
+        repository.guestRepo.guestStatus(s.node, s.guestType, s.vmid).onSuccess { status ->
             _ui.update {
                 it.copy(
                     status = status,
@@ -199,7 +199,7 @@ class GuestDetailViewModel(
         if (_ui.value.actionInProgress != null) return
         val guestName = _ui.value.name
         runTask("power:${action.apiName}", action.label) { s ->
-            repository.guestAction(s.node, s.guestType, s.vmid, action).fold(
+            repository.guestRepo.guestAction(s.node, s.guestType, s.vmid, action).fold(
                 onSuccess = { upid ->
                     showGuestActionToast(action, guestName)
                     Result.success(upid)
@@ -251,7 +251,7 @@ class GuestDetailViewModel(
         }
         _ui.update { it.copy(showCreateSnapshot = false) }
         runTask("snapshot:create", "Create snapshot") { s ->
-            repository.createSnapshot(
+            repository.guestRepo.createSnapshot(
                 s.node, s.guestType, s.vmid, name.trim(),
                 description.ifBlank { null }, includeRam,
             )
@@ -261,14 +261,14 @@ class GuestDetailViewModel(
     fun deleteSnapshot(name: String) {
         _ui.update { it.copy(confirmDeleteSnap = null) }
         runTask("snapshot:delete", "Delete snapshot") { s ->
-            repository.deleteSnapshot(s.node, s.guestType, s.vmid, name)
+            repository.guestRepo.deleteSnapshot(s.node, s.guestType, s.vmid, name)
         }
     }
 
     fun rollbackSnapshot(name: String) {
         _ui.update { it.copy(confirmRollbackSnap = null) }
         runTask("snapshot:rollback", "Rollback") { s ->
-            repository.rollbackSnapshot(s.node, s.guestType, s.vmid, name)
+            repository.guestRepo.rollbackSnapshot(s.node, s.guestType, s.vmid, name)
         }
     }
 
@@ -280,7 +280,7 @@ class GuestDetailViewModel(
         _ui.update { it.copy(showCreateBackup = false) }
         AppToast.BACKUP_SERVER_STARTED.show(context)
         runTask("backup:create", "Backup") { s ->
-            repository.createBackup(s.node, s.vmid, storage, mode = mode)
+            repository.storageRepo.createBackup(s.node, s.vmid, storage, mode = mode)
         }
     }
 
@@ -288,26 +288,26 @@ class GuestDetailViewModel(
         val volid = vol.volid ?: return
         _ui.update { it.copy(confirmDeleteBackup = null) }
         runTask("backup:delete", "Delete backup") { s ->
-            repository.deleteBackup(s.node, volid)
+            repository.storageRepo.deleteBackup(s.node, volid)
         }
     }
 
     fun attachUsb(hostId: String, usb3: Boolean = true) {
         runTask("usb:attach", "Attach USB") { s ->
-            repository.attachUsb(s.node, s.guestType, s.vmid, hostId, usb3)
+            repository.guestRepo.attachUsb(s.node, s.guestType, s.vmid, hostId, usb3)
         }
     }
 
     fun detachUsb(usbKey: String) {
         runTask("usb:detach", "Detach USB") { s ->
-            repository.detachUsb(s.node, s.guestType, s.vmid, usbKey)
+            repository.guestRepo.detachUsb(s.node, s.guestType, s.vmid, usbKey)
         }
     }
 
     fun refreshUsbOnly() {
         val s = _ui.value
         viewModelScope.launch {
-            repository.listHostUsb(s.node).fold(
+            repository.guestRepo.listHostUsb(s.node).fold(
                 onSuccess = { list -> _ui.update { it.copy(hostUsbs = list) } },
                 onFailure = { e -> _ui.update { it.copy(error = e.message) } },
             )
