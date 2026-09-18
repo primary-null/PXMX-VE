@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.SdnStatusInfo
 import com.pxmx.app.data.model.SdnVnetInfo
 import com.pxmx.app.data.model.SdnZoneInfo
+import com.pxmx.app.data.repo.NetworkRepository
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
@@ -40,7 +42,10 @@ data class SdnUiState(
 }
 
 class SdnViewModel(
-    private val repository: ProxmoxRepository,
+    private val networkRepo: NetworkRepository,
+    private val nodeRepo: NodeRepository,
+    private val setActiveAptTask: (node: String, upid: String, type: String) -> Unit = { _, _, _ -> },
+    private val clearActiveAptTask: (upid: String?) -> Unit = { _ -> },
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(SdnUiState())
@@ -88,9 +93,9 @@ class SdnViewModel(
     private suspend fun fetchData() {
         try {
             coroutineScope {
-                val zonesDef = async { repository.listSdnZones() }
-                val vnetsDef = async { repository.listSdnVnets() }
-                val statusDef = async { repository.listSdnStatus() }
+                val zonesDef = async { networkRepo.listSdnZones() }
+                val vnetsDef = async { networkRepo.listSdnVnets() }
+                val statusDef = async { networkRepo.listSdnStatus() }
 
                 val zonesRes = zonesDef.await()
                 val vnetsRes = vnetsDef.await()
@@ -126,10 +131,11 @@ class SdnViewModel(
         if (_ui.value.isApplying) return
         viewModelScope.launch {
             _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "CREATING ZONE") }
-            val res = repository.createSdnZone(zoneId, type)
+            val res = networkRepo.createSdnZone(zoneId, type)
             res.onSuccess {
                 fetchData()
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 _ui.update { it.copy(actionError = e.message ?: "Failed to create zone") }
             }
             _ui.update { it.copy(isApplying = false, jobStatus = null) }
@@ -140,10 +146,11 @@ class SdnViewModel(
         if (_ui.value.isApplying) return
         viewModelScope.launch {
             _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "DELETING ZONE") }
-            val res = repository.deleteSdnZone(zoneId)
+            val res = networkRepo.deleteSdnZone(zoneId)
             res.onSuccess {
                 fetchData()
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 _ui.update { it.copy(actionError = e.message ?: "Failed to delete zone") }
             }
             _ui.update { it.copy(isApplying = false, jobStatus = null) }
@@ -154,10 +161,11 @@ class SdnViewModel(
         if (_ui.value.isApplying) return
         viewModelScope.launch {
             _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "CREATING VNET") }
-            val res = repository.createSdnVnet(vnetId, zoneId)
+            val res = networkRepo.createSdnVnet(vnetId, zoneId)
             res.onSuccess {
                 fetchData()
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 _ui.update { it.copy(actionError = e.message ?: "Failed to create vnet") }
             }
             _ui.update { it.copy(isApplying = false, jobStatus = null) }
@@ -168,10 +176,11 @@ class SdnViewModel(
         if (_ui.value.isApplying) return
         viewModelScope.launch {
             _ui.update { it.copy(isApplying = true, actionError = null, jobStatus = "DELETING VNET") }
-            val res = repository.deleteSdnVnet(vnetId)
+            val res = networkRepo.deleteSdnVnet(vnetId)
             res.onSuccess {
                 fetchData()
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 _ui.update { it.copy(actionError = e.message ?: "Failed to delete vnet") }
             }
             _ui.update { it.copy(isApplying = false, jobStatus = null) }
@@ -194,7 +203,7 @@ class SdnViewModel(
             var taskUpid: String? = null
 
             try {
-                val applyRes = repository.applySdn()
+                val applyRes = networkRepo.applySdn()
                 applyRes.fold(
                     onSuccess = { upidOrOk ->
                         if (upidOrOk.startsWith("UPID:")) {
@@ -202,14 +211,14 @@ class SdnViewModel(
                             val parts = upidOrOk.split(":")
                             val taskNode = if (parts.size > 1 && parts[1].isNotBlank()) parts[1] else "cluster"
 
-                            repository.setActiveAptTask(taskNode, upidOrOk, "sdnreload")
+                            setActiveAptTask(taskNode, upidOrOk, "sdnreload")
 
                             val awaitDef = async {
-                                repository.awaitTask(taskNode, upidOrOk, timeoutMs = 60_000)
+                                nodeRepo.awaitTask(taskNode, upidOrOk, timeoutMs = 60_000)
                             }
 
                             while (!awaitDef.isCompleted) {
-                                val logLines = repository.taskLog(taskNode, upidOrOk, limit = 10)
+                                val logLines = nodeRepo.taskLog(taskNode, upidOrOk, limit = 10)
                                     .getOrDefault(emptyList())
                                 if (logLines.isNotEmpty()) {
                                     _ui.update { it.copy(taskLogLines = logLines) }
@@ -226,12 +235,14 @@ class SdnViewModel(
                                     }
                                 },
                                 onFailure = { e ->
+                                    if (e is CancellationException) throw e
                                     _ui.update { it.copy(actionError = e.message ?: "SDN task failed") }
                                 }
                             )
                         }
                     },
                     onFailure = { e ->
+                        if (e is CancellationException) throw e
                         _ui.update {
                             it.copy(actionError = e.message ?: "Failed to apply SDN")
                         }
@@ -244,7 +255,7 @@ class SdnViewModel(
                     it.copy(actionError = e.message ?: "Failed to apply SDN")
                 }
             } finally {
-                repository.clearActiveAptTask(taskUpid)
+                clearActiveAptTask(taskUpid)
                 // Reload zones/vnets/status and show the NEW status
                 fetchData()
                 _ui.update { it.copy(isApplying = false, jobStatus = null) }
@@ -252,12 +263,24 @@ class SdnViewModel(
         }
     }
 
+    constructor(repository: ProxmoxRepository) : this(
+        networkRepo = repository.networkRepo,
+        nodeRepo = repository.nodeRepo,
+        setActiveAptTask = { node, upid, type -> repository.setActiveAptTask(node, upid, type) },
+        clearActiveAptTask = { upid -> repository.clearActiveAptTask(upid) },
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SdnViewModel(repository) as T
+            return SdnViewModel(
+                networkRepo = repository.networkRepo,
+                nodeRepo = repository.nodeRepo,
+                setActiveAptTask = { node, upid, type -> repository.setActiveAptTask(node, upid, type) },
+                clearActiveAptTask = { upid -> repository.clearActiveAptTask(upid) },
+            ) as T
         }
     }
 }

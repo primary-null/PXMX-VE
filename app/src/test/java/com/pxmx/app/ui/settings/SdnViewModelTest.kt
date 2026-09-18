@@ -9,6 +9,7 @@ import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
+import com.pxmx.app.data.model.TaskLogEntry
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.PveException
@@ -70,7 +71,7 @@ class SdnViewModelTest {
 
     @Test
     fun sdnViewModel_initialLoad_populatesZonesVnetsStatuses() = runBlocking {
-        val vm = SdnViewModel(repository)
+        val vm = SdnViewModel(repository.networkRepo, repository.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -100,7 +101,7 @@ class SdnViewModelTest {
                 override fun clear() {}
             }
         )
-        val vm = SdnViewModel(customRepo)
+        val vm = SdnViewModel(customRepo.networkRepo, customRepo.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         // Trigger applySdn and await completion
@@ -133,7 +134,7 @@ class SdnViewModelTest {
             }
         )
 
-        val vm = SdnViewModel(customRepo)
+        val vm = SdnViewModel(customRepo.networkRepo, customRepo.nodeRepo)
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         vm.applySdn()
@@ -149,9 +150,57 @@ class SdnViewModelTest {
     }
 
     @Test
+    fun sdnViewModel_applySdn_upidTaskFlow_callsAptTaskCallbacks() = runBlocking {
+        var activeTaskSet: Triple<String, String, String>? = null
+        var activeTaskCleared: String? = null
+
+        val upidApi = object : ProxmoxApi by demoApi {
+            override suspend fun applySdn(): PveResponse<String?> =
+                PveResponse(data = "UPID:demo-node:00001234:00000000:60000000:sdnreload:root@pam:")
+            override suspend fun getTaskStatus(node: String, upid: String): PveResponse<TaskStatus> =
+                PveResponse(data = TaskStatus(status = "stopped", exitstatus = "OK"))
+            override suspend fun getTaskLog(node: String, upid: String, limit: Int): PveResponse<List<TaskLogEntry>> =
+                PveResponse(data = listOf(TaskLogEntry(n = 1, t = "Applying SDN configuration")))
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = upidApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(upidApi)
+                override fun clear() {}
+            }
+        )
+
+        val vm = SdnViewModel(
+            networkRepo = customRepo.networkRepo,
+            nodeRepo = customRepo.nodeRepo,
+            setActiveAptTask = { node, upid, type -> activeTaskSet = Triple(node, upid, type) },
+            clearActiveAptTask = { upid -> activeTaskCleared = upid },
+        )
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val applyJob = vm.applySdn()
+        applyJob?.join()
+
+        assertFalse(vm.ui.value.isApplying)
+        assertNull(vm.ui.value.actionError)
+        assertEquals("demo-node", activeTaskSet?.first)
+        assertEquals("UPID:demo-node:00001234:00000000:60000000:sdnreload:root@pam:", activeTaskCleared)
+
+        job.cancel()
+    }
+
+    @Test
     fun sdnViewModel_factory_createsInstance() {
         val factory = SdnViewModel.Factory(repository)
         val vm = factory.create(SdnViewModel::class.java)
+        assertNotNull(vm)
+    }
+
+    @Test
+    fun sdnViewModel_secondaryConstructor_compatibility() {
+        val vm = SdnViewModel(repository)
         assertNotNull(vm)
     }
 }
