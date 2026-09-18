@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.ConsoleSession
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.repo.ConsoleRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +24,7 @@ data class ConsoleUiState(
 )
 
 class ConsoleViewModel(
-    private val repository: ProxmoxRepository,
+    private val consoleRepo: ConsoleRepository,
     private val sessionStore: SessionStore,
     private val node: String,
     private val guestType: GuestType,
@@ -49,7 +51,7 @@ class ConsoleViewModel(
     fun open() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
-            repository.openConsole(node, guestType, vmid, name, cmd).fold(
+            consoleRepo.openConsole(node, guestType, vmid, name, cmd).fold(
                 onSuccess = { session ->
                     _ui.update {
                         it.copy(
@@ -62,6 +64,7 @@ class ConsoleViewModel(
                     }
                 },
                 onFailure = { e ->
+                    if (e is CancellationException) throw e
                     _ui.update {
                         it.copy(loading = false, error = e.message ?: "Console failed")
                     }
@@ -69,6 +72,24 @@ class ConsoleViewModel(
             )
         }
     }
+
+    constructor(
+        repository: ProxmoxRepository,
+        sessionStore: SessionStore,
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+        name: String,
+        cmd: String? = null,
+    ) : this(
+        consoleRepo = repository.consoleRepo,
+        sessionStore = sessionStore,
+        node = node,
+        guestType = guestType,
+        vmid = vmid,
+        name = name,
+        cmd = cmd,
+    )
 
     class Factory(
         private val repository: ProxmoxRepository,
@@ -81,7 +102,15 @@ class ConsoleViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return ConsoleViewModel(repository, sessionStore, node, guestType, vmid, name, cmd) as T
+            return ConsoleViewModel(
+                consoleRepo = repository.consoleRepo,
+                sessionStore = sessionStore,
+                node = node,
+                guestType = guestType,
+                vmid = vmid,
+                name = name,
+                cmd = cmd,
+            ) as T
         }
     }
 }

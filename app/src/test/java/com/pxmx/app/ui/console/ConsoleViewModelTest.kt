@@ -201,4 +201,25 @@ class ConsoleViewModelTest {
         val vm = factory.create(ConsoleViewModel::class.java)
         assertNotNull(vm)
     }
+
+    @Test
+    fun consoleViewModel_directConsoleRepositoryConstructor_success() = runBlocking {
+        val vm = ConsoleViewModel(
+            consoleRepo = repository.consoleRepo,
+            sessionStore = sessionStore,
+            node = "alpha",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        )
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val state = vm.ui.value
+        assertFalse(state.loading)
+        assertNull(state.error)
+        assertNotNull(state.session)
+        assertEquals("web01", state.session?.name)
+
+        job.cancel()
+    }
 }
