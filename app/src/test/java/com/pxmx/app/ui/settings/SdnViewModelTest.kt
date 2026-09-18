@@ -150,6 +150,7 @@ class SdnViewModelTest {
 
     @Test
     fun sdnViewModel_applySdn_upidTaskFlow_callsAptTaskCallbacks() = runBlocking {
+        Dispatchers.setMain(Dispatchers.Default)
         var activeTaskSet: Triple<String, String, String>? = null
         var activeTaskCleared: String? = null
 
@@ -182,10 +183,10 @@ class SdnViewModelTest {
             setActiveAptTask = { node, upid, type -> activeTaskSet = Triple(node, upid, type) },
             clearActiveAptTask = { upid -> activeTaskCleared = upid },
         )
-        val job = launch(testDispatcher) { vm.ui.collect() }
+        val job = launch(Dispatchers.Default) { vm.ui.collect() }
 
         val applyJob = vm.applySdn()
-        applyJob?.join()
+        kotlinx.coroutines.withTimeout(10_000) { applyJob?.join() }
 
         assertFalse(vm.ui.value.isApplying)
         assertNull(vm.ui.value.actionError)
