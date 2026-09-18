@@ -8,8 +8,11 @@ import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeTaskInfo
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.ui.util.tickerFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,14 +35,15 @@ data class NodeDetailUiState(
 )
 
 class NodeDetailViewModel(
-    private val repository: ProxmoxRepository,
+    private val nodeRepo: NodeRepository,
+    private val sessionStore: SessionStore,
     node: String,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
         NodeDetailUiState(
             node = node,
-            isTokenSession = repository.sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
+            isTokenSession = sessionStore.session.value?.config?.authMode == AuthMode.API_TOKEN,
         ),
     )
 
@@ -47,7 +51,7 @@ class NodeDetailViewModel(
         .onEach {
             if (!_uiState.value.loading && !_uiState.value.refreshing) {
                 // Silent live metrics for node status only
-                repository.loadNodeBundle(_uiState.value.node).onSuccess { bundle ->
+                nodeRepo.loadNodeBundle(_uiState.value.node).onSuccess { bundle ->
                     _uiState.update {
                         it.copy(
                             status = bundle.status,
@@ -82,7 +86,7 @@ class NodeDetailViewModel(
                     error = null,
                 )
             }
-            repository.loadNodeBundle(node).fold(
+            nodeRepo.loadNodeBundle(node).fold(
                 onSuccess = { bundle ->
                     _uiState.update {
                         it.copy(
@@ -95,6 +99,7 @@ class NodeDetailViewModel(
                     }
                 },
                 onFailure = { e ->
+                    if (e is CancellationException) throw e
                     _uiState.update {
                         it.copy(
                             loading = false,
@@ -108,9 +113,18 @@ class NodeDetailViewModel(
     }
 
     fun getBrowserUrl(): String? {
-        val s = repository.sessionStore.session.value
+        val s = sessionStore.session.value
         return s?.config?.let { "https://${it.displayHost}" }
     }
+
+    constructor(
+        repository: ProxmoxRepository,
+        node: String,
+    ) : this(
+        nodeRepo = repository.nodeRepo,
+        sessionStore = repository.sessionStore,
+        node = node,
+    )
 
     class Factory(
         private val repository: ProxmoxRepository,
@@ -118,7 +132,11 @@ class NodeDetailViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NodeDetailViewModel(repository, node) as T
+            return NodeDetailViewModel(
+                nodeRepo = repository.nodeRepo,
+                sessionStore = repository.sessionStore,
+                node = node,
+            ) as T
         }
     }
 }

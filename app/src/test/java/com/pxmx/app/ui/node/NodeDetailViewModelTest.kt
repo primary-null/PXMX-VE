@@ -6,6 +6,7 @@ import com.pxmx.app.data.api.DemoApi
 import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.NodeBundle
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
@@ -74,7 +75,7 @@ class NodeDetailViewModelTest {
 
     @Test
     fun nodeDetailViewModel_initialLoad_populatesNodeBundle() = runBlocking {
-        val vm = NodeDetailViewModel(repository, "alpha")
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -82,6 +83,7 @@ class NodeDetailViewModelTest {
         assertFalse(state.loading)
         assertFalse(state.refreshing)
         assertNull(state.error)
+        assertFalse(state.isTokenSession)
 
         // DemoApi provides status for alpha
         assertNotNull(state.status)
@@ -94,7 +96,7 @@ class NodeDetailViewModelTest {
 
     @Test
     fun nodeDetailViewModel_refresh_setsRefreshingFlagAndUpdatesData() = runBlocking {
-        val vm = NodeDetailViewModel(repository, "alpha")
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         // Initial state loaded
@@ -120,7 +122,7 @@ class NodeDetailViewModelTest {
             }
         )
 
-        val vm = NodeDetailViewModel(customRepo, "offline-node")
+        val vm = NodeDetailViewModel(customRepo.nodeRepo, sessionStore, "offline-node")
         val job = launch(testDispatcher) { vm.ui.collect() }
 
         val state = vm.ui.value
@@ -134,7 +136,7 @@ class NodeDetailViewModelTest {
 
     @Test
     fun nodeDetailViewModel_getBrowserUrl_returnsFormattedHost() {
-        val vm = NodeDetailViewModel(repository, "alpha")
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
         val url = vm.getBrowserUrl()
         assertEquals("https://192.168.1.100:8006", url)
     }
@@ -145,5 +147,37 @@ class NodeDetailViewModelTest {
         val vm = factory.create(NodeDetailViewModel::class.java)
         assertNotNull(vm)
         assertEquals("beta", vm.ui.value.node)
+    }
+
+    @Test
+    fun nodeDetailViewModel_secondaryConstructor_compatibility() {
+        val vm = NodeDetailViewModel(repository, "gamma")
+        assertEquals("gamma", vm.ui.value.node)
+    }
+
+    @Test
+    fun nodeDetailViewModel_isTokenSession_whenPasswordSession_evaluatesToFalse() {
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
+        assertFalse(vm.ui.value.isTokenSession)
+    }
+
+    @Test
+    fun nodeDetailViewModel_isTokenSession_whenApiTokenSession_evaluatesToTrue() {
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(
+                    host = "192.168.1.100",
+                    port = 8006,
+                    authMode = AuthMode.API_TOKEN,
+                    apiToken = "user@pam!token=12345",
+                ),
+            )
+        )
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
+        assertTrue(vm.ui.value.isTokenSession)
+
+        val factory = NodeDetailViewModel.Factory(repository, "alpha")
+        val factoryVm = factory.create(NodeDetailViewModel::class.java)
+        assertTrue(factoryVm.ui.value.isTokenSession)
     }
 }
