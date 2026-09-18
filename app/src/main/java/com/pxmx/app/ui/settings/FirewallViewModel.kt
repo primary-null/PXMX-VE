@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.FirewallSnapshot
+import com.pxmx.app.data.repo.NetworkRepository
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
@@ -37,7 +39,8 @@ data class FirewallUiState(
 }
 
 class FirewallViewModel(
-    private val repository: ProxmoxRepository,
+    private val networkRepo: NetworkRepository,
+    private val nodeRepo: NodeRepository,
     coroutineScope: CoroutineScope? = null,
 ) : ViewModel() {
 
@@ -91,12 +94,12 @@ class FirewallViewModel(
     internal suspend fun fetchData() {
         try {
             coroutineScope {
-                val clusterDef = async { repository.loadClusterFirewall() }
-                val nodesDef = async { repository.listNodeNames() }
+                val clusterDef = async { networkRepo.loadClusterFirewall() }
+                val nodesDef = async { nodeRepo.listNodeNames() }
                 val clusterRes = clusterDef.await()
                 val nodesRes = nodesDef.await()
                 val nodeNames = nodesRes.getOrElse { _ui.value.nodeNames }
-                val nodeResults = nodeNames.associateWith { node -> repository.loadNodeFirewall(node) }
+                val nodeResults = nodeNames.associateWith { node -> networkRepo.loadNodeFirewall(node) }
 
                 _ui.update {
                     it.copy(
@@ -150,16 +153,16 @@ class FirewallViewModel(
             _ui.update { it.copy(isApplying = true, actionError = null) }
             try {
                 val result = if (target == "cluster") {
-                    repository.setClusterFirewallEnable(enable, digest)
+                    networkRepo.setClusterFirewallEnable(enable, digest)
                 } else {
-                    repository.setNodeFirewallEnable(target, enable, digest)
+                    networkRepo.setNodeFirewallEnable(target, enable, digest)
                 }
 
                 result.fold(
                     onSuccess = {
                         // Immediately reload snapshot and show the NEW enable/policy
                         if (target == "cluster") {
-                            val reloaded = repository.loadClusterFirewall()
+                            val reloaded = networkRepo.loadClusterFirewall()
                             _ui.update {
                                 it.copy(
                                     isApplying = false,
@@ -169,7 +172,7 @@ class FirewallViewModel(
                                 )
                             }
                         } else {
-                            val reloaded = repository.loadNodeFirewall(target)
+                            val reloaded = networkRepo.loadNodeFirewall(target)
                             _ui.update {
                                 val updatedSnaps = it.nodeSnapshots.toMutableMap()
                                 reloaded.getOrNull()?.let { snap -> updatedSnaps[target] = snap }
@@ -209,12 +212,24 @@ class FirewallViewModel(
             "PXMX will not enable an empty datacenter firewall. Add an ACCEPT rule for 8006 first."
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        coroutineScope: CoroutineScope? = null,
+    ) : this(
+        networkRepo = repository.networkRepo,
+        nodeRepo = repository.nodeRepo,
+        coroutineScope = coroutineScope,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return FirewallViewModel(repository) as T
+            return FirewallViewModel(
+                networkRepo = repository.networkRepo,
+                nodeRepo = repository.nodeRepo,
+            ) as T
         }
     }
 }
