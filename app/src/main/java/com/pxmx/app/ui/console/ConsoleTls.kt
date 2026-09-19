@@ -9,6 +9,12 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /** The console transport, shared by resource and WebSocket requests. */
 internal fun createConsoleClient(
@@ -52,4 +58,24 @@ internal fun createConsoleClient(
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
+}
+
+/**
+ * Teardowns OkHttp resources (cancels active calls and evicts connection pool) off the main thread.
+ * Evicting OkHttp connection pools closes TLS sockets, which must not happen on Android's main thread
+ * (avoids [android.os.NetworkOnMainThreadException]).
+ */
+internal fun teardownConsoleClientAsync(
+    client: OkHttpClient,
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    scope: CoroutineScope = CoroutineScope(dispatcher),
+): Job = scope.launch(dispatcher) {
+    try {
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Throwable) {
+        // Best-effort teardown; ignore socket closing errors
+    }
 }

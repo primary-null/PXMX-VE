@@ -300,8 +300,7 @@ fun ConsoleScreen(
             httpBridgeHolder[0]?.dispose()
             webViewInstance.removeJavascriptInterface("PXMXConsoleSocket")
             webViewInstance.removeJavascriptInterface("PXMXConsoleHttp")
-            fetchClient.dispatcher.cancelAll()
-            fetchClient.connectionPool.evictAll()
+            teardownConsoleClientAsync(fetchClient)
             webViewInstance.stopLoading()
             webViewInstance.destroy()
         }

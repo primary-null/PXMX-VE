@@ -74,6 +74,26 @@ class ConsoleTlsTest {
             assertTrue("Credentials must not cross a rejected TLS connection", server.requests.isEmpty())
         }
     }
+
+    @Test
+    fun `teardownConsoleClientAsync cancels calls and evicts connection pool off main thread`() = kotlinx.coroutines.test.runTest {
+        val client = okhttp3.OkHttpClient()
+        val req = Request.Builder().url("https://10.255.255.1/timeout").build()
+        val call = client.newCall(req)
+        call.enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {}
+        })
+        assertTrue(client.dispatcher.queuedCallsCount() > 0 || client.dispatcher.runningCallsCount() > 0)
+
+        val job = teardownConsoleClientAsync(client, kotlinx.coroutines.Dispatchers.Default)
+        job.join()
+
+        assertEquals(0, client.dispatcher.queuedCallsCount())
+        assertEquals(0, client.dispatcher.runningCallsCount())
+        assertEquals(0, client.connectionPool.connectionCount())
+        assertTrue(call.isCanceled())
+    }
 }
 
 /** Real loopback TLS with a keytool-generated test identity; no server credentials or extra libraries. */
