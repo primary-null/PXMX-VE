@@ -244,13 +244,25 @@ class HomeViewModelTest {
         assertEquals(3, rows.size)
     }
 
+    private fun createViewModel(repo: ProxmoxRepository = repository): HomeViewModel {
+        return HomeViewModel(
+            nodeRepo = repo.nodeRepo,
+            guestRepo = repo.guestRepo,
+            storageRepo = repo.storageRepo,
+            authRepo = repo.authRepo,
+            sessionStore = sessionStore,
+            context = repo.appContext,
+            latestLog = repo.latestLog,
+        )
+    }
+
     // -------------------------------------------------------------------------
     // 4. ViewModel Dialog Toggles & State Mutation
     // -------------------------------------------------------------------------
 
     @Test
     fun homeViewModel_dialogToggles_updateUiState() = runBlocking {
-        val vm = HomeViewModel(repository, sessionStore)
+        val vm = createViewModel()
         val collectJob = launch(UnconfinedTestDispatcher()) { vm.ui.collect() }
 
         vm.showDeployDialog(true)
@@ -273,7 +285,7 @@ class HomeViewModelTest {
 
     @Test
     fun homeViewModel_filterAndSort_persistsInUiState() = runBlocking {
-        val vm = HomeViewModel(repository, sessionStore)
+        val vm = createViewModel()
         val collectJob = launch(UnconfinedTestDispatcher()) { vm.ui.collect() }
 
         vm.setFilter(ResourceFilter.STORAGE)
@@ -290,7 +302,7 @@ class HomeViewModelTest {
 
     @Test
     fun homeViewModel_quickPowerToggle_and_action_dispatches() = runBlocking {
-        val vm = HomeViewModel(repository, sessionStore)
+        val vm = createViewModel()
 
         val runningGuest = sampleResources.first { it.id == "qemu/100" }
         val stoppedGuest = sampleResources.first { it.id == "qemu/101" }
@@ -326,7 +338,7 @@ class HomeViewModelTest {
                 override fun clear() {}
             },
         )
-        val testVm = HomeViewModel(customRepo, sessionStore)
+        val testVm = createViewModel(customRepo)
         val job = launch(UnconfinedTestDispatcher()) { testVm.ui.collect() }
         val guest = sampleResources.first { it.id == "qemu/100" }
 
@@ -342,5 +354,15 @@ class HomeViewModelTest {
         // Release gate and clean up
         gate.complete(Unit)
         job.cancel()
+    }
+
+    @Test
+    fun homeViewModel_factory_and_secondaryConstructor_compatibility() {
+        val factory = HomeViewModel.Factory(repository, sessionStore)
+        val vmFromFactory = factory.create(HomeViewModel::class.java)
+        assertNotNull(vmFromFactory)
+
+        val vmFromSecondary = HomeViewModel(repository, sessionStore)
+        assertNotNull(vmFromSecondary)
     }
 }

@@ -90,6 +90,10 @@ class StorageRepository(
     suspend fun deleteStorageVolume(node: String, volid: String): Result<String> =
         deleteBackup(node, volid)
 
+    suspend fun listNodeStorageNames(node: String): Result<List<String>> = pveClient.apiCall { api ->
+        api.nodeStorage(node).data.orEmpty().mapNotNull { it["storage"]?.toString() }
+    }
+
     suspend fun loadBackupsForVmid(
         api: ProxmoxApi,
         node: String,

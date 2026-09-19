@@ -12,7 +12,12 @@ import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.SiteInfo
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.data.LivePoll
+import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.repo.AuthRepository
+import com.pxmx.app.data.repo.GuestRepository
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.StorageRepository
 import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.ui.util.Toasts
@@ -256,9 +261,13 @@ data class HomeUiState(
 }
 
 class HomeViewModel(
-    private val repository: ProxmoxRepository,
+    private val nodeRepo: NodeRepository,
+    private val guestRepo: GuestRepository,
+    private val storageRepo: StorageRepository,
+    private val authRepo: AuthRepository,
     private val sessionStore: SessionStore,
-    private val context: Context = repository.appContext,
+    private val context: Context,
+    val latestLog: StateFlow<ClusterLogEntry?>,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
@@ -281,7 +290,7 @@ class HomeViewModel(
     private val logPollFlow = tickerFlow(8_000L, emitImmediately = true)
         .onEach {
             if (sessionStore.session.value != null) {
-                repository.logPoll(max = 5)
+                nodeRepo.logPoll(max = 5)
             }
         }
 
@@ -294,8 +303,6 @@ class HomeViewModel(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = _ui.value,
     )
-
-    val latestLog = repository.latestLog
 
     val profiles: StateFlow<List<SavedProfile>> = sessionStore.profiles
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sessionStore.listProfiles())
@@ -325,7 +332,7 @@ class HomeViewModel(
 
     /** Refresh metrics without spinners or error flash. */
     private suspend fun silentRefresh() {
-        repository.listResources().onSuccess { list ->
+        nodeRepo.listResources().onSuccess { list ->
             _ui.update { it.copy(resources = mergeResourceSections(it.resources, list), error = resourceReadError(list)) }
         }
     }
@@ -390,8 +397,8 @@ class HomeViewModel(
                 )
             }
             coroutineScope {
-                val siteDef = async { repository.siteInfo() }
-                val listDef = async { repository.listResources() }
+                val siteDef = async { nodeRepo.siteInfo() }
+                val listDef = async { nodeRepo.listResources() }
                 val site = siteDef.await().getOrNull()
                 val listResult = listDef.await()
                 listResult.fold(
@@ -422,7 +429,7 @@ class HomeViewModel(
     }
 
     fun logout() {
-        repository.logout(rememberAsPrevious = true)
+        authRepo.logout(rememberAsPrevious = true)
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -446,7 +453,7 @@ class HomeViewModel(
         AppToast.DEPLOY_STARTED.show(context, source.displayName)
         viewModelScope.launch {
             _ui.update { it.copy(deploying = true, error = null) }
-            repository.deployFromTemplate(source, newId, name).fold(
+            guestRepo.deployFromTemplate(source, newId, name).fold(
                 onSuccess = { upid ->
                     _ui.update { it.copy(deploying = false, showDeployDialog = false, message = "Deploying $name (VMID $newId)") }
                     AppToast.DEPLOY_CREATED.show(context, name, newId)
@@ -510,7 +517,7 @@ class HomeViewModel(
         patchGuest(id) { it.copy(onboot = if (enabled) 1 else 0) }
         markBusy(id, true)
         viewModelScope.launch {
-            repository.setGuestOnboot(node, guestType, vmid, enabled).fold(
+            guestRepo.setGuestOnboot(node, guestType, vmid, enabled).fold(
                 onSuccess = {
                     markBusy(id, false)
                     _ui.update {
@@ -539,7 +546,7 @@ class HomeViewModel(
         markBusy(id, true)
         AppToast.BACKUP_SERVER_STARTED.show(context)
         viewModelScope.launch {
-            repository.createBackup(node, vmid, storage, mode).fold(
+            storageRepo.createBackup(node, vmid, storage, mode).fold(
                 onSuccess = {
                     markBusy(id, false)
                     _ui.update { it.copy(message = "Backup started on server") }
@@ -561,7 +568,7 @@ class HomeViewModel(
         markBusy(id, true)
         AppToast.BACKUP_DEVICE_STARTED.show(context)
         viewModelScope.launch {
-            repository.backupToDevice(node, type, vmid, storage) { progress ->
+            storageRepo.backupToDevice(node, type, vmid, storage) { progress ->
                 _ui.update { it.copy(message = progress) }
             }.fold(
                 onSuccess = { filename ->
@@ -580,7 +587,7 @@ class HomeViewModel(
 
     /** Helper to get storage for a node (for the backup dialog). */
     suspend fun getNodeStorage(node: String): List<String> {
-        return repository.listNodeStorageNames(node).getOrDefault(emptyList())
+        return storageRepo.listNodeStorageNames(node).getOrDefault(emptyList())
     }
 
     private fun runGuestAction(
@@ -595,7 +602,7 @@ class HomeViewModel(
         markBusy(id, true)
         viewModelScope.launch {
             try {
-                repository.guestAction(node, guestType, vmid, action).fold(
+                guestRepo.guestAction(node, guestType, vmid, action).fold(
                     onSuccess = {
                         markBusy(id, false)
                         _ui.update { it.copy(message = "${action.label} started") }
@@ -649,6 +656,20 @@ class HomeViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        sessionStore: SessionStore,
+        context: Context = repository.appContext,
+    ) : this(
+        nodeRepo = repository.nodeRepo,
+        guestRepo = repository.guestRepo,
+        storageRepo = repository.storageRepo,
+        authRepo = repository.authRepo,
+        sessionStore = sessionStore,
+        context = context,
+        latestLog = repository.latestLog,
+    )
+
     class Factory(
         private val repository: ProxmoxRepository,
         private val sessionStore: SessionStore,
@@ -656,7 +677,15 @@ class HomeViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return HomeViewModel(repository, sessionStore, context) as T
+            return HomeViewModel(
+                nodeRepo = repository.nodeRepo,
+                guestRepo = repository.guestRepo,
+                storageRepo = repository.storageRepo,
+                authRepo = repository.authRepo,
+                sessionStore = sessionStore,
+                context = context,
+                latestLog = repository.latestLog,
+            ) as T
         }
     }
 
