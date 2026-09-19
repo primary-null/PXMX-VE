@@ -8,7 +8,10 @@ import com.pxmx.app.data.model.FirewallSnapshot
 import com.pxmx.app.data.model.NodeUpdateSnapshot
 import com.pxmx.app.data.model.SdnVnetInfo
 import com.pxmx.app.data.model.SdnZoneInfo
+import com.pxmx.app.data.repo.NetworkRepository
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.UpdateRepository
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +40,9 @@ data class SettingsUiState(
 )
 
 class SettingsViewModel(
-    private val repository: ProxmoxRepository,
+    private val networkRepo: NetworkRepository,
+    private val nodeRepo: NodeRepository,
+    private val updateRepo: UpdateRepository,
     coroutineScope: CoroutineScope? = null,
 ) : ViewModel() {
 
@@ -82,10 +87,10 @@ class SettingsViewModel(
     suspend fun pollCheap() {
         try {
             coroutineScope {
-                val fwDef = async { repository.loadClusterFirewall() }
-                val zonesDef = async { repository.listSdnZones() }
-                val vnetsDef = async { repository.listSdnVnets() }
-                val logsDef = async { repository.logHistory(max = 20) }
+                val fwDef = async { networkRepo.loadClusterFirewall() }
+                val zonesDef = async { networkRepo.listSdnZones() }
+                val vnetsDef = async { networkRepo.listSdnVnets() }
+                val logsDef = async { nodeRepo.logHistory(max = 20) }
 
                 val fwRes = fwDef.await()
                 val zonesRes = zonesDef.await()
@@ -117,7 +122,7 @@ class SettingsViewModel(
 
     suspend fun loadUpdates() {
         try {
-            val updatesRes = repository.listClusterUpdates()
+            val updatesRes = updateRepo.listClusterUpdates()
             val updatesSub = formatUpdatesSubtitle(updatesRes)
             _ui.update {
                 it.copy(
@@ -132,10 +137,24 @@ class SettingsViewModel(
         }
     }
 
+    constructor(
+        repository: ProxmoxRepository,
+        coroutineScope: CoroutineScope? = null,
+    ) : this(
+        networkRepo = repository.networkRepo,
+        nodeRepo = repository.nodeRepo,
+        updateRepo = repository.updateRepo,
+        coroutineScope = coroutineScope,
+    )
+
     class Factory(private val repository: ProxmoxRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SettingsViewModel(repository) as T
+            return SettingsViewModel(
+                networkRepo = repository.networkRepo,
+                nodeRepo = repository.nodeRepo,
+                updateRepo = repository.updateRepo,
+            ) as T
         }
     }
 

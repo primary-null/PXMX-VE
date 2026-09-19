@@ -629,4 +629,27 @@ class SettingsClusterOpsTest {
             exception?.message?.contains("403") == true || exception?.cause is PveHttpException,
         )
     }
+
+    @Test
+    fun settingsViewModel_primaryConstructor_and_factory_and_secondaryConstructor() = runBlocking {
+        val repository = createRepository(demoApi)
+
+        // Primary constructor with sliced repos
+        val primaryVm = SettingsViewModel(
+            networkRepo = repository.networkRepo,
+            nodeRepo = repository.nodeRepo,
+            updateRepo = repository.updateRepo,
+            coroutineScope = CoroutineScope(Dispatchers.Default),
+        )
+        assertNotNull(primaryVm)
+
+        // Factory with facade repository
+        val factory = SettingsViewModel.Factory(repository)
+        val factoryVm = factory.create(SettingsViewModel::class.java)
+        assertNotNull(factoryVm)
+
+        // Secondary constructor with facade repository
+        val secondaryVm = SettingsViewModel(repository)
+        assertNotNull(secondaryVm)
+    }
 }
