@@ -368,4 +368,27 @@ class LoginViewModelTest {
         val suffix = ProfileConflictResolver.generateSuffixLabel("Home Lab", profiles)
         assertEquals("Home Lab (3)", suffix)
     }
+
+    @Test
+    fun constructorAndFactory_withSlicedDependencies_initializesCorrectly() {
+        // Test primary constructor with sliced dependencies
+        val vmPrimary = LoginViewModel(
+            authRepo = repository.authRepo,
+            localNet = repository.localNet,
+            sessionStore = sessionStore,
+        )
+        assertNotNull(vmPrimary.ui.value)
+        assertEquals("", vmPrimary.ui.value.host)
+
+        // Test Factory
+        val factory = LoginViewModel.Factory(repository, sessionStore)
+        val vmFactory = factory.create(LoginViewModel::class.java)
+        assertNotNull(vmFactory.ui.value)
+        assertEquals("", vmFactory.ui.value.host)
+
+        // Test secondary constructor (ProxmoxRepository, SessionStore)
+        val vmSecondary = LoginViewModel(repository, sessionStore)
+        assertNotNull(vmSecondary.ui.value)
+        assertEquals("", vmSecondary.ui.value.host)
+    }
 }

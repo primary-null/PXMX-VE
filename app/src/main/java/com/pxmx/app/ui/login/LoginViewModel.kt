@@ -11,7 +11,9 @@ import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
+import com.pxmx.app.data.net.LocalNet
 import com.pxmx.app.data.net.SubnetInfo
+import com.pxmx.app.data.repo.AuthRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.CancellationException
@@ -74,9 +76,19 @@ data class LoginUiState(
 )
 
 class LoginViewModel(
-    private val repository: ProxmoxRepository,
+    private val authRepo: AuthRepository,
+    private val localNet: LocalNet,
     private val sessionStore: SessionStore,
 ) : ViewModel() {
+
+    constructor(
+        repository: ProxmoxRepository,
+        sessionStore: SessionStore,
+    ) : this(
+        authRepo = repository.authRepo,
+        localNet = repository.localNet,
+        sessionStore = sessionStore,
+    )
 
     private val _ui = MutableStateFlow(
         LoginUiState(autoConnect = sessionStore.autoConnect.value),
@@ -147,7 +159,7 @@ class LoginViewModel(
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                repository.completeTfa(
+                authRepo.completeTfa(
                     config = config,
                     partialTicket = ticket,
                     otp = code,
@@ -234,7 +246,7 @@ class LoginViewModel(
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                when (val outcome = repository.loginWithProfile(profileId)) {
+                when (val outcome = authRepo.loginWithProfile(profileId)) {
                     is LoginOutcome.Success -> {
                         sessionStore.clearPreviousSession()
                         _ui.update { s -> s.copy(loading = false, loggedIn = true) }
@@ -384,7 +396,7 @@ class LoginViewModel(
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                when (val outcome = repository.login(
+                when (val outcome = authRepo.login(
                     config = config,
                     saveCredentials = state.saveCredentials,
                     profileId = overrideProfileId,
@@ -499,10 +511,10 @@ class LoginViewModel(
             }
 
             try {
-                val scannable = repository.localNet.getScannableSubnets()
+                val scannable = localNet.getScannableSubnets()
                 if (scannable.isEmpty()) {
                     // Fallback to determine specific reason
-                    repository.localNet.scanSubnet(null).collect { progress ->
+                    localNet.scanSubnet(null).collect { progress ->
                          _ui.update { state ->
                             state.copy(
                                 scanState = state.scanState.copy(
@@ -516,7 +528,7 @@ class LoginViewModel(
                     return@launch
                 }
 
-                repository.localNet.scanSubnet(null).collect { progress ->
+                localNet.scanSubnet(null).collect { progress ->
                     _ui.update { state ->
                         val currentVerified = progress.verified.toMutableList()
                         val currentDetected = progress.pveDetected.toMutableList()
@@ -565,7 +577,7 @@ class LoginViewModel(
                         val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
                         if (profile != null && profile.hasSavedSecret) {
                             viewModelScope.launch {
-                                val testResult = repository.testProfileConnection(profile)
+                                val testResult = authRepo.testProfileConnection(profile)
                                 if (testResult.online && testResult.version != null) {
                                     _ui.update { state ->
                                         val elevated = discovered.copy(
@@ -653,7 +665,7 @@ class LoginViewModel(
                     return@launch
                 }
 
-                val testResult = repository.testProfileConnection(profile)
+                val testResult = authRepo.testProfileConnection(profile)
                 _ui.update {
                     it.copy(
                         profileTests = it.profileTests + (profileId to ProfileTestState(
@@ -722,7 +734,11 @@ class LoginViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return LoginViewModel(repository, sessionStore) as T
+            return LoginViewModel(
+                authRepo = repository.authRepo,
+                localNet = repository.localNet,
+                sessionStore = sessionStore,
+            ) as T
         }
     }
 }
