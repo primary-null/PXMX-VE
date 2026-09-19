@@ -7,7 +7,9 @@ import com.pxmx.app.data.model.AptPackageUpdate
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeUpdateSnapshot
+import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.UpdateRepository
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -115,9 +117,25 @@ fun isSecurityUpdate(upd: AptPackageUpdate): Boolean {
 }
 
 class UpdatesViewModel(
-    private val repository: ProxmoxRepository,
-    private val sessionStore: SessionStore = repository.sessionStore,
+    private val updateRepo: UpdateRepository,
+    private val nodeRepo: NodeRepository,
+    private val sessionStore: SessionStore,
+    private val setUpdatesScreenActive: (Boolean) -> Unit = {},
+    private val setActiveAptTask: (node: String, upid: String, type: String) -> Unit = { _, _, _ -> },
+    private val clearActiveAptTask: (upid: String?) -> Unit = { _ -> },
 ) : ViewModel() {
+
+    constructor(
+        repository: ProxmoxRepository,
+        sessionStore: SessionStore? = null,
+    ) : this(
+        updateRepo = repository.updateRepo,
+        nodeRepo = repository.nodeRepo,
+        sessionStore = sessionStore ?: repository.sessionStore,
+        setUpdatesScreenActive = { active -> repository.setUpdatesScreenActive(active) },
+        setActiveAptTask = { node, upid, type -> repository.setActiveAptTask(node, upid, type) },
+        clearActiveAptTask = { upid -> repository.clearActiveAptTask(upid) },
+    )
 
     private val _ui = MutableStateFlow(
         UpdatesUiState(
@@ -134,28 +152,28 @@ class UpdatesViewModel(
     }
 
     fun setScreenActive(active: Boolean) {
-        repository.setUpdatesScreenActive(active)
+        setUpdatesScreenActive(active)
     }
 
     private fun resolveServerHost(): String {
-        val s = sessionStore.session.value ?: repository.sessionStore.session.value
+        val s = sessionStore.session.value
         val cfg = s?.config ?: return "cluster:8006"
         return if (cfg.host.equals("demo", ignoreCase = true)) "demo:8006"
         else cfg.displayHost
     }
 
     private fun resolvePveVersion(): String {
-        val s = sessionStore.session.value ?: repository.sessionStore.session.value
+        val s = sessionStore.session.value
         return s?.version?.display ?: "PVE 8.x"
     }
 
     private fun resolvePveVersionMajor(): Int? {
-        val s = sessionStore.session.value ?: repository.sessionStore.session.value
+        val s = sessionStore.session.value
         return s?.version?.major
     }
 
     private fun resolveSshAvailability(): SshUpgradeAvailability {
-        val s = sessionStore.session.value ?: repository.sessionStore.session.value
+        val s = sessionStore.session.value
         val cfg = s?.config ?: return SshUpgradeAvailability.NO_SAVED_SECRET
         if (cfg.host.equals("demo", ignoreCase = true)) return SshUpgradeAvailability.AVAILABLE
         if (cfg.authMode != AuthMode.PASSWORD) return SshUpgradeAvailability.API_TOKEN_AUTH
@@ -179,7 +197,7 @@ class UpdatesViewModel(
                 )
             }
             try {
-                repository.listClusterUpdates().fold(
+                updateRepo.listClusterUpdates().fold(
                     onSuccess = { list ->
                         _ui.update { state ->
                             val updatedProgress = state.progress.toMutableMap()
@@ -204,7 +222,7 @@ class UpdatesViewModel(
                         // Fetch node telemetry for hybrid display
                         list.forEach { snap ->
                             launch {
-                                repository.nodeStatus(snap.node).onSuccess { status ->
+                                nodeRepo.nodeStatus(snap.node).onSuccess { status ->
                                     _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (snap.node to status)) }
                                 }
                             }
@@ -275,12 +293,12 @@ class UpdatesViewModel(
 
             val backendJob = launch {
                 try {
-                    repository.refreshAptUpdates(node).fold(
+                    updateRepo.refreshAptUpdates(node).fold(
                         onSuccess = { upid ->
                             if (upid.startsWith("UPID:")) {
                                 taskUpid = upid
-                                repository.setActiveAptTask(node, upid, "aptupdate")
-                                repository.awaitTask(node, upid, timeoutMs = 180_000).fold(
+                                setActiveAptTask(node, upid, "aptupdate")
+                                nodeRepo.awaitTask(node, upid, timeoutMs = 180_000).fold(
                                     onSuccess = { task ->
                                         backendSuccess = task.isOk
                                         if (!task.isOk) {
@@ -317,7 +335,7 @@ class UpdatesViewModel(
                     }
                     backendError = e.message ?: "Apt refresh failed"
                 } finally {
-                    repository.clearActiveAptTask(taskUpid)
+                    clearActiveAptTask(taskUpid)
                 }
             }
 
@@ -365,7 +383,7 @@ class UpdatesViewModel(
             if (backendSuccess) {
                 var verificationFailure: Throwable? = null
                 try {
-                    repository.listClusterUpdates().fold(
+                    updateRepo.listClusterUpdates().fold(
                         onSuccess = { updatedNodes ->
                             _ui.update { state -> state.copy(nodes = updatedNodes) }
                         },
@@ -374,7 +392,7 @@ class UpdatesViewModel(
                             verificationFailure = err
                         }
                     )
-                    repository.nodeStatus(node).onSuccess { status ->
+                    nodeRepo.nodeStatus(node).onSuccess { status ->
                         _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                     }
                 } catch (e: CancellationException) {
@@ -466,7 +484,7 @@ class UpdatesViewModel(
             }
 
             // Initial telemetry snapshot
-            repository.nodeStatus(node).onSuccess { status ->
+            nodeRepo.nodeStatus(node).onSuccess { status ->
                 _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
             }
 
@@ -475,7 +493,7 @@ class UpdatesViewModel(
                 while (true) {
                     delay(1500L)
                     try {
-                        repository.nodeStatus(node).onSuccess { status ->
+                        nodeRepo.nodeStatus(node).onSuccess { status ->
                             _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                         }
                     } catch (e: CancellationException) {
@@ -485,7 +503,7 @@ class UpdatesViewModel(
             }
 
             var lineCount = 0
-            val sshResult = repository.sshUpgrade(node) { line ->
+            val sshResult = updateRepo.sshUpgrade(node) { line ->
                 lineCount++
                 val fraction = (0.10f + (lineCount.toFloat() / 25f) * 0.80f).coerceIn(0.12f, 0.92f)
                 _ui.update { state ->
@@ -509,10 +527,10 @@ class UpdatesViewModel(
             sshResult.fold(
                 onSuccess = {
                     try {
-                        repository.listClusterUpdates().onSuccess { updatedNodes ->
+                        updateRepo.listClusterUpdates().onSuccess { updatedNodes ->
                             _ui.update { state -> state.copy(nodes = updatedNodes) }
                         }
-                        repository.nodeStatus(node).onSuccess { status ->
+                        nodeRepo.nodeStatus(node).onSuccess { status ->
                             _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                         }
                     } catch (e: CancellationException) {
@@ -601,18 +619,18 @@ class UpdatesViewModel(
             var taskUpid: String? = null
 
             // Initial telemetry snapshot
-            repository.nodeStatus(node).onSuccess { status ->
+            nodeRepo.nodeStatus(node).onSuccess { status ->
                 _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
             }
 
             val backendJob = launch {
                 try {
-                    repository.aptUpgrade(node).fold(
+                    updateRepo.aptUpgrade(node).fold(
                         onSuccess = { upid ->
                             if (upid.startsWith("UPID:")) {
                                 taskUpid = upid
-                                repository.setActiveAptTask(node, upid, "aptupgrade")
-                                repository.awaitTask(node, upid, timeoutMs = 600_000).fold(
+                                setActiveAptTask(node, upid, "aptupgrade")
+                                nodeRepo.awaitTask(node, upid, timeoutMs = 600_000).fold(
                                     onSuccess = { task ->
                                         backendSuccess = task.isOk
                                         if (!task.isOk) {
@@ -661,7 +679,7 @@ class UpdatesViewModel(
                         backendError = e.message ?: "Apt upgrade failed"
                     }
                 } finally {
-                    repository.clearActiveAptTask(taskUpid)
+                    clearActiveAptTask(taskUpid)
                 }
             }
 
@@ -671,7 +689,7 @@ class UpdatesViewModel(
                     delay(1500L)
                     if (backendJob.isCompleted) break
                     try {
-                        repository.nodeStatus(node).onSuccess { status ->
+                        nodeRepo.nodeStatus(node).onSuccess { status ->
                             _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                         }
                     } catch (e: CancellationException) {
@@ -690,7 +708,7 @@ class UpdatesViewModel(
 
                     // Fetch latest log line for detail if available
                     val taskLine = taskUpid?.let {
-                        repository.taskLog(node, it, limit = 3).getOrNull()?.lastOrNull()
+                        nodeRepo.taskLog(node, it, limit = 3).getOrNull()?.lastOrNull()
                     }
                     val detailMsg = taskLine ?: "UPGRADING ${pkg.packageName?.uppercase(Locale.US) ?: "PACKAGE"}"
 
@@ -747,10 +765,10 @@ class UpdatesViewModel(
 
             if (backendSuccess) {
                 try {
-                    repository.listClusterUpdates().onSuccess { updatedNodes ->
+                    updateRepo.listClusterUpdates().onSuccess { updatedNodes ->
                         _ui.update { state -> state.copy(nodes = updatedNodes) }
                     }
-                    repository.nodeStatus(node).onSuccess { status ->
+                    nodeRepo.nodeStatus(node).onSuccess { status ->
                         _ui.update { s -> s.copy(nodeStatuses = s.nodeStatuses + (node to status)) }
                     }
                 } catch (e: CancellationException) {
@@ -810,11 +828,18 @@ class UpdatesViewModel(
 
     class Factory(
         private val repository: ProxmoxRepository,
-        private val sessionStore: SessionStore = repository.sessionStore,
+        private val sessionStore: SessionStore? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return UpdatesViewModel(repository, sessionStore) as T
+            return UpdatesViewModel(
+                updateRepo = repository.updateRepo,
+                nodeRepo = repository.nodeRepo,
+                sessionStore = sessionStore ?: repository.sessionStore,
+                setUpdatesScreenActive = { active -> repository.setUpdatesScreenActive(active) },
+                setActiveAptTask = { node, upid, type -> repository.setActiveAptTask(node, upid, type) },
+                clearActiveAptTask = { upid -> repository.clearActiveAptTask(upid) },
+            ) as T
         }
     }
 }
