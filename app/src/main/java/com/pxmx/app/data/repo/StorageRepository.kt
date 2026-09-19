@@ -91,7 +91,7 @@ class StorageRepository(
         deleteBackup(node, volid)
 
     suspend fun listNodeStorageNames(node: String): Result<List<String>> = pveClient.apiCall { api ->
-        api.nodeStorage(node).data.orEmpty().mapNotNull { it["storage"]?.toString() }
+        api.nodeStorage(node).data.orEmpty().mapNotNull { it.storage }
     }
 
     suspend fun loadBackupsForVmid(
