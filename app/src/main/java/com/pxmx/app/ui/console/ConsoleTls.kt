@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** The console transport, shared by resource and WebSocket requests. */
@@ -67,8 +68,8 @@ internal fun createConsoleClient(
  */
 internal fun teardownConsoleClientAsync(
     client: OkHttpClient,
+    scope: CoroutineScope,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    scope: CoroutineScope = CoroutineScope(dispatcher),
 ): Job = scope.launch(dispatcher) {
     try {
         client.dispatcher.cancelAll()
@@ -79,3 +80,12 @@ internal fun teardownConsoleClientAsync(
         // Best-effort teardown; ignore socket closing errors
     }
 }
+
+internal fun teardownConsoleClientAsync(
+    client: OkHttpClient,
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+): Job = teardownConsoleClientAsync(
+    client = client,
+    scope = CoroutineScope(SupervisorJob() + dispatcher),
+    dispatcher = dispatcher,
+)

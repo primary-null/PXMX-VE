@@ -20,6 +20,7 @@ class ConsoleWebViewBoundaryTest {
         assertTrue(source.contains("removeJavascriptInterface(\"PXMXConsoleHttp\")"))
         assertTrue(source.contains("WebSettings.LOAD_NO_CACHE"))
         assertFalse("OkHttp connectionPool.evictAll must not be called directly on the main thread in onDispose", source.contains("fetchClient.connectionPool.evictAll()"))
-        assertTrue("OkHttp teardown must use teardownConsoleClientAsync off the main thread", source.contains("teardownConsoleClientAsync(fetchClient)"))
+        assertTrue("OkHttp teardown must use teardownConsoleClientAsync with owned scope off the main thread", source.contains("teardownConsoleClientAsync(fetchClient, scope)"))
+        assertTrue("ConsoleScreen must remember an owned CoroutineScope for teardown", source.contains("val scope = rememberCoroutineScope()"))
     }
 }

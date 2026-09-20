@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,6 +99,7 @@ fun ConsoleScreen(
     var progress by remember { mutableFloatStateOf(0f) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val allowedHost = remember(session.cookieHostUrl) {
         val h = Uri.parse(session.cookieHostUrl).host
         if (h.isNullOrBlank() || h.equals("demo", ignoreCase = true)) "demo" else h
@@ -300,7 +302,7 @@ fun ConsoleScreen(
             httpBridgeHolder[0]?.dispose()
             webViewInstance.removeJavascriptInterface("PXMXConsoleSocket")
             webViewInstance.removeJavascriptInterface("PXMXConsoleHttp")
-            teardownConsoleClientAsync(fetchClient)
+            teardownConsoleClientAsync(fetchClient, scope)
             webViewInstance.stopLoading()
             webViewInstance.destroy()
         }

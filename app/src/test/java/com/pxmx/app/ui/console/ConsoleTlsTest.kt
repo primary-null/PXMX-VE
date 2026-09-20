@@ -76,7 +76,18 @@ class ConsoleTlsTest {
     }
 
     @Test
-    fun `teardownConsoleClientAsync executes teardown on background dispatcher`() = kotlinx.coroutines.test.runTest {
+    fun `teardownConsoleClientAsync with owned scope executes teardown on background dispatcher`() = kotlinx.coroutines.test.runTest {
+        val client = okhttp3.OkHttpClient()
+        val job = teardownConsoleClientAsync(client, scope = this, dispatcher = kotlinx.coroutines.Dispatchers.Default)
+        job.join()
+
+        assertEquals(0, client.dispatcher.queuedCallsCount())
+        assertEquals(0, client.dispatcher.runningCallsCount())
+        assertEquals(0, client.connectionPool.connectionCount())
+    }
+
+    @Test
+    fun `teardownConsoleClientAsync with default scope executes teardown`() = kotlinx.coroutines.test.runTest {
         val client = okhttp3.OkHttpClient()
         val job = teardownConsoleClientAsync(client, kotlinx.coroutines.Dispatchers.Default)
         job.join()
