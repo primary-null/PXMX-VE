@@ -151,8 +151,8 @@ class SdnViewModelTest {
     @Test
     fun sdnViewModel_applySdn_upidTaskFlow_callsAptTaskCallbacks() = runBlocking {
         Dispatchers.setMain(Dispatchers.Default)
-        var activeTaskSet: Triple<String, String, String>? = null
-        var activeTaskCleared: String? = null
+        val activeTaskSet = java.util.concurrent.atomic.AtomicReference<Triple<String, String, String>?>(null)
+        val activeTaskCleared = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
         val upidApi = object : ProxmoxApi by demoApi {
             override suspend fun applySdn(): PveResponse<String?> =
@@ -180,18 +180,24 @@ class SdnViewModelTest {
         val vm = SdnViewModel(
             networkRepo = customRepo.networkRepo,
             nodeRepo = customRepo.nodeRepo,
-            setActiveAptTask = { node, upid, type -> activeTaskSet = Triple(node, upid, type) },
-            clearActiveAptTask = { upid -> activeTaskCleared = upid },
+            setActiveAptTask = { node, upid, type -> activeTaskSet.set(Triple(node, upid, type)) },
+            clearActiveAptTask = { upid -> activeTaskCleared.set(upid) },
         )
         val job = launch(Dispatchers.Default) { vm.ui.collect() }
 
         val applyJob = vm.applySdn()
-        kotlinx.coroutines.withTimeout(10_000) { applyJob?.join() }
+        assertNotNull(applyJob)
+        kotlinx.coroutines.withTimeout(10_000) {
+            applyJob?.join()
+            while (activeTaskSet.get() == null || activeTaskCleared.get() == null || vm.ui.value.isApplying) {
+                kotlinx.coroutines.delay(20)
+            }
+        }
 
         assertFalse(vm.ui.value.isApplying)
         assertNull(vm.ui.value.actionError)
-        assertEquals("demo-node", activeTaskSet?.first)
-        assertEquals("UPID:demo-node:00001234:00000000:60000000:sdnreload:root@pam:", activeTaskCleared)
+        assertEquals("demo-node", activeTaskSet.get()?.first)
+        assertEquals("UPID:demo-node:00001234:00000000:60000000:sdnreload:root@pam:", activeTaskCleared.get())
 
         job.cancel()
     }
