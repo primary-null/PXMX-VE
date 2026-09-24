@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import androidx.security.crypto.MasterKey
 
 /**
  * AES-256 encrypted SharedPreferences backed by Android Keystore.
@@ -14,9 +14,12 @@ object SecurePrefs {
     const val LEGACY_PREFS_NAME = "proxmox_session"
     const val SECURE_PREFS_NAME = "proxmox_session_secure"
 
+    @Suppress("DEPRECATION")
     fun open(context: Context): SharedPreferences {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        val secure = openSecurePrefs(context, masterKeyAlias)
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val secure = openSecurePrefs(context, masterKey)
         migrateFromLegacy(context, secure)
         return secure
     }
@@ -27,12 +30,12 @@ object SecurePrefs {
      * rethrown so we do not silently wipe the user's encrypted store for unrelated errors.
      */
     @Suppress("DEPRECATION")
-    private fun openSecurePrefs(context: Context, masterKeyAlias: String): SharedPreferences {
+    private fun openSecurePrefs(context: Context, masterKey: MasterKey): SharedPreferences {
         return try {
             EncryptedSharedPreferences.create(
-                SECURE_PREFS_NAME,
-                masterKeyAlias,
                 context,
+                SECURE_PREFS_NAME,
+                masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
@@ -54,9 +57,9 @@ object SecurePrefs {
                 java.io.File(prefsDir, "$SECURE_PREFS_NAME.xml.bak").delete()
             }
             EncryptedSharedPreferences.create(
-                SECURE_PREFS_NAME,
-                masterKeyAlias,
                 context,
+                SECURE_PREFS_NAME,
+                masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )

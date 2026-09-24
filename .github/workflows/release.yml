@@ -17,7 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
         with:
           # Obsolete 'tools' package is no longer on Google's SDK repo
           packages: platform-tools
@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
           cp app/build/outputs/apk/debug/app-debug.apk "PXMX-v${VER}-debug.apk"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: PXMX-v*-debug.apk
           # Body is written after publish: user-visible changes only.

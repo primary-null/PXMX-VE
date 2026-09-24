@@ -81,10 +81,9 @@ fun SystemLogStrip(
                 )
                 Spacer(Modifier.width(8.dp))
                 if (entry != null) {
-                    val tagStr = entry.tag?.takeIf { it.isNotBlank() } ?: "sys"
-                    val msgStr = entry.msg?.takeIf { it.isNotBlank() } ?: ""
+                    val text = formatSystemLogStripText(entry)
                     Text(
-                        text = "$tagStr $msgStr",
+                        text = text,
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
@@ -105,3 +104,40 @@ fun SystemLogStrip(
         }
     }
 }
+
+/**
+ * Strips realm-user information (e.g., "for user 'root@pam'", "user 'root@pam'", "root@pam")
+ * from the task ticker log message while preserving daemon name, tag, and status words.
+ */
+fun stripLogUser(msg: String): String {
+    var result = msg
+    // Remove "for user '...'" or "user '...'" (handles single, double, or curly quotes)
+    result = Regex("""(?i)(?:\bfor\s+)?\buser\s+['"‘“][^'"’”]*['"’”]\s*""").replace(result, "")
+    // Remove "for user=..." or "user=..." with realm or quotes
+    result = Regex("""(?i)(?:\bfor\s+)?\buser\s*=\s*['"]?[A-Za-z0-9._-]+@[A-Za-z0-9._-]+['"]?\s*""").replace(result, "")
+    // Remove "for user [user@realm]" or "user [user@realm]"
+    result = Regex("""(?i)(?:\bfor\s+)?\buser\s+[A-Za-z0-9._-]+@[A-Za-z0-9._-]+\s*""").replace(result, "")
+    // Remove "<user@realm>", "[user@realm]", "(user@realm)", or standalone "user@realm" (optionally preceded by "for ")
+    result = Regex("""(?i)(?:\bfor\s+)?(?:<|\[|\()?[A-Za-z0-9._-]+@[A-Za-z0-9._-]+(?:>|\]|\))?\s*""").replace(result, "")
+    // Clean up residual punctuation and normalize spaces
+    result = Regex("""\s*;\s*;\s*""").replace(result, "; ")
+    result = Regex("""\s+""").replace(result, " ")
+    return result.trim()
+}
+
+/**
+ * Formats the text shown in the system log strip: "$tagStr $msgStr".
+ * If the stripped message is blank, the tag string is shown alone.
+ */
+fun formatSystemLogStripText(tag: String?, msg: String?): String {
+    val tagStr = tag?.takeIf { it.isNotBlank() } ?: "sys"
+    val rawMsg = msg?.takeIf { it.isNotBlank() } ?: ""
+    val cleanedMsg = stripLogUser(rawMsg)
+    return if (cleanedMsg.isNotBlank()) "$tagStr $cleanedMsg" else tagStr
+}
+
+fun formatSystemLogStripText(entry: ClusterLogEntry?): String {
+    if (entry == null) return "—"
+    return formatSystemLogStripText(entry.tag, entry.msg)
+}
+
