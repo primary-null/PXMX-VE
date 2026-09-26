@@ -10,6 +10,7 @@ import com.pxmx.app.data.model.GuestStatus
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.NodeStorageEntry
+import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.model.SnapshotInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -344,5 +345,58 @@ class GuestRepository(
     ): Result<String> = pveClient.apiCall { api ->
         api.rollbackSnapshot(node, guestType.path, vmid, snap).data
             ?: throw PveException("Rollback returned no UPID")
+    }
+
+    suspend fun guestRrdData(
+        node: String,
+        type: GuestType,
+        vmid: Long,
+        timeframe: String = "hour",
+    ): Result<List<RrdPoint>> = pveClient.apiCall { api ->
+        api.guestRrdData(node, type.path, vmid, timeframe).data.orEmpty().map { RrdPoint.fromMap(it) }
+    }
+
+    suspend fun createBlankGuest(
+        node: String,
+        type: GuestType,
+        vmid: Long,
+        name: String,
+        diskSizeG: Int = 32,
+    ): Result<String> = pveClient.apiCall { api ->
+        val upid = when (type) {
+            GuestType.QEMU -> {
+                api.createQemu(
+                    node = node,
+                    vmid = vmid,
+                    name = name,
+                    scsi0 = "local-lvm:${diskSizeG}",
+                ).data ?: throw PveException("Create VM returned no UPID")
+            }
+            GuestType.LXC -> {
+                api.createLxc(
+                    node = node,
+                    vmid = vmid,
+                    hostname = name,
+                    rootfs = "local-lvm:${diskSizeG}",
+                ).data ?: throw PveException("Create container returned no UPID")
+            }
+            else -> throw IllegalArgumentException("Unsupported guest type: $type")
+        }
+        upid
+    }
+
+    suspend fun updateGuestTags(
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+        tags: String,
+    ): Result<String> = pveClient.apiCall { api ->
+        val res = api.updateGuestConfig(
+            node,
+            guestType.path,
+            vmid,
+            mapOf("tags" to tags),
+        ).data ?: "OK"
+        res
     }
 }

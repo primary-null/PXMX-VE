@@ -103,6 +103,42 @@ interface ProxmoxApi {
         @Field("hostname") hostname: String? = null,
     ): PveResponse<String>
 
+    @GET("nodes/{node}/rrddata")
+    suspend fun nodeRrdData(
+        @Path("node") node: String,
+        @Query("timeframe") timeframe: String = "hour",
+    ): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @GET("nodes/{node}/{type}/{vmid}/rrddata")
+    suspend fun guestRrdData(
+        @Path("node") node: String,
+        @Path("type") type: String,
+        @Path("vmid") vmid: Long,
+        @Query("timeframe") timeframe: String = "hour",
+    ): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @FormUrlEncoded
+    @POST("nodes/{node}/qemu")
+    suspend fun createQemu(
+        @Path("node") node: String,
+        @Field("vmid") vmid: Long,
+        @Field("name") name: String,
+        @Field("scsi0") scsi0: String? = null,
+        @Field("cores") cores: Int? = 1,
+        @Field("memory") memory: Long? = 2048,
+    ): PveResponse<String>
+
+    @FormUrlEncoded
+    @POST("nodes/{node}/lxc")
+    suspend fun createLxc(
+        @Path("node") node: String,
+        @Field("vmid") vmid: Long,
+        @Field("hostname") hostname: String,
+        @Field("rootfs") rootfs: String? = null,
+        @Field("cores") cores: Int? = 1,
+        @Field("memory") memory: Long? = 1024,
+    ): PveResponse<String>
+
     @POST("nodes/{node}/{type}/{vmid}/status/{action}")
     suspend fun guestAction(
         @Path("node") node: String,

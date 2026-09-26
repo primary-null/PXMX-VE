@@ -8,6 +8,7 @@ import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeTaskInfo
+import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
@@ -32,6 +33,7 @@ data class NodeDetailUiState(
     val refreshing: Boolean = false,
     val error: String? = null,
     val isTokenSession: Boolean = false,
+    val rrdData: List<RrdPoint> = emptyList(),
 )
 
 class NodeDetailViewModel(
@@ -86,6 +88,7 @@ class NodeDetailViewModel(
                     error = null,
                 )
             }
+            val rrdPoints = nodeRepo.nodeRrdData(node, "hour").getOrNull().orEmpty()
             nodeRepo.loadNodeBundle(node).fold(
                 onSuccess = { bundle ->
                     _uiState.update {
@@ -93,6 +96,7 @@ class NodeDetailViewModel(
                             status = bundle.status,
                             services = bundle.services,
                             tasks = bundle.tasks,
+                            rrdData = rrdPoints,
                             loading = false,
                             refreshing = false,
                         )

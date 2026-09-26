@@ -15,6 +15,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.platform.LocalConfiguration
+import com.pxmx.app.data.util.TagUtils
+import com.pxmx.app.ui.adaptive.isOperatorTwoPane
+import androidx.compose.foundation.BorderStroke
+import com.pxmx.app.ui.components.TagChip
+import com.pxmx.app.ui.components.TechSectionLabel
+import com.pxmx.app.ui.util.DeXUtils
+import com.pxmx.app.ui.util.formatEpoch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -168,6 +177,10 @@ fun HomeScreen(
         1f
     }
     val wordmarkFontSize = (36f - 14f * collapseProgress).sp
+
+    val configuration = LocalConfiguration.current
+    val isDex = DeXUtils.isDeXMode(context)
+    val isTwoPane = isOperatorTwoPane(configuration.screenWidthDp, isDex)
 
     var menuOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -419,6 +432,29 @@ fun HomeScreen(
                 ),
             )
 
+            state.selectedTag?.let { activeTag ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "TAG FILTER:",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    TagChip(
+                        tag = activeTag,
+                        isSelected = true,
+                        onRemove = { viewModel.toggleTagFilter(activeTag) },
+                    )
+                }
+            }
+
             state.error?.let { err ->
                 Text(
                     text = err,
@@ -535,6 +571,8 @@ fun HomeScreen(
                                             ResourceCard(
                                                 resource = res,
                                                 busy = id in state.busyGuestIds,
+                                                selectedTag = state.selectedTag,
+                                                onTagClick = { tag -> viewModel.toggleTagFilter(tag) },
                                                 onClick = {
                                                     when {
                                                         res.isGuest && res.node != null && res.vmid != null && res.type != null -> {
@@ -576,6 +614,13 @@ fun HomeScreen(
                                             )
                                         }
                                     }
+                                }
+                            }
+
+                            if (state.recentBackups.isNotEmpty()) {
+                                item(key = "recent-backups-section") {
+                                    Spacer(Modifier.height(12.dp))
+                                    RecentBackupsSection(tasks = state.recentBackups)
                                 }
                             }
 
@@ -680,16 +725,34 @@ fun HomeScreen(
     if (state.showDeployDialog) {
         val templates = state.resources.filter { it.template == 1 }
         val maxVmid = state.resources.maxOfOrNull { it.vmid ?: 0L } ?: 100L
-        DeployDialog(
-            templates = templates,
-            maxVmid = maxVmid,
-            deploying = state.deploying,
-            error = state.error,
-            onDismiss = { viewModel.showDeployDialog(false) },
-            onConfirm = { source, newId, name ->
-                viewModel.triggerDeploy(source, newId, name)
-            }
-        )
+        if (isTwoPane) {
+            val nodes = state.resources.mapNotNull { if (it.type == "node") it.node else null }.distinct().ifEmpty { listOf("alpha") }
+            NewGuestSheet(
+                templates = templates,
+                nodes = nodes,
+                maxVmid = maxVmid,
+                deploying = state.deploying,
+                error = state.error,
+                onDismiss = { viewModel.showDeployDialog(false) },
+                onCloneConfirm = { source, newId, name ->
+                    viewModel.triggerDeploy(source, newId, name)
+                },
+                onBlankConfirm = { node, type, vmid, name, diskSizeG ->
+                    viewModel.createBlankGuest(node, type, vmid, name, diskSizeG)
+                },
+            )
+        } else {
+            DeployDialog(
+                templates = templates,
+                maxVmid = maxVmid,
+                deploying = state.deploying,
+                error = state.error,
+                onDismiss = { viewModel.showDeployDialog(false) },
+                onConfirm = { source, newId, name ->
+                    viewModel.triggerDeploy(source, newId, name)
+                }
+            )
+        }
     }
 
     backupTarget?.let { target ->
@@ -906,6 +969,8 @@ private fun ResourceFillBackground(
 fun ResourceCard(
     resource: ClusterResource,
     busy: Boolean = false,
+    selectedTag: String? = null,
+    onTagClick: ((String) -> Unit)? = null,
     onClick: () -> Unit,
     onPowerToggle: (Boolean) -> Unit = {},
     onGuestAction: (GuestAction) -> Unit = {},
@@ -1058,6 +1123,22 @@ fun ResourceCard(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                        }
+                        val tagsList = remember(resource.tags) { TagUtils.splitTags(resource.tags) }
+                        if (isGuest && tagsList.isNotEmpty()) {
+                            Spacer(Modifier.height(5.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                tagsList.forEach { tag ->
+                                    TagChip(
+                                        tag = tag,
+                                        isSelected = tag.equals(selectedTag, ignoreCase = true),
+                                        onClick = if (onTagClick != null) { { onTagClick(tag) } } else null,
+                                    )
+                                }
+                            }
                         }
                     }
                     Spacer(Modifier.width(8.dp))
@@ -1424,3 +1505,87 @@ private fun metricsLine(r: ClusterResource): String {
     }
     return parts.joinToString("  ·  ").ifBlank { "—" }
 }
+
+@Composable
+private fun RecentBackupsSection(
+    tasks: List<RecentBackupTask>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+    ) {
+        TechSectionLabel(title = "Recent Backups", count = tasks.size)
+        Spacer(Modifier.height(6.dp))
+        tasks.forEach { task ->
+            val statusColor = when (task.status.lowercase()) {
+                "ok" -> TechColors.LinkGreen
+                "running" -> TechColors.Amber
+                else -> MaterialTheme.colorScheme.error
+            }
+            val cardShape = CutCornerShape(bottomEnd = 10.dp)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                shape = cardShape,
+                color = TechColors.Hull,
+                border = BorderStroke(1.dp, TechColors.Edge),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "GUEST ${task.guestId}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "node: ${task.node}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (task.startTime > 0) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = formatEpoch(task.startTime),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                    Surface(
+                        shape = CutCornerShape(bottomEnd = 4.dp),
+                        color = statusColor.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
+                    ) {
+                        Text(
+                            text = task.status.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = statusColor,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

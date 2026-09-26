@@ -48,6 +48,7 @@ import com.pxmx.app.data.model.NodeTaskInfo
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
+import com.pxmx.app.ui.components.TechHistoryGraph
 import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -187,6 +188,13 @@ fun NodeDetailScreen(
                             )
                         }
                     }
+                }
+
+                item {
+                    TechHistoryGraph(
+                        points = state.rrdData,
+                        isGuest = false,
+                    )
                 }
 
                 item {

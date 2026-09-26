@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +23,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import com.pxmx.app.data.util.TagUtils
+import com.pxmx.app.ui.components.AddTagButton
+import com.pxmx.app.ui.components.TagChip
+import com.pxmx.app.ui.components.TechHistoryGraph
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -373,6 +378,15 @@ fun GuestDetailScreen(
                     maxdisk = st?.maxdisk,
                     tags = st?.tags ?: cfg?.tags,
                     busy = busy,
+                    onAddTag = { viewModel.addTag(it) },
+                    onRemoveTag = { viewModel.removeTag(it) },
+                )
+            }
+
+            item(key = "history-graph") {
+                TechHistoryGraph(
+                    points = state.rrdData,
+                    isGuest = true,
                 )
             }
 
@@ -628,6 +642,8 @@ private fun HeroCard(
     maxdisk: Long?,
     tags: String?,
     busy: Boolean,
+    onAddTag: (String) -> Unit = {},
+    onRemoveTag: (String) -> Unit = {},
 ) {
     TechPlate(railColor = techRailColor(status, busy)) {
         Row(
@@ -686,10 +702,37 @@ private fun HeroCard(
 
             Spacer(Modifier.height(6.dp))
             TechMetaLine("Uptime", formatUptime(uptime))
-            tags?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(2.dp))
-                TechMetaLine("Tags", it.replace(";", ", ").replace(",", ", "))
+
+            Spacer(Modifier.height(8.dp))
+            val tagList = TagUtils.splitTags(tags)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "TAGS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(54.dp),
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    tagList.forEach { tag ->
+                        TagChip(
+                            tag = tag,
+                            onRemove = { onRemoveTag(tag) },
+                        )
+                    }
+                    AddTagButton(onAddTag = onAddTag)
+                }
             }
+
             if (busy) {
                 Spacer(Modifier.height(8.dp))
                 LinearBusy()

@@ -165,6 +165,23 @@ class DemoApi : ProxmoxApi {
         return (base + wobble).coerceIn(0.01, 0.99)
     }
 
+    private fun defaultTagsFor(vmid: Long): String = when (vmid) {
+        100L -> "prod;web"
+        101L -> "staging;db"
+        102L -> "prod;db"
+        200L -> "prod;monitoring"
+        201L -> "staging;web"
+        202L -> "prod;cache"
+        203L -> "dev;worker"
+        204L -> "dev;web"
+        9000L -> "template;linux"
+        else -> "demo;guest"
+    }
+
+    private fun tagsFor(vmid: Long): String {
+        return (configOverride[vmid]?.get("tags") as? String) ?: defaultTagsFor(vmid)
+    }
+
     private fun guestRow(
         id: String,
         type: String,
@@ -183,6 +200,7 @@ class DemoApi : ProxmoxApi {
             mem = if (isAlive) memUsed(baseMem) else 0L,
             maxmem = maxMem, cpus = cpus,
             uptime = uptimeOf(vmid),
+            tags = tagsFor(vmid),
         )
     }
 
@@ -349,6 +367,7 @@ class DemoApi : ProxmoxApi {
                 ClusterResource(
                     id = "qemu/9000", type = "qemu", node = "alpha", vmid = 9000L, name = "linux-template",
                     status = "stopped", mem = 0L, maxmem = 2048000000L, cpus = 2, template = 1,
+                    tags = tagsFor(9000L),
                 ),
             )
             "beta" -> mutableListOf(
@@ -361,7 +380,8 @@ class DemoApi : ProxmoxApi {
         }
         clonedConfigs.forEach { (vmid, cfg) ->
             val cloneNode = (cfg["node"] as? String) ?: "alpha"
-            if (cloneNode == node) {
+            val isLxc = (cfg["type"] as? String) == "lxc" || cfg.containsKey("rootfs")
+            if (!isLxc && cloneNode == node) {
                 base.add(
                     guestRow(
                         "qemu/$vmid", "qemu", node, vmid, (cfg["name"] as? String) ?: "clone-$vmid",
@@ -375,29 +395,36 @@ class DemoApi : ProxmoxApi {
 
     override suspend fun nodeLxc(node: String): PveResponse<List<ClusterResource>> {
         val list = when (node) {
-            "alpha" -> listOf(
+            "alpha" -> mutableListOf(
                 guestRow("lxc/200", "lxc", "alpha", 200L, "nebula", 512000000L, 1024000000L, 1),
             )
-            "beta" -> listOf(
+            "beta" -> mutableListOf(
                 guestRow("lxc/202", "lxc", "beta", 202L, "pulsar", 1536000000L, 2048000000L, 2),
                 guestRow("lxc/203", "lxc", "beta", 203L, "comet", 512000000L, 1024000000L, 1),
             )
-            "gamma" -> listOf(
+            "gamma" -> mutableListOf(
                 guestRow("lxc/204", "lxc", "gamma", 204L, "aurora", 512000000L, 1024000000L, 1),
                 guestRow("lxc/201", "lxc", "gamma", 201L, "galaxy", 512000000L, 1024000000L, 1),
             )
-            else -> emptyList()
+            else -> mutableListOf()
+        }
+        clonedConfigs.forEach { (vmid, cfg) ->
+            val cloneNode = (cfg["node"] as? String) ?: "alpha"
+            val isLxc = (cfg["type"] as? String) == "lxc" || cfg.containsKey("rootfs")
+            if (isLxc && cloneNode == node) {
+                list.add(
+                    guestRow(
+                        "lxc/$vmid", "lxc", node, vmid, (cfg["hostname"] as? String) ?: (cfg["name"] as? String) ?: "lxc-$vmid",
+                        512000000L, 1024000000L, 1,
+                    )
+                )
+            }
         }
         return PveResponse(data = list)
     }
 
     override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?): PveResponse<Map<String, Any>> {
-        clonedConfigs[vmid]?.let { base ->
-            val overrides = configOverride[vmid] ?: return PveResponse(data = base)
-            val merged = (base as Map<String, Any>).toMutableMap().apply { putAll(overrides) }
-            return PveResponse(data = merged)
-        }
-        val config = when (vmid) {
+        val baseConfig = clonedConfigs[vmid] ?: when (vmid) {
             100L -> mapOf(
                 "name" to "nova",
                 "ostype" to "l26",
@@ -476,8 +503,13 @@ class DemoApi : ProxmoxApi {
             )
             else -> emptyMap()
         }
-        val overrides = configOverride[vmid] ?: return PveResponse(data = config)
-        val merged = (config as Map<String, Any>).toMutableMap().apply { putAll(overrides) }
+        val merged = (baseConfig as Map<String, Any>).toMutableMap()
+        if (!merged.containsKey("tags")) {
+            merged["tags"] = defaultTagsFor(vmid)
+        }
+        configOverride[vmid]?.let { overrides ->
+            merged.putAll(overrides)
+        }
         return PveResponse(data = merged)
     }
 
@@ -946,6 +978,114 @@ class DemoApi : ProxmoxApi {
         return PveResponse(data = "UPID:$node:00001238:00000000:66D1B004:vzdump:$vmid:root@pam:")
     }
     override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> = PveResponse(data = "OK")
+
+    override suspend fun nodeRrdData(node: String, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val nowSec = System.currentTimeMillis() / 1000
+        val points = (0..9).map { i ->
+            val t = nowSec - (9 - i) * 360
+            val wobble = ((i % 3) - 1) * 0.05
+            val cpu = (0.15 + wobble).coerceIn(0.02, 0.95)
+            val mem = 8_000_000_000L + (i * 200_000_000L)
+            val maxmem = 32_000_000_000L
+            val netin = 1_500_000L + (i * 100_000L)
+            val netout = 800_000L + (i * 50_000L)
+            mapOf<String, Any>(
+                "time" to t,
+                "cpu" to cpu,
+                "mem" to mem,
+                "maxmem" to maxmem,
+                "netin" to netin,
+                "netout" to netout,
+            )
+        }
+        return PveResponse(data = points)
+    }
+
+    override suspend fun guestRrdData(node: String, type: String, vmid: Long, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val nowSec = System.currentTimeMillis() / 1000
+        val points = (0..9).map { i ->
+            val t = nowSec - (9 - i) * 360
+            val wobble = ((i % 3) - 1) * 0.04
+            val cpu = (0.12 + wobble).coerceIn(0.01, 0.90)
+            val mem = 1_200_000_000L + (i * 50_000_000L)
+            val maxmem = 2_048_000_000L
+            val netin = 500_000L + (i * 20_000L)
+            val netout = 300_000L + (i * 15_000L)
+
+            val point = mutableMapOf<String, Any>(
+                "time" to t,
+                "cpu" to cpu,
+                "mem" to mem,
+                "maxmem" to maxmem,
+                "netin" to netin,
+                "netout" to netout,
+            )
+
+            // Disk gap: VM 101 and LXCs have no disk stats at all (empty series).
+            // VM 100 has disk data with a real disk gap on points 4..6.
+            if (vmid == 100L) {
+                if (i !in 4..6) {
+                    point["disk"] = 10_000_000_000L + (i * 100_000_000L)
+                    point["maxdisk"] = 32_000_000_000L
+                }
+            } else if (vmid == 102L) {
+                point["disk"] = 15_000_000_000L
+                point["maxdisk"] = 64_000_000_000L
+            }
+            point
+        }
+        return PveResponse(data = points)
+    }
+
+    override suspend fun createQemu(
+        node: String,
+        vmid: Long,
+        name: String,
+        scsi0: String?,
+        cores: Int?,
+        memory: Long?,
+    ): PveResponse<String> {
+        val config = mutableMapOf<String, Any>(
+            "name" to name,
+            "ostype" to "l26",
+            "cores" to (cores ?: 2),
+            "memory" to (memory ?: 2048),
+            "node" to node,
+            "type" to "qemu",
+            "tags" to defaultTagsFor(vmid),
+        )
+        if (!scsi0.isNullOrBlank()) {
+            config["scsi0"] = scsi0
+        }
+        clonedConfigs[vmid] = config
+        return PveResponse(data = "UPID:$node:00001239:00000000:66D1B005:qmcreate:$vmid:root@pam:")
+    }
+
+    override suspend fun createLxc(
+        node: String,
+        vmid: Long,
+        hostname: String,
+        rootfs: String?,
+        cores: Int?,
+        memory: Long?,
+    ): PveResponse<String> {
+        val config = mutableMapOf<String, Any>(
+            "hostname" to hostname,
+            "name" to hostname,
+            "ostype" to "debian",
+            "cores" to (cores ?: 1),
+            "memory" to (memory ?: 1024),
+            "node" to node,
+            "type" to "lxc",
+            "tags" to defaultTagsFor(vmid),
+        )
+        if (!rootfs.isNullOrBlank()) {
+            config["rootfs"] = rootfs
+        }
+        clonedConfigs[vmid] = config
+        return PveResponse(data = "UPID:$node:0000123A:00000000:66D1B006:vzcreate:$vmid:root@pam:")
+    }
+
     override suspend fun nodeUsb(node: String): PveResponse<List<HostUsbDevice>> = PveResponse()
     override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
         // Persist config changes in the simulation (e.g. the AUTO/onboot toggle).

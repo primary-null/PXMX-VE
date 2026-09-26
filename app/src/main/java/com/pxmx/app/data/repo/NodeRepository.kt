@@ -11,6 +11,7 @@ import com.pxmx.app.data.model.NodeNetworkSnapshot
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeTaskInfo
+import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.model.SiteInfo
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.model.VersionInfo
@@ -317,5 +318,9 @@ class NodeRepository(
                 cause = firstError,
             )
         )
+    }
+
+    suspend fun nodeRrdData(node: String, timeframe: String = "hour"): Result<List<RrdPoint>> = pveClient.apiCall { api ->
+        api.nodeRrdData(node, timeframe).data.orEmpty().map { RrdPoint.fromMap(it) }
     }
 }

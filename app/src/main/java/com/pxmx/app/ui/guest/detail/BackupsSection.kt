@@ -42,7 +42,9 @@ fun BackupsBody(
         Text("No backups for this guest", color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
-    backups.forEach { b ->
+    val sorted = backups.sortedByDescending { it.ctime ?: 0L }
+    sorted.forEach { b ->
+        val storage = b.volid?.substringBefore(':') ?: "storage"
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             modifier = Modifier
@@ -58,7 +60,7 @@ fun BackupsBody(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "${formatEpoch(b.ctime)} · ${formatBytes(b.size)}",
+                        "$storage · ${formatEpoch(b.ctime)} · ${formatBytes(b.size)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

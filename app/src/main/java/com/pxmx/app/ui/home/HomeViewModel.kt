@@ -19,6 +19,7 @@ import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.StorageRepository
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.util.TagUtils
 import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.ui.util.Toasts
 import com.pxmx.app.ui.util.tickerFlow
@@ -37,6 +38,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+data class RecentBackupTask(
+    val upid: String,
+    val guestId: String,
+    val node: String,
+    val status: String,
+    val startTime: Long,
+)
 
 enum class ResourceFilter(val label: String, val type: String?) {
     ALL("All", null),
@@ -83,6 +92,8 @@ data class HomeUiState(
     val resources: List<ClusterResource> = emptyList(),
     val filter: ResourceFilter = ResourceFilter.GUESTS,
     val searchQuery: String = "",
+    val selectedTag: String? = null,
+    val recentBackups: List<RecentBackupTask> = emptyList(),
     /** Independent sort preference per tab. */
     val sortGuests: ResourceSort = ResourceSort.DEFAULT,
     val sortStorage: ResourceSort = ResourceSort.NAME,
@@ -115,11 +126,18 @@ data class HomeUiState(
                 ResourceFilter.NODES -> resources.filter { it.type == "node" }
                 ResourceFilter.STORAGE -> resources.filter { it.type == "storage" }
             }
-            val q = searchQuery.trim().lowercase()
-            val searched = if (q.isEmpty()) {
+            val tagFiltered = if (selectedTag.isNullOrBlank()) {
                 base
             } else {
                 base.filter { r ->
+                    TagUtils.splitTags(r.tags).contains(selectedTag)
+                }
+            }
+            val q = searchQuery.trim().lowercase()
+            val searched = if (q.isEmpty()) {
+                tagFiltered
+            } else {
+                tagFiltered.filter { r ->
                     r.displayName.lowercase().contains(q) ||
                         r.node.orEmpty().lowercase().contains(q) ||
                         r.vmid?.toString()?.contains(q) == true ||
@@ -330,10 +348,40 @@ class HomeViewModel(
         return ResourceSort.entries.find { it.name == raw } ?: default
     }
 
+    private fun parseVzdumpTasks(raw: List<Map<String, Any>>): List<RecentBackupTask> {
+        return raw.mapNotNull { map ->
+            val upid = map["upid"] as? String ?: return@mapNotNull null
+            val type = map["type"] as? String ?: upid.split(':').getOrNull(5) ?: ""
+            if (type != "vzdump") return@mapNotNull null
+            val guestId = map["id"]?.toString()?.takeIf { it.isNotBlank() }
+                ?: upid.split(':').getOrNull(6)?.takeIf { it.isNotBlank() }
+                ?: "—"
+            val node = map["node"] as? String ?: upid.split(':').getOrNull(1) ?: "—"
+            val status = map["status"] as? String ?: "running"
+            val startTime = (map["starttime"] as? Number)?.toLong() ?: 0L
+            RecentBackupTask(
+                upid = upid,
+                guestId = guestId,
+                node = node,
+                status = status,
+                startTime = startTime,
+            )
+        }.sortedByDescending { it.startTime }
+    }
+
     /** Refresh metrics without spinners or error flash. */
     private suspend fun silentRefresh() {
-        nodeRepo.listResources().onSuccess { list ->
-            _ui.update { it.copy(resources = mergeResourceSections(it.resources, list), error = resourceReadError(list)) }
+        val listResult = nodeRepo.listResources()
+        val rawTasks = nodeRepo.clusterTasks().getOrNull().orEmpty()
+        val vzdumpTasks = parseVzdumpTasks(rawTasks)
+        listResult.onSuccess { list ->
+            _ui.update {
+                it.copy(
+                    resources = mergeResourceSections(it.resources, list),
+                    recentBackups = vzdumpTasks,
+                    error = resourceReadError(list),
+                )
+            }
         }
     }
 
@@ -357,6 +405,13 @@ class HomeViewModel(
 
     fun setFilter(filter: ResourceFilter) {
         _ui.update { it.copy(filter = filter) }
+    }
+
+    fun toggleTagFilter(tag: String?) {
+        _ui.update { current ->
+            val next = if (current.selectedTag == tag) null else tag
+            current.copy(selectedTag = next)
+        }
     }
 
     fun setSearchQuery(query: String) {
@@ -399,14 +454,18 @@ class HomeViewModel(
             coroutineScope {
                 val siteDef = async { nodeRepo.siteInfo() }
                 val listDef = async { nodeRepo.listResources() }
+                val tasksDef = async { nodeRepo.clusterTasks() }
                 val site = siteDef.await().getOrNull()
                 val listResult = listDef.await()
+                val rawTasks = tasksDef.await().getOrNull().orEmpty()
+                val vzdumpTasks = parseVzdumpTasks(rawTasks)
                 listResult.fold(
                     onSuccess = { list ->
                         _ui.update {
                             it.copy(
                                 site = site ?: it.site,
                                 resources = mergeResourceSections(it.resources, list),
+                                recentBackups = vzdumpTasks,
                                 loading = false,
                                 refreshing = false,
                                 error = resourceReadError(list),
@@ -417,6 +476,7 @@ class HomeViewModel(
                         _ui.update {
                             it.copy(
                                 site = site ?: it.site,
+                                recentBackups = vzdumpTasks,
                                 loading = false,
                                 refreshing = false,
                                 error = e.message ?: "Failed to load resources",
@@ -425,6 +485,23 @@ class HomeViewModel(
                     },
                 )
             }
+        }
+    }
+
+    fun createBlankGuest(node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int) {
+        viewModelScope.launch {
+            _ui.update { it.copy(deploying = true, error = null) }
+            guestRepo.createBlankGuest(node, type, vmid, name, diskSizeG).fold(
+                onSuccess = {
+                    _ui.update { it.copy(deploying = false, showDeployDialog = false) }
+                    AppToast.DEPLOY_CREATED.show(context, name, vmid)
+                    refresh()
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(deploying = false, error = e.message ?: "Failed to create guest") }
+                }
+            )
         }
     }
 

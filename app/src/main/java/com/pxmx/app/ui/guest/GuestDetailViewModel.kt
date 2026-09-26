@@ -11,7 +11,9 @@ import com.pxmx.app.data.model.GuestStatus
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.ParsedGuestConfig
+import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.model.SnapshotInfo
+import com.pxmx.app.data.util.TagUtils
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.data.repo.ActiveAptTask
@@ -71,6 +73,7 @@ data class GuestDetailUiState(
     val confirmRollbackSnap: String? = null,
     val confirmDeleteBackup: BackupVolume? = null,
     val isTokenSession: Boolean = false,
+    val rrdData: List<RrdPoint> = emptyList(),
 )
 
 class GuestDetailViewModel(
@@ -166,12 +169,14 @@ class GuestDetailViewModel(
         val s = _ui.value
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
+            val rrdPoints = guestRepo.guestRrdData(s.node, s.guestType, s.vmid, "hour").getOrNull().orEmpty()
             guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
                         it.copy(
                             status = bundle.status,
                             config = bundle.config,
+                            rrdData = rrdPoints,
                             snapshots = if ("snapshots" in bundle.sectionErrors) it.snapshots else bundle.snapshots,
                             backups = if ("backups" in bundle.sectionErrors) it.backups else
                                 (bundle.backups + it.backups.filter { backup ->
@@ -256,6 +261,42 @@ class GuestDetailViewModel(
 
     fun confirmDeleteBackup(vol: BackupVolume?) {
         _ui.update { it.copy(confirmDeleteBackup = vol) }
+    }
+
+    fun addTag(newTag: String) {
+        val trimmed = newTag.trim()
+        if (!TagUtils.isValidTag(trimmed)) return
+        val currentTags = _ui.value.config?.tags ?: _ui.value.status?.tags
+        val updated = TagUtils.addTag(currentTags, trimmed)
+        val s = _ui.value
+        viewModelScope.launch {
+            guestRepo.updateGuestTags(s.node, s.guestType, s.vmid, updated).fold(
+                onSuccess = {
+                    refresh()
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(error = e.message ?: "Failed to add tag") }
+                }
+            )
+        }
+    }
+
+    fun removeTag(tagToRemove: String) {
+        val currentTags = _ui.value.config?.tags ?: _ui.value.status?.tags
+        val updated = TagUtils.removeTag(currentTags, tagToRemove)
+        val s = _ui.value
+        viewModelScope.launch {
+            guestRepo.updateGuestTags(s.node, s.guestType, s.vmid, updated).fold(
+                onSuccess = {
+                    refresh()
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(error = e.message ?: "Failed to remove tag") }
+                }
+            )
+        }
     }
 
     fun createSnapshot(name: String, description: String, includeRam: Boolean) {
