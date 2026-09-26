@@ -58,8 +58,9 @@ class UpdateRepository(
         val profile = com.pxmx.app.data.ssh.SshCredentialPolicy.rootProfile(sessionStore, snapshot)
             ?: return Result.failure(PveException("SSH requires the saved password of the exact active root PAM profile. Use the node shell for other accounts."))
 
+        val sessionHost = com.pxmx.app.data.ssh.stripSchemeAndPort(config.host)
         val targetHost = pveClient.apiCall(snapshot) { api ->
-            com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+            com.pxmx.app.data.ssh.resolveNodeSshHost(api, node, sessionHost)
         }.getOrElse { return Result.failure(it) }
         if (!sessionStore.isCurrent(snapshot)) {
             return Result.failure(PveException("Session changed during SSH resolution"))

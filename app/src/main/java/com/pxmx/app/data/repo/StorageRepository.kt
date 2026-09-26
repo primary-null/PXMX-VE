@@ -191,9 +191,10 @@ class StorageRepository(
 
         return try {
             pveClient.inSession(snapshot) {
+            val sessionHost = com.pxmx.app.data.ssh.stripSchemeAndPort(snapshot.state.config.host)
             val targetHost = pveClient.apiCall { api ->
                 checkSession()
-                com.pxmx.app.data.ssh.resolveNodeSshHost(api, node)
+                com.pxmx.app.data.ssh.resolveNodeSshHost(api, node, sessionHost)
             }.getOrThrow()
             onProgress("Backing up on server...")
             checkSession()
