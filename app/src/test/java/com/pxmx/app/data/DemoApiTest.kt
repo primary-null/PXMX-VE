@@ -279,4 +279,29 @@ class DemoApiTest {
             }
         }
     }
+
+    @Test
+    fun guestFirewall_mapsOptionsAndRules() = runBlocking {
+        val qemuOpt = demoApi.qemuFirewallOptions("alpha", 100L).data
+        assertEquals(1, qemuOpt?.get("enable"))
+        val qemuRules = demoApi.qemuFirewallRules("alpha", 100L).data.orEmpty()
+        assertEquals(2, qemuRules.size)
+        assertEquals("192.0.2.0/24", qemuRules[0]["source"])
+        assertEquals("198.51.100.10", qemuRules[1]["source"])
+
+        val qemuOptOther = demoApi.qemuFirewallOptions("alpha", 101L).data
+        assertEquals(0, qemuOptOther?.get("enable"))
+        assertTrue(demoApi.qemuFirewallRules("alpha", 101L).data.orEmpty().isEmpty())
+
+        val lxcOpt = demoApi.lxcFirewallOptions("alpha", 200L).data
+        assertEquals(1, lxcOpt?.get("enable"))
+        val lxcRules = demoApi.lxcFirewallRules("alpha", 200L).data.orEmpty()
+        assertEquals(2, lxcRules.size)
+        assertEquals("192.0.2.0/24", lxcRules[0]["source"])
+        assertEquals("203.0.113.15", lxcRules[1]["source"])
+
+        val lxcOptOther = demoApi.lxcFirewallOptions("alpha", 201L).data
+        assertEquals(0, lxcOptOther?.get("enable"))
+        assertTrue(demoApi.lxcFirewallRules("alpha", 201L).data.orEmpty().isEmpty())
+    }
 }

@@ -209,6 +209,61 @@ class GuestDetailViewModelTest {
         assertEquals("nova", state.status?.name)
     }
 
+    @Test
+    fun guestFirewall_demoGuest100_hasNonNullSnapshotWithRules() {
+        val state = vm.ui.value
+        assertNotNull(state.firewall)
+        assertTrue(state.firewall!!.enabled)
+        assertEquals("guest/qemu/100", state.firewall!!.scope)
+        assertTrue(state.firewall!!.rules.isNotEmpty())
+        assertEquals(2, state.firewall!!.rules.size)
+        assertNull(state.firewallError)
+    }
+
+    @Test
+    fun guestFirewall_403OnQemuFirewallRules_leavesStatusAndConfigLoaded() {
+        val failingApi = object : ProxmoxApi by demoApi {
+            override suspend fun qemuFirewallRules(node: String, vmid: Long): com.pxmx.app.data.model.PveResponse<List<Map<String, Any>>> {
+                throw com.pxmx.app.data.repo.PveHttpException(403, null, "Permission check failed")
+            }
+        }
+        val customProvider = object : ProxmoxApiProvider {
+            override fun apiFor(config: ServerConfig): ProxmoxApi = failingApi
+            override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(failingApi)
+            override fun clear() {}
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = customProvider,
+        )
+        val customVm = GuestDetailViewModel.Factory(
+            repository = customRepo,
+            node = "pve1",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        ).create(GuestDetailViewModel::class.java)
+
+        val job = CoroutineScope(UnconfinedTestDispatcher()).launch {
+            customVm.ui.collect()
+        }
+        try {
+            val state = customVm.ui.value
+            // Core data must still load
+            assertNotNull(state.status)
+            assertNotNull(state.config)
+            assertEquals("nova", state.status?.name)
+            assertFalse(state.loading)
+            // Firewall failed with 403
+            assertNull(state.firewall)
+            assertNotNull(state.firewallError)
+            assertTrue(state.firewallError!!.contains("403"))
+        } finally {
+            job.cancel()
+        }
+    }
+
     // -------------------------------------------------------------------------
     // 5. Action Strip Debouncing
     // -------------------------------------------------------------------------
@@ -284,6 +339,7 @@ class GuestDetailViewModelTest {
             guestRepo = repository.guestRepo,
             storageRepo = repository.storageRepo,
             nodeRepo = repository.nodeRepo,
+            networkRepo = repository.networkRepo,
             sessionStore = repository.sessionStore,
             recentActionRegistry = repository.recentActionRegistry,
             context = ContextWrapper(null),

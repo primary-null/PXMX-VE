@@ -437,4 +437,28 @@ interface ProxmoxApi {
     suspend fun nodeFirewallRules(
         @Path("node") node: String,
     ): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @GET("nodes/{node}/qemu/{vmid}/firewall/options")
+    suspend fun qemuFirewallOptions(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<Map<String, @Contextual Any>>
+
+    @GET("nodes/{node}/qemu/{vmid}/firewall/rules")
+    suspend fun qemuFirewallRules(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @GET("nodes/{node}/lxc/{vmid}/firewall/options")
+    suspend fun lxcFirewallOptions(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<Map<String, @Contextual Any>>
+
+    @GET("nodes/{node}/lxc/{vmid}/firewall/rules")
+    suspend fun lxcFirewallRules(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<List<Map<String, @Contextual Any>>>
 }

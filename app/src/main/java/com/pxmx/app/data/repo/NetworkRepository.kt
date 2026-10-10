@@ -4,6 +4,7 @@ import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.model.FirewallAlias
 import com.pxmx.app.data.model.FirewallRule
 import com.pxmx.app.data.model.FirewallSnapshot
+import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.SdnStatusInfo
 import com.pxmx.app.data.model.SdnVnetInfo
 import com.pxmx.app.data.model.SdnZoneInfo
@@ -87,5 +88,29 @@ class NetworkRepository(
     ): Result<Unit> = pveClient.apiCall { api ->
         api.setNodeFirewallOptions(node, if (enable) 1 else 0, digest)
         Unit
+    }
+
+    suspend fun loadGuestFirewall(
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+    ): Result<FirewallSnapshot> = pveClient.apiCall { api ->
+        val (options, rules) = when (guestType) {
+            GuestType.LXC -> {
+                api.lxcFirewallOptions(node, vmid).data.orEmpty() to
+                    api.lxcFirewallRules(node, vmid).data.orEmpty()
+            }
+            else -> {
+                api.qemuFirewallOptions(node, vmid).data.orEmpty() to
+                    api.qemuFirewallRules(node, vmid).data.orEmpty()
+            }
+        }
+        val ruleList = rules.map { FirewallRule.fromMap(it) }
+        FirewallSnapshot(
+            scope = "guest/${guestType.path}/$vmid",
+            options = options,
+            rules = ruleList,
+            aliases = emptyList(),
+        )
     }
 }

@@ -17,8 +17,10 @@ import com.pxmx.app.data.model.SnapshotInfo
 import com.pxmx.app.data.util.TagUtils
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.model.FirewallSnapshot
 import com.pxmx.app.data.repo.ActiveAptTask
 import com.pxmx.app.data.repo.GuestRepository
+import com.pxmx.app.data.repo.NetworkRepository
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.RecentActionRegistry
@@ -45,6 +47,7 @@ import kotlinx.coroutines.launch
 enum class GuestSection(val title: String) {
     HARDWARE("Hardware"),
     NETWORK("Network & USB"),
+    FIREWALL("Firewall"),
     OPTIONS("Options"),
     SNAPSHOTS("Snapshots"),
     BACKUPS("Backups"),
@@ -60,6 +63,8 @@ data class GuestDetailUiState(
     val expanded: GuestSection? = GuestSection.HARDWARE,
     val status: GuestStatus? = null,
     val config: ParsedGuestConfig? = null,
+    val firewall: FirewallSnapshot? = null,
+    val firewallError: String? = null,
     val snapshots: List<SnapshotInfo> = emptyList(),
     val backups: List<BackupVolume> = emptyList(),
     val hostUsbs: List<HostUsbDevice> = emptyList(),
@@ -82,6 +87,7 @@ class GuestDetailViewModel(
     private val guestRepo: GuestRepository,
     private val storageRepo: StorageRepository,
     private val nodeRepo: NodeRepository,
+    private val networkRepo: NetworkRepository,
     private val sessionStore: SessionStore,
     private val recentActionRegistry: RecentActionRegistry,
     private val context: Context,
@@ -170,9 +176,10 @@ class GuestDetailViewModel(
     fun refresh() {
         val s = _ui.value
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null) }
+            _ui.update { it.copy(loading = true, error = null, firewallError = null) }
             val tf = s.rrdTimeframe
             val rrdResult = guestRepo.guestRrdData(s.node, s.guestType, s.vmid, tf.apiName)
+            val fwResult = networkRepo.loadGuestFirewall(s.node, s.guestType, s.vmid)
             guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
@@ -184,6 +191,8 @@ class GuestDetailViewModel(
                             } else {
                                 it.rrdData
                             },
+                            firewall = fwResult.getOrNull(),
+                            firewallError = fwResult.exceptionOrNull()?.message,
                             snapshots = if ("snapshots" in bundle.sectionErrors) it.snapshots else bundle.snapshots,
                             backups = if ("backups" in bundle.sectionErrors) it.backups else
                                 (bundle.backups + it.backups.filter { backup ->
@@ -202,7 +211,12 @@ class GuestDetailViewModel(
                 },
                 onFailure = { e ->
                     _ui.update {
-                        it.copy(loading = false, error = e.message ?: "Failed to load guest")
+                        it.copy(
+                            loading = false,
+                            error = e.message ?: "Failed to load guest",
+                            firewall = fwResult.getOrNull(),
+                            firewallError = fwResult.exceptionOrNull()?.message,
+                        )
                     }
                 },
             )
@@ -480,6 +494,7 @@ class GuestDetailViewModel(
         guestRepo = repository.guestRepo,
         storageRepo = repository.storageRepo,
         nodeRepo = repository.nodeRepo,
+        networkRepo = repository.networkRepo,
         sessionStore = repository.sessionStore,
         recentActionRegistry = repository.recentActionRegistry,
         context = context,
@@ -507,6 +522,7 @@ class GuestDetailViewModel(
                 guestRepo = repository.guestRepo,
                 storageRepo = repository.storageRepo,
                 nodeRepo = repository.nodeRepo,
+                networkRepo = repository.networkRepo,
                 sessionStore = repository.sessionStore,
                 recentActionRegistry = repository.recentActionRegistry,
                 context = context,

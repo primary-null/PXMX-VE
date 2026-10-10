@@ -144,6 +144,7 @@ class OperationsRegressionTest {
         "nodeSdnZones" to { it.listSdnStatus() },
         "clusterFirewallAliases" to { it.loadClusterFirewall() },
         "nodeFirewallRules" to { it.loadNodeFirewall("alpha") },
+        "qemuFirewallRules" to { it.loadGuestFirewall("alpha", GuestType.QEMU, 100) },
         "clusterStatus" to { it.siteInfo() },
     )
 

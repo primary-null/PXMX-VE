@@ -488,6 +488,13 @@ class ProxmoxRepository(
         digest: String? = null,
     ): Result<Unit> = networkRepo.setNodeFirewallEnable(node, enable, digest)
 
+    suspend fun loadGuestFirewall(
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+    ): Result<FirewallSnapshot> =
+        networkRepo.loadGuestFirewall(node, guestType, vmid)
+
     // -------------------------------------------------------------------------
     // Updates Delegation
     // -------------------------------------------------------------------------

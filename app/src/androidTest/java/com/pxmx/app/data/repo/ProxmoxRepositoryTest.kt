@@ -253,5 +253,9 @@ class ProxmoxRepositoryTest {
         override suspend fun nodeFirewallOptions(node: String): PveResponse<Map<String, Any>> = PveResponse()
         override suspend fun setNodeFirewallOptions(node: String, enable: Int, digest: String?): PveResponse<String?> = PveResponse(data = null)
         override suspend fun nodeFirewallRules(node: String): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun qemuFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse()
+        override suspend fun qemuFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun lxcFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse()
+        override suspend fun lxcFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
     }
 }

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Usb
@@ -344,6 +345,7 @@ fun GuestDetailScreen(
                             label = when (section) {
                                 GuestSection.HARDWARE -> "HW"
                                 GuestSection.NETWORK -> "NET"
+                                GuestSection.FIREWALL -> "FW"
                                 GuestSection.OPTIONS -> "OPT"
                                 GuestSection.SNAPSHOTS -> "SNAP"
                                 GuestSection.BACKUPS -> "BKP"
@@ -356,10 +358,11 @@ fun GuestDetailScreen(
                                     val targetIndex = when (section) {
                                         GuestSection.HARDWARE -> 4
                                         GuestSection.NETWORK -> 5
-                                        GuestSection.OPTIONS -> 6
-                                        GuestSection.SNAPSHOTS -> 7
-                                        GuestSection.BACKUPS -> 8
-                                        GuestSection.RAW -> 9
+                                        GuestSection.FIREWALL -> 6
+                                        GuestSection.OPTIONS -> 7
+                                        GuestSection.SNAPSHOTS -> 8
+                                        GuestSection.BACKUPS -> 9
+                                        GuestSection.RAW -> 10
                                     }
                                     listState.animateScrollToItem(targetIndex)
                                 }
@@ -450,6 +453,29 @@ fun GuestDetailScreen(
                         onDetach = { viewModel.detachUsb(it) },
                         onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
                         onRefreshUsb = { viewModel.refreshUsbOnly() },
+                    )
+                }
+            }
+
+            item(key = "firewall") {
+                val fw = state.firewall
+                val fwErr = state.firewallError
+                val subtitle = when {
+                    fwErr != null -> "Error: $fwErr"
+                    fw == null -> "—"
+                    !fw.enabled -> "Disabled · ${fw.rules.size} rule(s)"
+                    else -> "Enabled · ${fw.rules.size} rule(s)"
+                }
+                ExpandableSection(
+                    title = GuestSection.FIREWALL.title,
+                    subtitle = subtitle,
+                    icon = Icons.Default.Security,
+                    expanded = state.expanded == GuestSection.FIREWALL,
+                    onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
+                ) {
+                    FirewallBody(
+                        snapshot = state.firewall,
+                        error = state.firewallError,
                     )
                 }
             }

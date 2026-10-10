@@ -1395,6 +1395,44 @@ class DemoApi : ProxmoxApi {
             mapOf("pos" to 2, "type" to "in", "action" to "DROP", "enable" to 1, "proto" to "tcp", "dport" to "111", "comment" to "RPCbind blocked"),
         )
     )
+
+    override suspend fun qemuFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse(
+        data = if (vmid == 100L) {
+            mapOf("enable" to 1, "policy_in" to "DROP", "policy_out" to "ACCEPT")
+        } else {
+            mapOf("enable" to 0)
+        }
+    )
+
+    override suspend fun qemuFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse(
+        data = if (vmid == 100L) {
+            listOf(
+                mapOf("pos" to 0, "type" to "in", "action" to "ACCEPT", "enable" to 1, "proto" to "tcp", "dport" to "22", "source" to "192.0.2.0/24", "comment" to "SSH from doc net"),
+                mapOf("pos" to 1, "type" to "in", "action" to "ACCEPT", "enable" to 1, "proto" to "tcp", "dport" to "443", "source" to "198.51.100.10", "comment" to "HTTPS admin"),
+            )
+        } else {
+            emptyList()
+        }
+    )
+
+    override suspend fun lxcFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse(
+        data = if (vmid == 200L) {
+            mapOf("enable" to 1, "policy_in" to "DROP", "policy_out" to "ACCEPT")
+        } else {
+            mapOf("enable" to 0)
+        }
+    )
+
+    override suspend fun lxcFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse(
+        data = if (vmid == 200L) {
+            listOf(
+                mapOf("pos" to 0, "type" to "in", "action" to "ACCEPT", "enable" to 1, "proto" to "tcp", "dport" to "80", "source" to "192.0.2.0/24", "comment" to "HTTP doc net"),
+                mapOf("pos" to 1, "type" to "in", "action" to "ACCEPT", "enable" to 1, "proto" to "tcp", "dport" to "443", "source" to "203.0.113.15", "comment" to "HTTPS proxy"),
+            )
+        } else {
+            emptyList()
+        }
+    )
 }
 
 

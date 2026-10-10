@@ -1,7 +1,6 @@
 package com.pxmx.app.data.repo
 
 import com.pxmx.app.data.console.ConsoleUrlBuilder
-import com.pxmx.app.data.model.ConsoleProxyData
 import com.pxmx.app.data.model.ConsoleSession
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.session.SessionStore
