@@ -48,8 +48,10 @@ class SecurityHardeningTest {
     fun testAppToastFormatting() {
         assertEquals("Connected", com.pxmx.app.ui.util.AppToast.CONNECTED.text())
         assertEquals("web01: start sent", com.pxmx.app.ui.util.AppToast.GUEST_STARTED.text("web01"))
+        assertEquals("alpha: reboot sent", com.pxmx.app.ui.util.AppToast.NODE_REBOOTED.text("alpha"))
+        assertEquals("alpha: shutdown sent", com.pxmx.app.ui.util.AppToast.NODE_SHUTDOWN.text("alpha"))
         assertEquals("Guest web01 (VMID 100) created", com.pxmx.app.ui.util.AppToast.DEPLOY_CREATED.text("web01", 100))
         assertEquals("Deploy failed: timeout", com.pxmx.app.ui.util.AppToast.ACTION_FAILED.text("Deploy", "timeout"))
-        assertEquals(21, com.pxmx.app.ui.util.AppToast.entries.size)
+        assertEquals(23, com.pxmx.app.ui.util.AppToast.entries.size)
     }
 }
