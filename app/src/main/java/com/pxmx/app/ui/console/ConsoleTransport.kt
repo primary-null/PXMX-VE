@@ -28,9 +28,18 @@ internal class ConsoleTransport(
     private val node: String = "",
     private val guestType: GuestType? = null,
     private val vmid: Long = 0,
+    private val apiToken: String? = null,
 ) {
     private val endpoint = origin.toHttpUrl()
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
+    private fun applyAuth(builder: Request.Builder) {
+        if (!apiToken.isNullOrBlank()) {
+            builder.header("Authorization", "PVEAPIToken=$apiToken")
+        } else if (cookie.isNotBlank()) {
+            builder.header("Cookie", "PVEAuthCookie=$cookie")
+        }
+    }
 
     fun allows(url: String): Boolean {
         val target = url.toHttpUrlOrNull() ?: return false
@@ -44,9 +53,11 @@ internal class ConsoleTransport(
         require(requestedProtocols.all { it.matches(Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]+")) })
         require(requestedProtocols.distinct().size == requestedProtocols.size)
         val request = Request.Builder().url(url)
-            .header("Cookie", "PVEAuthCookie=$cookie")
             .header("Origin", endpoint.newBuilder().encodedPath("/").query(null).fragment(null).build().toString().removeSuffix("/"))
-            .apply { if (requestedProtocols.isNotEmpty()) header("Sec-WebSocket-Protocol", requestedProtocols.joinToString(", ")) }
+            .apply {
+                applyAuth(this)
+                if (requestedProtocols.isNotEmpty()) header("Sec-WebSocket-Protocol", requestedProtocols.joinToString(", "))
+            }
             .build()
         return client.newWebSocket(request, listener)
     }
@@ -74,8 +85,8 @@ internal class ConsoleTransport(
             GuestType.NODE -> nodePrefix
         }
         val request = Request.Builder().url(target)
-            .header("Cookie", "PVEAuthCookie=$cookie")
             .header("Cache-Control", "no-cache")
+        applyAuth(request)
         try {
             when (method) {
                 "POST" -> {
@@ -85,9 +96,13 @@ internal class ConsoleTransport(
                         GuestType.LXC -> Regex("$guestPrefix/(?:vncproxy|termproxy)|$guestPrefix/status/(?:start|shutdown|stop)")
                     }
                     if (target.query != null || !allowed.matches(path)) return null
-                    if (!contentType.equals("application/x-www-form-urlencoded", true) || csrf.isBlank()) return null
-                    request.header("CSRFPreventionToken", csrf)
-                        .post(body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()))
+                    if (!contentType.equals("application/x-www-form-urlencoded", true)) return null
+                    val hasToken = !apiToken.isNullOrBlank()
+                    if (!hasToken) {
+                        if (csrf.isBlank()) return null
+                        request.header("CSRFPreventionToken", csrf)
+                    }
+                    request.post(body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()))
                 }
                 "GET" -> {
                     val guestRead = when (guestType) {
@@ -112,9 +127,11 @@ internal class ConsoleTransport(
             repeat(6) {
                 val rb = Request.Builder().url(target)
                 requestHeaders.forEach { (k, v) ->
-                    if (!k.equals("Cookie", ignoreCase = true)) rb.addHeader(k, v)
+                    if (!k.equals("Cookie", ignoreCase = true) && !k.equals("Authorization", ignoreCase = true)) {
+                        rb.addHeader(k, v)
+                    }
                 }
-                rb.addHeader("Cookie", "PVEAuthCookie=$cookie")
+                applyAuth(rb)
                 client.newCall(rb.build()).execute().use { resp ->
                     if (resp.isRedirect) {
                         val next = resp.header("Location")?.let { target.resolve(it) }

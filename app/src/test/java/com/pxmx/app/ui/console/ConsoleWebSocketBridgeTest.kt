@@ -98,4 +98,35 @@ class ConsoleWebSocketBridgeTest {
             } finally { bridge.dispose() }
         }
     }
+
+    @Test
+    fun `token WebSocket sends Authorization header and no PVEAuthCookie`() {
+        LocalConsoleTlsServer("internal-pve.example", serve = { socket, headers ->
+            val key = headers.lineSequence().first { it.startsWith("Sec-WebSocket-Key:", true) }.substringAfter(':').trim()
+            val accept = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1")
+                .digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").toByteArray()))
+            val output = socket.outputStream
+            output.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+                "Sec-WebSocket-Accept: $accept\r\nSec-WebSocket-Protocol: binary\r\n\r\n").toByteArray())
+            output.flush()
+        }).use { server ->
+            val events = LinkedBlockingQueue<Pair<String, String>>()
+            val pin = CertUtils.computeSha256Fingerprint(server.certificate)
+            val transport = ConsoleTransport(
+                origin = server.url,
+                cookie = "",
+                client = createConsoleClient("localhost", true, pin),
+                apiToken = "user@pam!token=12345",
+            )
+            val bridge = ConsoleWebSocketBridge(transport) { _, event, data -> events.add(event to data) }
+            try {
+                bridge.connect("test", server.url.replace("https:", "wss:"), "binary")
+                assertEquals("open" to "binary", events.poll(10, TimeUnit.SECONDS))
+                val req = server.requests.single()
+                assertTrue("Must contain Authorization: PVEAPIToken=", req.contains("Authorization: PVEAPIToken=user@pam!token=12345"))
+                assertFalse("Must not contain Cookie: PVEAuthCookie", req.contains("Cookie: PVEAuthCookie"))
+                assertFalse("Must not contain empty Cookie header", req.contains("Cookie:"))
+            } finally { bridge.dispose() }
+        }
+    }
 }

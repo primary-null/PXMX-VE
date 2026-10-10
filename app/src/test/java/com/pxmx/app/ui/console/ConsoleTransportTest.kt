@@ -77,4 +77,22 @@ class ConsoleTransportTest {
             assertTrue(server.requests.isEmpty())
         }
     }
+
+    @Test
+    fun `token fetch sends Authorization header and no PVEAuthCookie`() {
+        LocalConsoleTlsServer("localhost").use { server ->
+            val transport = ConsoleTransport(
+                origin = server.url,
+                cookie = "",
+                client = createConsoleClient("localhost", false, null, server.trustManager),
+                apiToken = "user@pam!token=12345",
+            )
+            val result = transport.fetch(server.url, "GET", emptyMap())
+            assertEquals(200, result.status)
+            val req = server.requests.single()
+            assertTrue("Must contain Authorization: PVEAPIToken=", req.contains("Authorization: PVEAPIToken=user@pam!token=12345"))
+            assertFalse("Must not contain Cookie: PVEAuthCookie", req.contains("Cookie: PVEAuthCookie"))
+            assertFalse("Must not contain empty Cookie header", req.contains("Cookie:"))
+        }
+    }
 }

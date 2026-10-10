@@ -2,6 +2,7 @@ package com.pxmx.app.data.console
 
 import com.pxmx.app.data.model.GuestType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -119,5 +120,26 @@ class ConsoleUrlBuilderTest {
         assertEquals("pve1", session.name)
         assertTrue(session.pageUrl.contains("console=shell"))
         assertTrue(session.pageUrl.contains("xtermjs=1"))
+    }
+
+    @Test
+    fun buildSession_withApiToken_storesTokenAndDoesNotPutTokenInPageUrl() {
+        val token = "user@pam!token=12345"
+        val session = ConsoleUrlBuilder.buildSession(
+            hostPort = "192.168.1.10:8006",
+            authCookie = "",
+            node = "pve1",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            port = "5900",
+            vncticket = "TICKET",
+            name = "vm100",
+            apiToken = token,
+        )
+        assertEquals("", session.pveAuthCookie)
+        assertEquals(token, session.apiToken)
+        assertFalse(session.pageUrl.contains(token))
+        assertFalse(session.pageUrl.contains("12345"))
+        assertFalse(session.cookieHostUrl.contains(token))
     }
 }

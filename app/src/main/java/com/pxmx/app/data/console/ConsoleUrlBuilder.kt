@@ -78,6 +78,7 @@ object ConsoleUrlBuilder {
         name: String,
         cmd: String? = null,
         isDemo: Boolean = false,
+        apiToken: String = "",
     ): ConsoleSession {
         val cookieHostUrl = buildCookieHostUrl(hostPort)
         val pageUrl = buildPageUrl(
@@ -99,6 +100,7 @@ object ConsoleUrlBuilder {
             node = node,
             vmid = vmid,
             name = name,
+            apiToken = apiToken,
         )
     }
 }

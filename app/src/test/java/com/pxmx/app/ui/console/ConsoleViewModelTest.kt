@@ -6,6 +6,7 @@ import com.pxmx.app.data.api.DemoApi
 import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.ConsoleProxyData
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.PveResponse
@@ -319,5 +320,138 @@ class ConsoleViewModelTest {
         assertTrue(session.pageUrl.startsWith("data:text/html"))
         assertEquals("https://demo:8006", session.cookieHostUrl)
         assertFalse(session.pageUrl.contains("DEMO_NODE_PASSWORD"))
+    }
+
+    @Test
+    fun consoleRepository_tokenQemu_openConsoleSucceeds() = runBlocking {
+        val fakePrefs = FakeSharedPreferences()
+        val tokenStore = SessionStore(injectedPrefs = fakePrefs)
+        val tokenStr = "user@pam!token=12345"
+        tokenStore.setSession(
+            SessionState(
+                config = ServerConfig(
+                    host = "192.168.1.100",
+                    port = 8006,
+                    authMode = AuthMode.API_TOKEN,
+                    apiToken = tokenStr,
+                ),
+                ticket = null,
+            )
+        )
+        val tokenRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = tokenStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = demoApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demoApi)
+                override fun clear() {}
+            }
+        )
+
+        val result = tokenRepo.consoleRepo.openConsole(
+            node = "alpha",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        )
+        assertTrue(result.isSuccess)
+        val session = result.getOrThrow()
+        assertFalse("pageUrl must not contain the token string", session.pageUrl.contains(tokenStr))
+        assertFalse("pageUrl must not contain the token secret", session.pageUrl.contains("12345"))
+        assertFalse("cookieHostUrl must not contain the token string", session.cookieHostUrl.contains(tokenStr))
+        assertEquals(tokenStr, session.apiToken)
+        assertEquals("", session.pveAuthCookie)
+    }
+
+    @Test
+    fun consoleRepository_tokenLxc_openConsoleSucceeds() = runBlocking {
+        val fakePrefs = FakeSharedPreferences()
+        val tokenStore = SessionStore(injectedPrefs = fakePrefs)
+        val tokenStr = "user@pam!token=12345"
+        tokenStore.setSession(
+            SessionState(
+                config = ServerConfig(
+                    host = "192.168.1.100",
+                    port = 8006,
+                    authMode = AuthMode.API_TOKEN,
+                    apiToken = tokenStr,
+                ),
+                ticket = null,
+            )
+        )
+        val tokenRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = tokenStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = demoApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demoApi)
+                override fun clear() {}
+            }
+        )
+
+        val result = tokenRepo.consoleRepo.openConsole(
+            node = "alpha",
+            guestType = GuestType.LXC,
+            vmid = 200L,
+            name = "dns01",
+        )
+        assertTrue(result.isSuccess)
+        val session = result.getOrThrow()
+        assertFalse("pageUrl must not contain the token string", session.pageUrl.contains(tokenStr))
+        assertFalse("pageUrl must not contain the token secret", session.pageUrl.contains("12345"))
+        assertFalse("cookieHostUrl must not contain the token string", session.cookieHostUrl.contains(tokenStr))
+        assertEquals(tokenStr, session.apiToken)
+        assertEquals("", session.pveAuthCookie)
+    }
+
+    @Test
+    fun consoleRepository_tokenNode_openConsoleFails() = runBlocking {
+        val fakePrefs = FakeSharedPreferences()
+        val tokenStore = SessionStore(injectedPrefs = fakePrefs)
+        tokenStore.setSession(
+            SessionState(
+                config = ServerConfig(
+                    host = "192.168.1.100",
+                    port = 8006,
+                    authMode = AuthMode.API_TOKEN,
+                    apiToken = "user@pam!token=12345",
+                ),
+                ticket = null,
+            )
+        )
+        val tokenRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = tokenStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = demoApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demoApi)
+                override fun clear() {}
+            }
+        )
+
+        val result = tokenRepo.consoleRepo.openConsole(
+            node = "alpha",
+            guestType = GuestType.NODE,
+            vmid = 0L,
+            name = "alpha",
+        )
+        assertTrue(result.isFailure)
+        val ex = result.exceptionOrNull()
+        assertTrue(ex is PveException)
+        assertTrue(ex!!.message?.contains("ticket", ignoreCase = true) == true)
+    }
+
+    @Test
+    fun consoleRepository_passwordQemu_setsPveAuthCookieAndEmptyApiToken() = runBlocking {
+        val result = repository.consoleRepo.openConsole(
+            node = "alpha",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        )
+        assertTrue(result.isSuccess)
+        val session = result.getOrThrow()
+        assertEquals("PVE:root@pam:ticket1234", session.pveAuthCookie)
+        assertEquals("", session.apiToken)
     }
 }

@@ -33,6 +33,8 @@ class ConsoleWebViewBoundaryTest {
         assertFalse("Never approve native TLS outside the pinned client", source.contains("handler?.proceed()"))
         assertFalse("Never call handler.proceed()", source.contains("handler.proceed()"))
         assertFalse("Keep authentication cookies out of the native network stack", source.contains("PVEAuthCookie=${'$'}{session.pveAuthCookie}"))
+        assertFalse("ConsoleScreen must not setCookie the apiToken", Regex("""setCookie\s*\([^)]*apiToken""", RegexOption.IGNORE_CASE).containsMatchIn(source))
+        assertFalse("ConsoleScreen must not setCookie PVEAPIToken", Regex("""setCookie\s*\([^)]*PVEAPIToken""", RegexOption.IGNORE_CASE).containsMatchIn(source))
         assertTrue("Document loading must use loadDataWithBaseURL", source.contains("loadDataWithBaseURL"))
         assertTrue("Live HTML base URL must be session.pageUrl so PVE query vars survive", source.contains("loadDataWithBaseURL(session.pageUrl"))
         assertTrue("Live page must be fetched through ConsoleTransport", source.contains("transport.fetch(session.pageUrl"))

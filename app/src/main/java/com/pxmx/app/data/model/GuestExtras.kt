@@ -142,6 +142,7 @@ data class ConsoleSession(
     val node: String,
     val vmid: Long,
     val name: String,
+    val apiToken: String = "",
 )
 
 @Serializable

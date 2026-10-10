@@ -126,6 +126,7 @@ fun ConsoleScreen(
             session.node,
             session.guestType,
             session.vmid,
+            session.apiToken.ifBlank { null },
         )
     }
     val bridgeHolder = remember(transport) { arrayOfNulls<ConsoleWebSocketBridge>(1) }

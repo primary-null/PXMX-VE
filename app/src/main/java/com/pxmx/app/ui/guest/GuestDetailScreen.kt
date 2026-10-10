@@ -257,7 +257,7 @@ fun GuestDetailScreen(
                             if (running) {
                                 TechMenuItem(
                                     label = "Console",
-                                    hint = if (state.isTokenSession) "Ticket required" else "noVNC / xterm",
+                                    hint = "noVNC / xterm",
                                     leadingIcon = Icons.Default.Computer,
                                     onClick = {
                                         powerMenu = false
@@ -819,16 +819,6 @@ private fun PowerCard(
                     letterSpacing = 1.2.sp,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                if (isTokenSession) {
-                    Text(
-                        text = "[TICKET REQUIRED]",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        color = TechColors.Amber,
-                    )
-                }
             }
             Spacer(Modifier.height(6.dp))
             Button(
@@ -840,19 +830,13 @@ private fun PowerCard(
                 Icon(Icons.Default.Computer, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = when {
-                        !running -> "CONSOLE (START GUEST FIRST)"
-                        isTokenSession -> "CONSOLE (TICKET REQUIRED)"
-                        else -> "OPEN CONSOLE"
-                    },
+                    text = if (!running) "CONSOLE (START GUEST FIRST)" else "OPEN CONSOLE",
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.6.sp,
                 )
             }
             Text(
-                text = if (isTokenSession) {
-                    "NOVNC REQUIRES PVE TICKET · API TOKENS RESTRICTED BY PVE"
-                } else if (guestType == GuestType.QEMU) {
+                text = if (guestType == GuestType.QEMU) {
                     "NOVNC · LIVE FROM SERVER"
                 } else {
                     "XTERM.JS · LIVE FROM SERVER"
@@ -860,7 +844,7 @@ private fun PowerCard(
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 0.6.sp,
-                color = if (isTokenSession) TechColors.Amber else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
