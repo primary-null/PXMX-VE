@@ -7,6 +7,7 @@ import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeBundle
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
@@ -159,6 +160,17 @@ class NodeDetailViewModelTest {
     fun nodeDetailViewModel_isTokenSession_whenPasswordSession_evaluatesToFalse() {
         val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
         assertFalse(vm.ui.value.isTokenSession)
+    }
+
+    @Test
+    fun nodeDetailViewModel_runPowerCommand_reboot_clearsBusy() = runBlocking {
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+        assertFalse(vm.ui.value.loading)
+        vm.runPowerCommand(NodePowerCommand.REBOOT)
+        assertNull(vm.ui.value.actionInProgress)
+        assertNull(vm.ui.value.error)
+        job.cancel()
     }
 
     @Test

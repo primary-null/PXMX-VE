@@ -154,6 +154,9 @@ class FakeTourApi : ProxmoxApi {
         ))
     }
 
+    override suspend fun nodeCommand(node: String, command: String): PveResponse<String> =
+        PveResponse(data = "OK")
+
     override suspend fun nodeStatus(node: String): PveResponse<NodeStatus> {
         val (usedMem, maxMem, cpuVal) = when (node) {
             "beta" -> Triple(25_600_000_000L, 32_000_000_000L, 0.28)

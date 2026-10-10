@@ -1,10 +1,12 @@
 package com.pxmx.app.ui.node
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeTaskInfo
@@ -12,6 +14,7 @@ import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.ui.util.tickerFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,12 +37,14 @@ data class NodeDetailUiState(
     val error: String? = null,
     val isTokenSession: Boolean = false,
     val rrdData: List<RrdPoint> = emptyList(),
+    val actionInProgress: String? = null,
 )
 
 class NodeDetailViewModel(
     private val nodeRepo: NodeRepository,
     private val sessionStore: SessionStore,
     node: String,
+    private val context: Context? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -121,6 +126,36 @@ class NodeDetailViewModel(
         return s?.config?.let { "https://${it.displayHost}" }
     }
 
+    fun runPowerCommand(command: NodePowerCommand) {
+        if (_uiState.value.actionInProgress != null) return
+        val nodeName = _uiState.value.node
+        viewModelScope.launch {
+            _uiState.update { it.copy(actionInProgress = command.apiName, error = null) }
+            nodeRepo.nodeCommand(nodeName, command).fold(
+                onSuccess = {
+                    val ctx = context
+                    if (ctx != null) {
+                        when (command) {
+                            NodePowerCommand.REBOOT -> AppToast.NODE_REBOOTED.show(ctx, nodeName)
+                            NodePowerCommand.SHUTDOWN -> AppToast.NODE_SHUTDOWN.show(ctx, nodeName)
+                        }
+                    }
+                    _uiState.update { it.copy(actionInProgress = null) }
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    context?.let { AppToast.ACTION_FAILED.show(it, command.label, e.message ?: "Failed") }
+                    _uiState.update {
+                        it.copy(
+                            actionInProgress = null,
+                            error = e.message ?: "Failed to ${command.apiName} node",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
     constructor(
         repository: ProxmoxRepository,
         node: String,
@@ -128,6 +163,7 @@ class NodeDetailViewModel(
         nodeRepo = repository.nodeRepo,
         sessionStore = repository.sessionStore,
         node = node,
+        context = repository.appContext,
     )
 
     class Factory(
@@ -140,6 +176,7 @@ class NodeDetailViewModel(
                 nodeRepo = repository.nodeRepo,
                 sessionStore = repository.sessionStore,
                 node = node,
+                context = repository.appContext,
             ) as T
         }
     }

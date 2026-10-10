@@ -200,6 +200,7 @@ class ProxmoxRepositoryTest {
         override suspend fun clusterStatus(): PveResponse<List<Map<String, Any>>> = PveResponse()
         override suspend fun nodes(): PveResponse<List<ClusterResource>> = PveResponse()
         override suspend fun nodeStatus(node: String): PveResponse<NodeStatus> = PveResponse()
+        override suspend fun nodeCommand(node: String, command: String): PveResponse<String> = PveResponse(data = "OK")
         override suspend fun nodeQemu(node: String): PveResponse<List<ClusterResource>> = PveResponse()
         override suspend fun nodeLxc(node: String): PveResponse<List<ClusterResource>> = PveResponse()
         override suspend fun nodeStorage(node: String): PveResponse<List<NodeStorageEntry>> = PveResponse()

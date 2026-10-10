@@ -70,6 +70,13 @@ interface ProxmoxApi {
         @Path("node") node: String,
     ): PveResponse<NodeStatus>
 
+    @FormUrlEncoded
+    @POST("nodes/{node}/status")
+    suspend fun nodeCommand(
+        @Path("node") node: String,
+        @Field("command") command: String,
+    ): PveResponse<String>
+
     @GET("nodes/{node}/qemu")
     suspend fun nodeQemu(
         @Path("node") node: String,

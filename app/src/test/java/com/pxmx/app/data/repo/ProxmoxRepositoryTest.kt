@@ -9,6 +9,7 @@ import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
@@ -136,6 +137,22 @@ class ProxmoxRepositoryTest {
     // -------------------------------------------------------------------------
     // 4. Node Bundle & Status
     // -------------------------------------------------------------------------
+
+    @Test
+    fun nodeCommand_rebootAndShutdown_succeed() = runBlocking {
+        val reboot = repository.nodeCommand("alpha", NodePowerCommand.REBOOT)
+        assertTrue(reboot.isSuccess)
+        val shutdown = repository.nodeCommand("gamma", NodePowerCommand.SHUTDOWN)
+        assertTrue(shutdown.isSuccess)
+    }
+
+    @Test
+    fun nodeCommand_blankNode_fails() = runBlocking {
+        val empty = repository.nodeCommand("", NodePowerCommand.REBOOT)
+        val spaces = repository.nodeCommand("  ", NodePowerCommand.REBOOT)
+        assertTrue(empty.isFailure)
+        assertTrue(spaces.isFailure)
+    }
 
     @Test
     fun loadNodeBundle_loadsStatusServicesAndTasksConcurrently() = runBlocking {

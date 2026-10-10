@@ -446,6 +446,7 @@ fun ProxmoxNavGraph() {
                                 }
                             },
                             canOfferNodeShell = isTabletop,
+                            isTabletop = isTabletop,
                             onOpenNodeShell = { node ->
                                 navController.navigate(
                                     Routes.console(node, GuestType.NODE.path, 0L, node, "shell"),
@@ -606,6 +607,7 @@ fun ProxmoxNavGraph() {
                     },
                     canOfferNodeShell = false,
                     onOpenNodeShell = null,
+                    isTabletop = isTabletop,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

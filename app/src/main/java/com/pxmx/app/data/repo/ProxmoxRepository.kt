@@ -14,6 +14,7 @@ import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.LoginOutcome
 import com.pxmx.app.data.model.NodeBundle
 import com.pxmx.app.data.model.NodeNetworkSnapshot
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeStatus
 import com.pxmx.app.data.model.NodeUpdateSnapshot
 import com.pxmx.app.data.model.SavedProfile
@@ -276,6 +277,9 @@ class ProxmoxRepository(
 
     suspend fun nodeStatus(node: String): Result<NodeStatus> =
         nodeRepo.nodeStatus(node)
+
+    suspend fun nodeCommand(node: String, command: NodePowerCommand): Result<Unit> =
+        nodeRepo.nodeCommand(node, command)
 
     suspend fun loadNodeBundle(node: String): Result<NodeBundle> =
         nodeRepo.loadNodeBundle(node)

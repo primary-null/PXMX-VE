@@ -14,8 +14,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.ui.home.HomeListRow
 import com.pxmx.app.ui.home.HomeViewModel
 import com.pxmx.app.ui.home.ResourceFilter
+import com.pxmx.app.ui.components.ClusterBezel
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.clusterBezelNodes
+import com.pxmx.app.ui.components.rememberReduceMotion
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +98,10 @@ fun DexDashboardScreen(
 
         // Main Resource List area
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            ClusterBezel(
+                nodes = clusterBezelNodes(state.resources),
+                reduceMotion = rememberReduceMotion(),
+            )
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
@@ -126,11 +133,29 @@ fun DexDashboardScreen(
             ) {
                 if (visibleRows.isEmpty() && !state.loading) {
                     item {
-                        Text(
-                            "No resources",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 24.dp),
-                        )
+                        TechPlate(railColor = TechColors.Mute) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                            ) {
+                                Text(
+                                    text = "NO RESOURCES",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = "Pull to sync · or pick another filter.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TechColors.Mute,
+                                )
+                            }
+                        }
                     }
                 }
                 items(visibleRows) { row ->

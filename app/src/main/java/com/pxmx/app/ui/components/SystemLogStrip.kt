@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,7 +51,8 @@ fun SystemLogStrip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dotColor = if (entry != null) logSeverityColor(entry.pri) else TechColors.StoppedRail
+    val lamp = lampForLog(entry)
+    val reduceMotion = rememberReduceMotion()
 
     Box(
         modifier = modifier
@@ -74,10 +73,11 @@ fun SystemLogStrip(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(dotColor, CircleShape),
+                ChassisLamp(
+                    state = lamp,
+                    contentDescription = chassisLampDescription("syslog", lamp),
+                    blinkToken = entry?.stableKey,
+                    reduceMotion = reduceMotion,
                 )
                 Spacer(Modifier.width(8.dp))
                 if (entry != null) {

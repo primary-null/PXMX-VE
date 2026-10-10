@@ -112,6 +112,8 @@ enum class AppToast(val format: String) {
     GUEST_SHUTDOWN("%s: shutdown sent"),
     GUEST_SUSPENDED("%s: suspend sent"),
     GUEST_RESUMED("%s: resume sent"),
+    NODE_REBOOTED("%s: reboot sent"),
+    NODE_SHUTDOWN("%s: shutdown sent"),
     AUTOSTART_ENABLED("Auto-start enabled for %s"),
     AUTOSTART_DISABLED("Auto-start disabled for %s"),
     BACKUP_SERVER_STARTED("Backup started on server"),

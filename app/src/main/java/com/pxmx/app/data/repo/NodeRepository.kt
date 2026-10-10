@@ -10,6 +10,7 @@ import com.pxmx.app.data.model.NodeBundle
 import com.pxmx.app.data.model.NodeNetworkSnapshot
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeTaskInfo
 import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.data.model.SiteInfo
@@ -174,6 +175,18 @@ class NodeRepository(
     suspend fun nodeStatus(node: String): Result<NodeStatus> {
         return pveClient.apiCall { api ->
             api.nodeStatus(node).data ?: throw PveException("No node status")
+        }
+    }
+
+    /**
+     * Reboot or shut down a node. PVE returns null data; success is a 200.
+     * Needs Sys.PowerMgmt on that node.
+     */
+    suspend fun nodeCommand(node: String, command: NodePowerCommand): Result<Unit> {
+        if (node.isBlank()) return Result.failure(PveException("No node"))
+        return pveClient.apiCall { api ->
+            api.nodeCommand(node, command.apiName)
+            Unit
         }
     }
 

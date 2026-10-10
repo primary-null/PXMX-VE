@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,16 +39,23 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeTaskInfo
+import com.pxmx.app.ui.guest.detail.ConfirmDialog
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
@@ -76,8 +87,12 @@ fun NodeDetailScreen(
     val diskPct = if (root?.used != null && root.total != null && root.total > 0) {
         root.used.toDouble() / root.total.toDouble()
     } else null
+    var pendingPower by remember { mutableStateOf<NodePowerCommand?>(null) }
+    val haptic = LocalHapticFeedback.current
+    val busy = state.actionInProgress != null
 
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = pendingPower != null) { pendingPower = null }
+    BackHandler(enabled = pendingPower == null, onBack = onBack)
 
     Scaffold(
         topBar = {
@@ -264,6 +279,74 @@ fun NodeDetailScreen(
                 }
 
                 item {
+                    TechPlate(railColor = TechColors.Danger) {
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(
+                                    Icons.Default.PowerSettingsNew,
+                                    contentDescription = "Power",
+                                    tint = TechColors.Danger,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "NODE POWER",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    color = TechColors.Danger,
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { pendingPower = NodePowerCommand.REBOOT },
+                                    enabled = !busy,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(2.dp),
+                                ) {
+                                    if (state.actionInProgress == NodePowerCommand.REBOOT.apiName) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(
+                                            Icons.Default.RestartAlt,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("REBOOT", fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+                                OutlinedButton(
+                                    onClick = { pendingPower = NodePowerCommand.SHUTDOWN },
+                                    enabled = !busy,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(2.dp),
+                                ) {
+                                    if (state.actionInProgress == NodePowerCommand.SHUTDOWN.apiName) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text("SHUTDOWN", fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+                            }
+                            Text(
+                                "HYPERVISOR · GUESTS ON THIS NODE STOP",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.6.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                }
+
+                item {
                     TechSectionLabel(
                         "Services",
                         count = state.services.size,
@@ -306,6 +389,26 @@ fun NodeDetailScreen(
                 item { Spacer(Modifier.height(20.dp)) }
             }
         }
+    }
+
+    pendingPower?.let { command ->
+        ConfirmDialog(
+            title = "${command.label} ${state.node}?",
+            body = when (command) {
+                NodePowerCommand.REBOOT ->
+                    "Reboot this hypervisor. Guests on ${state.node} will stop. The node comes back after it boots."
+                NodePowerCommand.SHUTDOWN ->
+                    "Shut down this hypervisor. Guests on ${state.node} will stop. The node stays off until you power it on at the machine."
+            },
+            confirm = command.label,
+            onDismiss = { pendingPower = null },
+            onConfirm = {
+                val run = command
+                pendingPower = null
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                viewModel.runPowerCommand(run)
+            },
+        )
     }
 }
 

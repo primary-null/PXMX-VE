@@ -25,7 +25,7 @@ when a host needs hands-on attention.
 | Area | What you get |
 | --- | --- |
 | Home | Guests, nodes, and storage at a glance, with the newest cluster events pinned below. |
-| Nodes | Per-node status: CPU, memory, and disk fills, plus remote state. |
+| Nodes | Per-node status: CPU, memory, and disk fills, plus confirmed reboot or shutdown of the hypervisor. |
 | Storage | Usage fills across all your datastores. |
 | Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, and a deploy-from-template dialog. |
 | Backups | Start and delete backups from the guest menu. |

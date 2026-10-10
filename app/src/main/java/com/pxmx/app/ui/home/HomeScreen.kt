@@ -75,7 +75,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,8 +90,14 @@ import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ThemeMode
+import com.pxmx.app.ui.components.ChassisLamp
+import com.pxmx.app.ui.components.ClusterBezel
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.chassisLampDescription
+import com.pxmx.app.ui.components.clusterBezelNodes
+import com.pxmx.app.ui.components.lampForResource
+import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
@@ -123,6 +131,7 @@ fun HomeScreen(
     onSwitchAccount: () -> Unit,
     canOfferNodeShell: Boolean = false,
     onOpenNodeShell: ((node: String) -> Unit)? = null,
+    isTabletop: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
@@ -223,8 +232,12 @@ fun HomeScreen(
         }
     }
 
+    val reduceMotion = rememberReduceMotion()
+    val bezelNodes = remember(state.resources) { clusterBezelNodes(state.resources) }
+
     Scaffold(
         modifier = modifier,
+        containerColor = if (isTabletop) Color.Black else TechColors.Hull,
         bottomBar = {
             SystemLogStrip(
                 entry = latestLog,
@@ -401,6 +414,24 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            ClusterBezel(
+                nodes = bezelNodes,
+                reduceMotion = reduceMotion,
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (isTabletop) {
+                            Modifier.drawWithContent {
+                                drawContent()
+                                drawRect(Color.Black.copy(alpha = 0.22f))
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
             // Category rail — same chrome language as cards, embedded under the top bar.
             CategoryRail(
                 selected = state.filter,
@@ -527,11 +558,29 @@ fun HomeScreen(
                             }
                             if (visibleRows.isEmpty() && !state.loading) {
                                 item {
-                                    Text(
-                                        "No resources",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(vertical = 24.dp),
-                                    )
+                                    TechPlate(railColor = TechColors.Mute) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                        ) {
+                                            Text(
+                                                text = "NO RESOURCES",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.2.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(
+                                                text = "Pull to sync · or pick another filter.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = TechColors.Mute,
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             items(
@@ -633,6 +682,7 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -980,6 +1030,7 @@ fun ResourceCard(
     onOnbootToggle: (Boolean) -> Unit = {},
 ) {
     val clickable = resource.isGuest || resource.type == "storage" || resource.type == "node"
+    val reduceMotion = rememberReduceMotion()
     val iconStyle = remember(resource.id, resource.ostype, resource.name, resource.type, resource.tags) {
         GuestIcons.styleFor(resource)
     }
@@ -1082,6 +1133,14 @@ fun ResourceCard(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            lampForResource(resource, busy)?.let { lamp ->
+                                ChassisLamp(
+                                    state = lamp,
+                                    contentDescription = chassisLampDescription(resource.displayName, lamp),
+                                    reduceMotion = reduceMotion,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
                             Text(
                                 text = resource.displayName.uppercase(),
                                 style = if (isGuest) MaterialTheme.typography.titleMedium
@@ -1227,6 +1286,7 @@ private fun GuestQuickActions(
     val running = resource.isRunning
     val divider = TechColors.Divider
     var menuOpen by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1242,6 +1302,7 @@ private fun GuestQuickActions(
                         enabled = !busy,
                         onClick = {
                             com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onPowerToggle(!running)
                         },
                         onLongClick = {
@@ -1290,6 +1351,7 @@ private fun GuestQuickActions(
                             onClick = {
                                 menuOpen = false
                                 com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onGuestAction(action)
                             },
                         )
@@ -1325,7 +1387,13 @@ private fun GuestQuickActions(
             Box(
                 modifier = Modifier
                     .size(width = 48.dp, height = 44.dp)
-                    .clickable(enabled = running && !busy, onClick = onReboot)
+                    .clickable(
+                        enabled = running && !busy,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onReboot()
+                        },
+                    )
                     .semantics { contentDescription = "Reboot" },
                 contentAlignment = Alignment.Center,
             ) {

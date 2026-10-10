@@ -345,6 +345,28 @@ class DemoApi : ProxmoxApi {
         val baseCpu: Double,
     )
 
+    override suspend fun nodeCommand(node: String, command: String): PveResponse<String> {
+        if (command != "reboot" && command != "shutdown") {
+            val errorBody = "{\"message\":\"unknown command\"}".toResponseBody("application/json".toMediaType())
+            throw HttpException(Response.error<Any>(400, errorBody))
+        }
+        nodeBootEpoch.remove(node)
+        demoLogEntries.add(
+            0,
+            ClusterLogEntry(
+                id = "log-${System.currentTimeMillis()}-$node-$command",
+                time = System.currentTimeMillis() / 1000,
+                node = node,
+                tag = "pvedaemon",
+                msg = "$command node $node: task started",
+                pri = 4,
+                user = "root@pam",
+                pid = (1000L..9999L).random(),
+            ),
+        )
+        return PveResponse(data = "OK")
+    }
+
     override suspend fun nodeStatus(node: String): PveResponse<NodeStatus> {
         val specs = when (node) {
             "beta" -> NodeSpecs(16, 32_000_000_000L, 25_600_000_000L, 80_000_000_000L, 250_000_000_000L, 0.28)

@@ -82,6 +82,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -136,6 +138,11 @@ fun GuestDetailScreen(
     val busy = state.actionInProgress != null
     var powerMenu by remember { mutableStateOf(false) }
     var pendingDanger by remember { mutableStateOf<GuestAction?>(null) }
+    val haptic = LocalHapticFeedback.current
+    val dispatchPower: (GuestAction) -> Unit = { action ->
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        viewModel.runPowerAction(action)
+    }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -268,7 +275,7 @@ fun GuestDetailScreen(
                                         powerMenu = false
                                         com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
                                         if (danger) pendingDanger = action
-                                        else viewModel.runPowerAction(action)
+                                        else dispatchPower(action)
                                     },
                                 )
                             }
@@ -399,7 +406,7 @@ fun GuestDetailScreen(
                     guestType = state.guestType,
                     onPower = {
                         com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
-                        viewModel.runPowerAction(it)
+                        dispatchPower(it)
                     },
                     onOpenConsole = onOpenConsole,
                     isTokenSession = state.isTokenSession,
@@ -585,7 +592,7 @@ fun GuestDetailScreen(
             onConfirm = {
                 val run = action
                 pendingDanger = null
-                viewModel.runPowerAction(run)
+                dispatchPower(run)
             },
         )
     }

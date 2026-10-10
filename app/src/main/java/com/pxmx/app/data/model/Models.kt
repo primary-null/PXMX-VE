@@ -301,6 +301,13 @@ enum class GuestAction(val apiName: String, val label: String) {
     RESUME("resume", "Resume"),
 }
 
+/** POST /nodes/{node}/status — hypervisor power, not guest ACPI. */
+@Serializable
+enum class NodePowerCommand(val apiName: String, val label: String) {
+    REBOOT("reboot", "Reboot"),
+    SHUTDOWN("shutdown", "Shutdown"),
+}
+
 @Serializable
 enum class AuthMode {
     PASSWORD,
