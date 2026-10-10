@@ -242,4 +242,41 @@ class DemoApiTest {
         assertEquals("DEMO_VNC_TICKET", lxcVnc.ticket)
         assertEquals("DEMO_VNC_PASSWORD", lxcVnc.password)
     }
+
+    @Test
+    fun nodeRrdData_containsArcsizeAndPressureKeys() = runBlocking {
+        val points = demoApi.nodeRrdData("alpha", "hour").data.orEmpty()
+        assertTrue(points.isNotEmpty())
+        for (point in points) {
+            assertTrue(point.containsKey("arcsize"))
+            assertTrue(point.containsKey("pressurecpusome"))
+            assertTrue(point.containsKey("pressurememorysome"))
+            val arc = (point["arcsize"] as Number).toLong()
+            assertTrue(arc >= 4_000_000_000L)
+            val cpuPsi = (point["pressurecpusome"] as Number).toDouble()
+            assertTrue(cpuPsi in 0.0..1.0)
+            val memPsi = (point["pressurememorysome"] as Number).toDouble()
+            assertTrue(memPsi in 0.0..1.0)
+        }
+    }
+
+    @Test
+    fun guestRrdData_containsMemhostAndPressureKeysForAllGuests() = runBlocking {
+        for (vmid in listOf(100L, 102L, 200L)) {
+            val points = demoApi.guestRrdData("alpha", "qemu", vmid, "hour").data.orEmpty()
+            assertTrue(points.isNotEmpty())
+            for (point in points) {
+                assertTrue(point.containsKey("memhost"))
+                assertTrue(point.containsKey("pressurecpusome"))
+                assertTrue(point.containsKey("pressurememorysome"))
+                val mem = (point["mem"] as Number).toLong()
+                val memhost = (point["memhost"] as Number).toLong()
+                assertTrue(memhost >= mem)
+                val cpuPsi = (point["pressurecpusome"] as Number).toDouble()
+                assertTrue(cpuPsi in 0.0..1.0)
+                val memPsi = (point["pressurememorysome"] as Number).toDouble()
+                assertTrue(memPsi in 0.0..1.0)
+            }
+        }
+    }
 }

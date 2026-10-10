@@ -15,17 +15,6 @@ class ConsoleRepository(
 ) {
 
     /**
-     * Resolves the RFB password for console authentication (prefers proxy.password,
-     * falls back to proxy.ticket). Note: this must NEVER be written into the page URL
-     * or the websocket path.
-     */
-    fun rfbPassword(proxy: ConsoleProxyData): String? = proxy.password ?: proxy.ticket
-
-    companion object {
-        fun rfbPassword(proxy: ConsoleProxyData): String? = proxy.password ?: proxy.ticket
-    }
-
-    /**
      * Open the same console the Proxmox web UI uses (noVNC for QEMU / LXC, xterm.js for node).
      * Requires an active password/ticket session (API tokens often lack console rights).
      */

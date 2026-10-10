@@ -124,4 +124,30 @@ class RrdPointTest {
         assertEquals(1, kept.size)
         assertTrue(kept.single().hasMetrics())
     }
+
+    @Test
+    fun fromMap_newKeys_arcsizeMemhostAndPressure() {
+        val map = mapOf(
+            "time" to 1700000300L,
+            "arcsize" to 4_294_967_296L,
+            "memhost" to 2_147_483_648L,
+            "pressurecpusome" to 0.025,
+            "pressurememorysome" to 0.012,
+        )
+        val point = RrdPoint.fromMap(map)
+        assertEquals(1700000300L, point.time)
+        assertEquals(4_294_967_296L, point.arcsize)
+        assertEquals(2_147_483_648L, point.memhost)
+        assertEquals(0.025, point.pressurecpusome ?: 0.0, 0.0001)
+        assertEquals(0.012, point.pressurememorysome ?: 0.0, 0.0001)
+        assertTrue(point.hasMetrics())
+    }
+
+    @Test
+    fun hasMetrics_coversNewKeysIndividually() {
+        assertTrue(RrdPoint(time = 1L, arcsize = 1000L).hasMetrics())
+        assertTrue(RrdPoint(time = 1L, memhost = 2000L).hasMetrics())
+        assertTrue(RrdPoint(time = 1L, pressurecpusome = 0.05).hasMetrics())
+        assertTrue(RrdPoint(time = 1L, pressurememorysome = 0.01).hasMetrics())
+    }
 }

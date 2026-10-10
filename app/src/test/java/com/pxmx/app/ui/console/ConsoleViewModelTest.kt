@@ -277,13 +277,12 @@ class ConsoleViewModelTest {
     }
 
     @Test
-    fun consoleRepository_rfbPassword_prefersPasswordOverTicket() {
+    fun consoleProxyData_rfbPassword_prefersPasswordOverTicket() {
         val withBoth = ConsoleProxyData(
             port = "5900",
             ticket = "TICKET_VAL",
             password = "PASSWORD_VAL",
         )
-        assertEquals("PASSWORD_VAL", ConsoleRepository.rfbPassword(withBoth))
         assertEquals("PASSWORD_VAL", withBoth.rfbPassword)
 
         val ticketOnly = ConsoleProxyData(
@@ -291,7 +290,6 @@ class ConsoleViewModelTest {
             ticket = "TICKET_VAL",
             password = null,
         )
-        assertEquals("TICKET_VAL", ConsoleRepository.rfbPassword(ticketOnly))
         assertEquals("TICKET_VAL", ticketOnly.rfbPassword)
     }
 

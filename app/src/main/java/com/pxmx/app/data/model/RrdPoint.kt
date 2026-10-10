@@ -20,6 +20,10 @@ data class RrdPoint(
     val maxdisk: Long? = null,
     val diskread: Double? = null,
     val diskwrite: Double? = null,
+    val arcsize: Long? = null,
+    val memhost: Long? = null,
+    val pressurecpusome: Double? = null,
+    val pressurememorysome: Double? = null,
 ) {
     fun hasMetrics(): Boolean =
         cpu != null ||
@@ -31,7 +35,11 @@ data class RrdPoint(
             disk != null ||
             maxdisk != null ||
             diskread != null ||
-            diskwrite != null
+            diskwrite != null ||
+            arcsize != null ||
+            memhost != null ||
+            pressurecpusome != null ||
+            pressurememorysome != null
 
     companion object {
         fun fromMap(map: Map<String, Any?>): RrdPoint {
@@ -47,6 +55,10 @@ data class RrdPoint(
                 maxdisk = number(map, "maxdisk", "roottotal")?.toLong(),
                 diskread = number(map, "diskread"),
                 diskwrite = number(map, "diskwrite"),
+                arcsize = number(map, "arcsize")?.toLong(),
+                memhost = number(map, "memhost")?.toLong(),
+                pressurecpusome = number(map, "pressurecpusome"),
+                pressurememorysome = number(map, "pressurememorysome"),
             )
         }
 

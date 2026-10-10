@@ -65,6 +65,7 @@ private fun HistoryRowId.label(): String = when (this) {
     HistoryRowId.NET -> "NET"
     HistoryRowId.DISK_IO -> "DISK I/O"
     HistoryRowId.ROOT -> "ROOT"
+    HistoryRowId.PSI -> "PSI"
 }
 
 @Composable
@@ -74,6 +75,7 @@ private fun HistoryRowId.color(): Color = when (this) {
     HistoryRowId.NET -> Color(0xFFCE93D8)
     HistoryRowId.DISK_IO -> TechColors.Amber
     HistoryRowId.ROOT -> TechColors.Amber
+    HistoryRowId.PSI -> TechColors.Mute
 }
 
 @Composable
@@ -176,6 +178,7 @@ fun TechHistoryGraph(
                     HistorySparkRow(
                         row = row,
                         points = points,
+                        isGuest = isGuest,
                         expanded = selected,
                         scrubIndex = if (selected) scrubIndex else null,
                         onSelect = {
@@ -225,6 +228,7 @@ fun TechHistoryGraph(
 private fun HistorySparkRow(
     row: HistoryRowId,
     points: List<RrdPoint>,
+    isGuest: Boolean,
     expanded: Boolean,
     scrubIndex: Int?,
     onSelect: () -> Unit,
@@ -234,7 +238,7 @@ private fun HistorySparkRow(
     val readoutIndex = scrubIndex?.coerceIn(0, points.lastIndex)
     val readoutPoint = readoutIndex?.let { points[it] }
         ?: lastPointWith(points) { rowHasValue(row, it) }
-    val valueText = rowValueText(row, readoutPoint)
+    val valueText = rowValueText(row, readoutPoint, isGuest)
     val height = if (expanded) 88.dp else 40.dp
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -293,6 +297,7 @@ private fun HistorySparkRow(
             HistoryCanvas(
                 points = points,
                 row = row,
+                isGuest = isGuest,
                 lineColor = color,
                 scrubIndex = readoutIndex,
                 modifier = Modifier.fillMaxSize(),
@@ -307,7 +312,7 @@ private fun indexAt(x: Float, width: Float, count: Int): Int {
     return (t * (count - 1)).roundToInt()
 }
 
-private fun rowValueText(row: HistoryRowId, point: RrdPoint?): String {
+private fun rowValueText(row: HistoryRowId, point: RrdPoint?, isGuest: Boolean): String {
     if (point == null) return "—"
     return when (row) {
         HistoryRowId.CPU -> {
@@ -317,9 +322,15 @@ private fun rowValueText(row: HistoryRowId, point: RrdPoint?): String {
         }
         HistoryRowId.MEM -> {
             val pct = formatPercent(memPercent(point))
-            if (point.mem != null && point.maxmem != null) {
+            val base = if (point.mem != null && point.maxmem != null) {
                 "$pct  ${formatBytes(point.mem)} / ${formatBytes(point.maxmem)}"
             } else pct
+            val extra = if (isGuest) {
+                point.memhost?.let { "  HOST ${formatBytes(it)}" }
+            } else {
+                point.arcsize?.let { "  ARC ${formatBytes(it)}" }
+            }
+            if (extra != null) "$base$extra" else base
         }
         HistoryRowId.NET -> "↑ ${formatRate(point.netin)}  ↓ ${formatRate(point.netout)}"
         HistoryRowId.DISK_IO -> "R ${formatRate(point.diskread)}  W ${formatRate(point.diskwrite)}"
@@ -329,6 +340,11 @@ private fun rowValueText(row: HistoryRowId, point: RrdPoint?): String {
                 "$pct  ${formatBytes(point.disk)} / ${formatBytes(point.maxdisk)}"
             } else pct
         }
+        HistoryRowId.PSI -> {
+            val cpuPsi = formatPercent(psiPercent(point.pressurecpusome))
+            val memPsi = formatPercent(psiPercent(point.pressurememorysome))
+            "CPU $cpuPsi  MEM $memPsi"
+        }
     }
 }
 
@@ -336,6 +352,7 @@ private fun rowValueText(row: HistoryRowId, point: RrdPoint?): String {
 private fun HistoryCanvas(
     points: List<RrdPoint>,
     row: HistoryRowId,
+    isGuest: Boolean,
     lineColor: Color,
     scrubIndex: Int?,
     modifier: Modifier = Modifier,
@@ -371,7 +388,15 @@ private fun HistoryCanvas(
                     value = { cpuPercent(it.cpu) },
                 )
             }
-            HistoryRowId.MEM -> drawPercentSeries(points, lineColor) { memPercent(it) }
+            HistoryRowId.MEM -> {
+                drawPercentSeries(
+                    points = points,
+                    color = lineColor,
+                    overlayColor = overlayColor,
+                    overlay = if (isGuest) { { memhostPercent(it) } } else { { arcPercent(it) } },
+                    value = { memPercent(it) },
+                )
+            }
             HistoryRowId.ROOT -> drawPercentSeries(points, lineColor) { rootPercent(it) }
             HistoryRowId.NET -> drawBidirectional(
                 points = points,
@@ -389,6 +414,15 @@ private fun HistoryCanvas(
                 up = { it.diskread },
                 down = { it.diskwrite },
             )
+            HistoryRowId.PSI -> {
+                drawPercentSeries(
+                    points = points,
+                    color = lineColor,
+                    overlayColor = overlayColor,
+                    overlay = { psiPercent(it.pressurememorysome) },
+                    value = { psiPercent(it.pressurecpusome) },
+                )
+            }
         }
 
         if (scrubIndex != null && points.size > 1) {

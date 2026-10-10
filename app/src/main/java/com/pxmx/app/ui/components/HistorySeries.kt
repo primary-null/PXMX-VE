@@ -8,6 +8,7 @@ enum class HistoryRowId {
     NET,
     DISK_IO,
     ROOT,
+    PSI,
 }
 
 fun cpuPercent(cpu: Double?): Double? {
@@ -15,11 +16,30 @@ fun cpuPercent(cpu: Double?): Double? {
     return if (cpu <= 1.0) cpu * 100.0 else cpu
 }
 
+fun psiPercent(psi: Double?): Double? {
+    if (psi == null) return null
+    return if (psi <= 1.0) psi * 100.0 else psi
+}
+
 fun memPercent(point: RrdPoint): Double? {
     val mem = point.mem ?: return null
     val max = point.maxmem ?: return null
     if (max <= 0L) return null
     return (mem.toDouble() / max.toDouble()) * 100.0
+}
+
+fun arcPercent(point: RrdPoint): Double? {
+    val arc = point.arcsize ?: return null
+    val max = point.maxmem ?: return null
+    if (max <= 0L) return null
+    return (arc.toDouble() / max.toDouble()) * 100.0
+}
+
+fun memhostPercent(point: RrdPoint): Double? {
+    val host = point.memhost ?: return null
+    val max = point.maxmem ?: return null
+    if (max <= 0L) return null
+    return (host.toDouble() / max.toDouble()) * 100.0
 }
 
 fun rootPercent(point: RrdPoint): Double? {
@@ -41,6 +61,9 @@ fun historyRows(isGuest: Boolean, points: List<RrdPoint>): List<HistoryRowId> {
     if (!isGuest && points.any { rootPercent(it) != null }) {
         rows.add(HistoryRowId.ROOT)
     }
+    if (points.any { it.pressurecpusome != null || it.pressurememorysome != null }) {
+        rows.add(HistoryRowId.PSI)
+    }
     return rows
 }
 
@@ -53,4 +76,5 @@ fun rowHasValue(row: HistoryRowId, point: RrdPoint): Boolean = when (row) {
     HistoryRowId.NET -> point.netin != null || point.netout != null
     HistoryRowId.DISK_IO -> point.diskread != null || point.diskwrite != null
     HistoryRowId.ROOT -> rootPercent(point) != null
+    HistoryRowId.PSI -> point.pressurecpusome != null || point.pressurememorysome != null
 }

@@ -1030,6 +1030,9 @@ class DemoApi : ProxmoxApi {
                 "iowait" to (0.03 + wobble * 0.4).coerceIn(0.0, 0.4),
                 "memused" to 8_000_000_000L + i * 40_000_000L,
                 "memtotal" to 32_000_000_000L,
+                "arcsize" to 4_294_967_296L + i * 8_000_000L,
+                "pressurecpusome" to (0.015 + wobble * 0.1).coerceIn(0.0, 0.2),
+                "pressurememorysome" to (0.008 + wobble * 0.05).coerceIn(0.0, 0.1),
                 "netin" to 1_500_000.0 + i * 12_000.0,
                 "netout" to 800_000.0 + i * 6_000.0,
                 "rootused" to 40_000_000_000L + i * 20_000_000L,
@@ -1046,11 +1049,15 @@ class DemoApi : ProxmoxApi {
         val points = (0 until steps).map { i ->
             val t = nowSec - (steps - 1 - i) * stepSec
             val wobble = ((i % 7) - 3) * 0.015
+            val memVal = 1_200_000_000L + i * 8_000_000L
             val point = mutableMapOf<String, Any>(
                 "time" to t,
                 "cpu" to (0.12 + wobble).coerceIn(0.01, 0.90),
-                "mem" to 1_200_000_000L + i * 8_000_000L,
+                "mem" to memVal,
                 "maxmem" to 2_048_000_000L,
+                "memhost" to memVal + 150_000_000L,
+                "pressurecpusome" to (0.012 + wobble * 0.1).coerceIn(0.0, 0.2),
+                "pressurememorysome" to (0.005 + wobble * 0.05).coerceIn(0.0, 0.1),
                 "netin" to 500_000.0 + i * 4_000.0,
                 "netout" to 300_000.0 + i * 2_500.0,
             )
