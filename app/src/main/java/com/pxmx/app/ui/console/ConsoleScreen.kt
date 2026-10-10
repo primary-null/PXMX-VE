@@ -77,6 +77,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.util.findActivity
 import java.io.ByteArrayInputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 
 /**
  * Proxmox noVNC / xterm.js console with mobile fit:
@@ -166,6 +171,8 @@ fun ConsoleScreen(
         onBack()
     }
 
+    val isDisposed = remember(session, transport) { booleanArrayOf(false) }
+
     // Allocate one WebView instance per ConsoleScreen session to survive recompositions and layout switches.
     val webViewInstance = remember(session, transport) {
         WebView(context).apply {
@@ -204,22 +211,26 @@ fun ConsoleScreen(
             cm.flush()
             val bridge = ConsoleWebSocketBridge(transport) { id, event, data ->
                 post {
-                    if (event == "error") {
-                        loading = false
-                        errorText = "Console TLS or WebSocket connection failed. Check the certificate pin and sign in again."
+                    if (!isDisposed[0]) {
+                        if (event == "error") {
+                            loading = false
+                            errorText = "Console TLS or WebSocket connection failed. Check the certificate pin and sign in again."
+                        }
+                        val args = listOf(id, event, data).joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
+                        evaluateJavascript("window.__pxmxSocketEvent && window.__pxmxSocketEvent($args)", null)
                     }
-                    val args = listOf(id, event, data).joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
-                    evaluateJavascript("window.__pxmxSocketEvent && window.__pxmxSocketEvent($args)", null)
                 }
             }
             bridgeHolder[0] = bridge
             addJavascriptInterface(bridge, "PXMXConsoleSocket")
             val httpBridge = ConsoleHttpBridge(transport) { id, response ->
                 post {
-                    val args = listOf(response.reason, response.contentType, response.body)
-                        .joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
-                    val requestId = ConsoleMimeUtils.escapeJsString(id)
-                    evaluateJavascript("window.__pxmxHttpEvent && window.__pxmxHttpEvent($requestId,${response.status},$args)", null)
+                    if (!isDisposed[0]) {
+                        val args = listOf(response.reason, response.contentType, response.body)
+                            .joinToString(",", transform = ConsoleMimeUtils::escapeJsString)
+                        val requestId = ConsoleMimeUtils.escapeJsString(id)
+                        evaluateJavascript("window.__pxmxHttpEvent && window.__pxmxHttpEvent($requestId,${response.status},$args)", null)
+                    }
                 }
             }
             httpBridgeHolder[0] = httpBridge
@@ -265,9 +276,13 @@ fun ConsoleScreen(
                 ): WebResourceResponse? {
                     val resource = transport.fetch(request?.url?.toString().orEmpty(), request?.method.orEmpty(), request?.requestHeaders.orEmpty())
                     if (resource.status >= 400 && request?.isForMainFrame == true) {
+                        val bodyText = String(resource.body, Charsets.UTF_8).trim()
+                        val err = if (bodyText.isNotBlank()) bodyText else resource.reason
                         view?.post {
-                            loading = false
-                            errorText = resource.reason
+                            if (!isDisposed[0]) {
+                                loading = false
+                                errorText = err
+                            }
                         }
                     }
                     return WebResourceResponse(resource.mime, resource.encoding, resource.status,
@@ -285,14 +300,75 @@ fun ConsoleScreen(
                     session.pageUrl
                 }
                 loadDataWithBaseURL("https://demo:8006", html, "text/html", "UTF-8", null)
-            } else {
-                loadUrl(session.pageUrl)
             }
+        }
+    }
+
+    val loadJobHolder = remember { arrayOfNulls<Job>(1) }
+    val loadConsoleDocument: () -> Unit = {
+        if (session.pageUrl.startsWith("data:")) {
+            val html = try {
+                java.net.URLDecoder.decode(
+                    session.pageUrl.removePrefix("data:text/html;charset=utf-8,").removePrefix("data:text/html,"),
+                    "UTF-8",
+                )
+            } catch (_: Exception) {
+                session.pageUrl
+            }
+            webViewInstance.loadDataWithBaseURL("https://demo:8006", html, "text/html", "UTF-8", null)
+        } else {
+            loading = true
+            errorText = null
+            loadJobHolder[0]?.cancel()
+            loadJobHolder[0] = scope.launch(Dispatchers.IO) {
+                try {
+                    val resource = transport.fetch(session.pageUrl, "GET", emptyMap())
+                    ensureActive()
+                    if (resource.status in 200..299 && resource.mime == "text/html") {
+                        val html = resource.body.toString(Charsets.UTF_8)
+                        webViewInstance.post {
+                            if (!isDisposed[0]) {
+                                webViewInstance.loadDataWithBaseURL(session.pageUrl, html, "text/html", "UTF-8", null)
+                            }
+                        }
+                    } else {
+                        val bodyText = String(resource.body, Charsets.UTF_8).trim()
+                        val err = if (resource.status >= 400 && bodyText.isNotBlank()) {
+                            bodyText
+                        } else {
+                            resource.reason
+                        }
+                        webViewInstance.post {
+                            if (!isDisposed[0]) {
+                                loading = false
+                                errorText = err
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    webViewInstance.post {
+                        if (!isDisposed[0]) {
+                            loading = false
+                            errorText = "Console transport failed"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(session, transport) {
+        if (!session.pageUrl.startsWith("data:")) {
+            loadConsoleDocument()
         }
     }
 
     DisposableEffect(webViewInstance) {
         onDispose {
+            isDisposed[0] = true
+            loadJobHolder[0]?.cancel()
             runCatching {
                 val cm = CookieManager.getInstance()
                 cm.setCookie(session.cookieHostUrl, "PVEAuthCookie=; Max-Age=0; Path=/")
@@ -504,7 +580,7 @@ fun ConsoleScreen(
                                 TechActionPlate(
                                     label = "Reload",
                                     icon = Icons.Default.Refresh,
-                                    onClick = { webViewInstance.reload() },
+                                    onClick = loadConsoleDocument,
                                 )
                             }
                         }
@@ -557,9 +633,7 @@ fun ConsoleScreen(
                             IconButton(onClick = onPaste) {
                                 Icon(Icons.Default.ContentPaste, contentDescription = "Paste")
                             }
-                            IconButton(onClick = {
-                                webViewInstance.reload()
-                            }) {
+                            IconButton(onClick = loadConsoleDocument) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Reload")
                             }
                         },

@@ -129,11 +129,13 @@ internal class ConsoleTransport(
                         val sourceEncoding = ConsoleMimeUtils.extractCharset(contentType)
                         val isHtml = mime == "text/html"
                         val encoding = if (isHtml) "UTF-8" else sourceEncoding
+                        val csp = "connect-src 'self'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'"
                         val body = if (isHtml) {
                             val html = rawBody.toString(java.nio.charset.Charset.forName(sourceEncoding ?: "UTF-8"))
                             val doctype = Regex("(?is)^(?:\\uFEFF)?\\s*<!doctype[^>]*>").find(html)
                             val position = doctype?.range?.last?.plus(1) ?: 0
-                            (html.take(position) + "<script>" + socketScript + "</script>" + html.drop(position)).toByteArray(Charsets.UTF_8)
+                            val metaCsp = """<meta http-equiv="Content-Security-Policy" content="$csp">"""
+                            (html.take(position) + metaCsp + "<script>" + socketScript + "</script>" + html.drop(position)).toByteArray(Charsets.UTF_8)
                         } else rawBody
                         val headers = ConsoleMimeUtils.buildResponseHeaders(resp.headers.map { it.first to it.second }, mime, encoding)
                             .filterKeys { !it.equals("Set-Cookie", true) && !it.equals("Cache-Control", true) && !it.equals("Content-Security-Policy", true) }
@@ -141,7 +143,7 @@ internal class ConsoleTransport(
                         headers["Cache-Control"] = "no-store"
                         if (isHtml) {
                             // Workers and frames have separate network stacks and must not recover a native WebSocket.
-                            headers["Content-Security-Policy"] = "connect-src 'self'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'"
+                            headers["Content-Security-Policy"] = csp
                         }
                         return ConsoleResource(mime, encoding, resp.code, resp.message.ifBlank { "OK" }, headers, body)
                     }
