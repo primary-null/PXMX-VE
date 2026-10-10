@@ -11,6 +11,7 @@ import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
+import com.pxmx.app.data.repo.ConsoleRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.PveException
 import com.pxmx.app.data.session.SessionStore
@@ -30,6 +31,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConsoleViewModelTest {
@@ -100,6 +103,10 @@ class ConsoleViewModelTest {
         assertEquals(100L, session?.vmid)
         assertEquals(GuestType.QEMU, session?.guestType)
         assertTrue("URL should be noVNC path", session?.pageUrl?.contains("novnc") == true)
+        val decodedUrl = URLDecoder.decode(session?.pageUrl.orEmpty(), StandardCharsets.UTF_8.toString())
+        assertTrue("URL must contain vncticket matching ticket", decodedUrl.contains("vncticket=DEMO_VNC_TICKET"))
+        assertFalse("URL must never contain proxy password", session?.pageUrl?.contains("DEMO_VNC_PASSWORD") == true)
+        assertFalse("Decoded URL must never contain proxy password", decodedUrl.contains("DEMO_VNC_PASSWORD"))
 
         job.cancel()
     }
@@ -221,5 +228,98 @@ class ConsoleViewModelTest {
         assertEquals("web01", state.session?.name)
 
         job.cancel()
+    }
+
+    @Test
+    fun consoleRepository_openConsole_containsTicketAndNeverPassword() = runBlocking {
+        val result = repository.consoleRepo.openConsole(
+            node = "alpha",
+            guestType = GuestType.QEMU,
+            vmid = 100L,
+            name = "web01",
+        )
+        assertTrue(result.isSuccess)
+        val session = result.getOrThrow()
+        val decodedUrl = URLDecoder.decode(session.pageUrl, StandardCharsets.UTF_8.toString())
+        assertTrue(decodedUrl.contains("vncticket=DEMO_VNC_TICKET"))
+        assertFalse(session.pageUrl.contains("DEMO_VNC_PASSWORD"))
+        assertFalse(decodedUrl.contains("DEMO_VNC_PASSWORD"))
+    }
+
+    @Test
+    fun consoleRepository_missingTicketFailsEvenIfPasswordIsPresent() = runBlocking {
+        val proxyWithOnlyPassword = object : ProxmoxApi by demoApi {
+            override suspend fun qemuVncProxy(node: String, vmid: Long, websocket: Int): PveResponse<ConsoleProxyData> {
+                return PveResponse(
+                    data = ConsoleProxyData(
+                        port = "5900",
+                        ticket = null,
+                        password = "PASSWORD_WITHOUT_TICKET",
+                    )
+                )
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = proxyWithOnlyPassword
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(proxyWithOnlyPassword)
+                override fun clear() {}
+            }
+        )
+
+        val result = customRepo.consoleRepo.openConsole("alpha", GuestType.QEMU, 100L, "test")
+        assertTrue(result.isFailure)
+        val ex = result.exceptionOrNull()
+        assertTrue(ex is PveException)
+        assertTrue(ex!!.message?.contains("missing ticket") == true)
+    }
+
+    @Test
+    fun consoleRepository_rfbPassword_prefersPasswordOverTicket() {
+        val withBoth = ConsoleProxyData(
+            port = "5900",
+            ticket = "TICKET_VAL",
+            password = "PASSWORD_VAL",
+        )
+        assertEquals("PASSWORD_VAL", ConsoleRepository.rfbPassword(withBoth))
+        assertEquals("PASSWORD_VAL", withBoth.rfbPassword)
+
+        val ticketOnly = ConsoleProxyData(
+            port = "5900",
+            ticket = "TICKET_VAL",
+            password = null,
+        )
+        assertEquals("TICKET_VAL", ConsoleRepository.rfbPassword(ticketOnly))
+        assertEquals("TICKET_VAL", ticketOnly.rfbPassword)
+    }
+
+    @Test
+    fun consoleRepository_demoConsoleStillOpens() = runBlocking {
+        val fakePrefs = FakeSharedPreferences()
+        val demoStore = SessionStore(injectedPrefs = fakePrefs)
+        demoStore.setSession(
+            SessionState(
+                config = ServerConfig(host = "demo"),
+                ticket = null,
+            )
+        )
+        val demoRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = demoStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = demoApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demoApi)
+                override fun clear() {}
+            }
+        )
+
+        val result = demoRepo.consoleRepo.openConsole("alpha", GuestType.NODE, 0L, "alpha")
+        assertTrue(result.isSuccess)
+        val session = result.getOrThrow()
+        assertTrue(session.pageUrl.startsWith("data:text/html"))
+        assertEquals("https://demo:8006", session.cookieHostUrl)
+        assertFalse(session.pageUrl.contains("DEMO_NODE_PASSWORD"))
     }
 }

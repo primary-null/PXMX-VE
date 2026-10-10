@@ -223,4 +223,23 @@ class DemoApiTest {
         val resource = demoApi.nodeQemu("alpha").data.orEmpty().find { it.vmid == 100L }
         assertEquals("", resource?.tags)
     }
+
+    @Test
+    fun consoleProxy_allEndpointsSetDistinctPasswordAndTicket() = runBlocking {
+        val qemu = demoApi.qemuVncProxy("alpha", 100L, 1).data!!
+        assertEquals("DEMO_VNC_TICKET", qemu.ticket)
+        assertEquals("DEMO_VNC_PASSWORD", qemu.password)
+
+        val lxcTerm = demoApi.lxcTermProxy("beta", 202L, 1).data!!
+        assertEquals("DEMO_TERM_TICKET", lxcTerm.ticket)
+        assertEquals("DEMO_TERM_PASSWORD", lxcTerm.password)
+
+        val nodeTerm = demoApi.nodeTermProxy("alpha", null, null).data!!
+        assertEquals("DEMO_NODE_TICKET", nodeTerm.ticket)
+        assertEquals("DEMO_NODE_PASSWORD", nodeTerm.password)
+
+        val lxcVnc = demoApi.lxcVncProxy("gamma", 204L, 1).data!!
+        assertEquals("DEMO_VNC_TICKET", lxcVnc.ticket)
+        assertEquals("DEMO_VNC_PASSWORD", lxcVnc.password)
+    }
 }

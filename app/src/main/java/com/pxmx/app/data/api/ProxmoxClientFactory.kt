@@ -96,10 +96,7 @@ class ProxmoxClientFactory(
         if (BuildConfig.DEBUG) {
             val defaultLogger = HttpLoggingInterceptor.Logger.DEFAULT
             val sanitizedLogger = HttpLoggingInterceptor.Logger { message ->
-                val sanitized = message.replace(
-                    Regex("([?&](?:vncticket|ticket|token)=)[^&\\s]+", RegexOption.IGNORE_CASE),
-                    "$1[REDACTED]",
-                )
+                val sanitized = sanitizeUrl(message)
                 defaultLogger.log(sanitized)
             }
             builder.addInterceptor(
@@ -121,5 +118,12 @@ class ProxmoxClientFactory(
             .build()
 
         return retrofit.create(ProxmoxApi::class.java)
+    }
+
+    companion object {
+        private val QUERY_SECRET_REGEX = Regex("([?&](?:vncticket|ticket|token|password)=)[^&\\s]+", RegexOption.IGNORE_CASE)
+
+        fun sanitizeUrl(message: String): String =
+            message.replace(QUERY_SECRET_REGEX, "$1[REDACTED]")
     }
 }

@@ -937,6 +937,7 @@ class DemoApi : ProxmoxApi {
             data = ConsoleProxyData(
                 port = "5900",
                 ticket = "DEMO_VNC_TICKET",
+                password = "DEMO_VNC_PASSWORD",
                 user = "root@pam",
                 upid = "UPID:$node:00001234:00000000:66D1B000:vncproxy:root@pam:",
             )
@@ -948,6 +949,7 @@ class DemoApi : ProxmoxApi {
             data = ConsoleProxyData(
                 port = "5900",
                 ticket = "DEMO_TERM_TICKET",
+                password = "DEMO_TERM_PASSWORD",
                 user = "root@pam",
                 upid = "UPID:$node:00001234:00000000:66D1B000:termproxy:root@pam:",
             )
@@ -959,6 +961,7 @@ class DemoApi : ProxmoxApi {
             data = ConsoleProxyData(
                 port = "5900",
                 ticket = "DEMO_NODE_TICKET",
+                password = "DEMO_NODE_PASSWORD",
                 user = "root@pam",
                 upid = "UPID:$node:00001234:00000000:66D1B000:termproxy:root@pam:",
             )
@@ -970,6 +973,7 @@ class DemoApi : ProxmoxApi {
             data = ConsoleProxyData(
                 port = "5900",
                 ticket = "DEMO_VNC_TICKET",
+                password = "DEMO_VNC_PASSWORD",
                 user = "root@pam",
                 upid = "UPID:$node:00001234:00000000:66D1B000:vncproxy:root@pam:",
             )

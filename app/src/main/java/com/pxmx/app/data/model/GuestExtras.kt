@@ -124,7 +124,10 @@ data class ConsoleProxyData(
     val user: String? = null,
     val cert: String? = null,
     val upid: String? = null,
-)
+    val password: String? = null,
+) {
+    val rfbPassword: String? get() = password ?: ticket
+}
 
 /**
  * Everything needed to open the official Proxmox console UI in a WebView.
