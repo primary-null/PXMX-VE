@@ -326,3 +326,98 @@ test('noVNC WebSocket connects through app TLS bridge, never native networking',
     assert.equal(calls[0][2], 'wss://pve.example:8006/api2/json/nodes/pve/vncwebsocket');
     assert.equal(calls[0][3], 'binary');
 });
+
+test('noVNC 1.6 VideoDecoder probe hang is prevented by deleting window.VideoDecoder', async () => {
+    let flushCalled = false;
+    class MockVideoDecoder {
+        static isConfigSupported() {
+            return Promise.resolve({ supported: true });
+        }
+        constructor() {}
+        configure() {}
+        decode() {}
+        flush() {
+            flushCalled = true;
+            return new Promise(() => {}); // hanging probe flush
+        }
+    }
+    const context = vm.createContext({
+        URL, EventTarget, Event, MessageEvent, Blob, Uint8Array, ArrayBuffer, DOMException,
+        TextEncoder, btoa, atob, setTimeout, clearTimeout,
+        crypto: require('node:crypto').webcrypto,
+        location: new URL('https://pve.example:8006/?console=kvm&node=pve&vmid=100'),
+        VideoDecoder: MockVideoDecoder,
+    });
+    context.window = context;
+    vm.runInContext(fs.readFileSync(scriptFile, 'utf8'), context);
+
+    assert.equal(context.VideoDecoder, undefined, 'VideoDecoder must be deleted');
+    assert.equal(context.window.VideoDecoder, undefined, 'window.VideoDecoder must be deleted');
+
+    // Simulate noVNC 1.6 _checkWebCodecsH264DecodeSupport
+    async function checkH264() {
+        if (typeof context.VideoDecoder === 'undefined') {
+            return false;
+        }
+        const res = await context.VideoDecoder.isConfigSupported({ codec: 'avc1.42001e' });
+        if (!res.supported) return false;
+        const decoder = new context.VideoDecoder();
+        await decoder.flush();
+        return true;
+    }
+
+    const supported = await checkH264();
+    assert.equal(supported, false, 'probe must return false without hanging');
+    assert.equal(flushCalled, false, 'hanging flush must not be called');
+});
+
+test('noVNC 1.6 VideoDecoder probe fallback when delete fails', async () => {
+    let flushCalled = false;
+    class MockVideoDecoder {
+        static isConfigSupported() {
+            return Promise.resolve({ supported: true });
+        }
+        constructor() {}
+        flush() {
+            flushCalled = true;
+            return new Promise(() => {});
+        }
+    }
+    const baseContext = {
+        URL, EventTarget, Event, MessageEvent, Blob, Uint8Array, ArrayBuffer, DOMException,
+        TextEncoder, btoa, atob, setTimeout, clearTimeout,
+        crypto: require('node:crypto').webcrypto,
+        location: new URL('https://pve.example:8006/?console=kvm&node=pve&vmid=100'),
+        VideoDecoder: MockVideoDecoder,
+    };
+    const windowProxy = new Proxy(baseContext, {
+        deleteProperty(target, prop) {
+            if (prop === 'VideoDecoder') {
+                throw new TypeError('Cannot delete property VideoDecoder');
+            }
+            return delete target[prop];
+        }
+    });
+    const context = vm.createContext(windowProxy);
+    context.window = windowProxy;
+    vm.runInContext(fs.readFileSync(scriptFile, 'utf8'), context);
+
+    assert.ok(context.VideoDecoder, 'VideoDecoder still exists');
+    const res = await context.VideoDecoder.isConfigSupported({ codec: 'avc1.42001e' });
+    assert.equal(res.supported, false, 'fallback must set supported: false');
+
+    async function checkH264() {
+        if (typeof context.VideoDecoder === 'undefined') {
+            return false;
+        }
+        const res = await context.VideoDecoder.isConfigSupported({ codec: 'avc1.42001e' });
+        if (!res.supported) return false;
+        const decoder = new context.VideoDecoder();
+        await decoder.flush();
+        return true;
+    }
+
+    const supported = await checkH264();
+    assert.equal(supported, false, 'probe must return false without hanging');
+    assert.equal(flushCalled, false, 'hanging flush must not be called');
+});

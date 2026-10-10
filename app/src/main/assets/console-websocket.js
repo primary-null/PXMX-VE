@@ -2,6 +2,14 @@
 // WebSocket API, but send it through the same pinned OkHttp transport as resources.
 (() => {
     'use strict';
+    // noVNC 1.6 H.264 probe flush can hang on Android.
+    try {
+        delete window.VideoDecoder;
+    } catch (_) {
+        if (typeof VideoDecoder !== 'undefined') {
+            VideoDecoder.isConfigSupported = () => Promise.resolve({ supported: false });
+        }
+    }
     const bridge = window.PXMXConsoleSocket;
     const httpBridge = window.PXMXConsoleHttp;
     const requests = new Map();

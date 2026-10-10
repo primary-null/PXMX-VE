@@ -65,6 +65,7 @@ class ConsoleWebViewBoundaryTest {
             "console-websocket.js must replace window.XMLHttpRequest",
             socketScript.contains("Object.defineProperty(window, 'XMLHttpRequest', {value: ConsoleXMLHttpRequest")
         )
+        assertLiveVideoDecoderGuard(socketScript)
 
         val liveHtml = "<!DOCTYPE html><html><head><title>Console</title><script src=\"/pve2/ext6/pvemanagerlib.js\"></script></head><body><div id=\"noVNC_container\"></div></body></html>"
         LocalConsoleTlsServer("localhost", "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: ${liveHtml.toByteArray().size}\r\nConnection: close\r\n\r\n$liveHtml").use { server ->
@@ -94,5 +95,31 @@ class ConsoleWebViewBoundaryTest {
             assertTrue("CSP must disable native workers", result.headers["Content-Security-Policy"]?.contains("worker-src 'none'") == true)
             assertTrue("CSP must restrict connect-src", result.headers["Content-Security-Policy"]?.contains("connect-src 'self'") == true)
         }
+    }
+
+    private fun assertLiveVideoDecoderGuard(socketScript: String) {
+        val stripped = socketScript
+            .replace(Regex("""/\*[\s\S]*?\*/"""), "")
+            .replace(Regex("""//.*"""), "")
+
+        assertTrue(
+            "console-websocket.js must contain a live 'delete window.VideoDecoder;'",
+            stripped.contains("delete window.VideoDecoder;")
+        )
+        val tryCatchRegex = Regex("""\btry\s*\{[^}]*\bdelete\s+window\.VideoDecoder;[^}]*\}\s*catch\b""")
+        assertTrue(
+            "delete window.VideoDecoder; must sit in a try { ... } catch block",
+            tryCatchRegex.containsMatchIn(stripped)
+        )
+        val deleteIndex = stripped.indexOf("delete window.VideoDecoder;")
+        val bridgeIndex = stripped.indexOf("window.PXMXConsoleSocket")
+        assertTrue(
+            "window.PXMXConsoleSocket bridge must be found in console-websocket.js",
+            bridgeIndex != -1
+        )
+        assertTrue(
+            "delete window.VideoDecoder; must appear before window.PXMXConsoleSocket",
+            deleteIndex in 0 until bridgeIndex
+        )
     }
 }
