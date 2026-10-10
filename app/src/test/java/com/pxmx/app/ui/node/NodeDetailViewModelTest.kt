@@ -7,6 +7,7 @@ import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.HistoryTimeframe
 import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeBundle
 import com.pxmx.app.data.model.NodeServiceInfo
@@ -111,6 +112,55 @@ class NodeDetailViewModelTest {
 
         job.cancel()
     }
+
+    @Test
+    fun nodeDetailViewModel_rrdTimeframe_hourThenDay() = runBlocking {
+        val vm = NodeDetailViewModel(repository.nodeRepo, sessionStore, "alpha")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        assertEquals(HistoryTimeframe.HOUR, vm.ui.value.rrdTimeframe)
+        assertEquals(60, vm.ui.value.rrdData.size)
+        assertTrue(vm.ui.value.rrdData.any { it.mem != null && it.maxmem != null })
+        assertTrue(vm.ui.value.rrdData.any { it.iowait != null })
+
+        vm.setRrdTimeframe(HistoryTimeframe.DAY)
+        assertEquals(HistoryTimeframe.DAY, vm.ui.value.rrdTimeframe)
+        assertEquals(48, vm.ui.value.rrdData.size)
+
+        job.cancel()
+    }
+
+    @Test
+    fun nodeDetailViewModel_setRrdTimeframe_failureKeepsHourSeries() = runBlocking {
+        val failingApi = object : ProxmoxApi by demoApi {
+            override suspend fun nodeRrdData(
+                node: String,
+                timeframe: String,
+            ): PveResponse<List<Map<String, Any>>> {
+                if (timeframe == "day") throw PveException("rrd down")
+                return demoApi.nodeRrdData(node, timeframe)
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = failingApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(failingApi)
+                override fun clear() {}
+            },
+        )
+        val vm = NodeDetailViewModel(customRepo.nodeRepo, sessionStore, "alpha")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+        val hourSize = vm.ui.value.rrdData.size
+        assertEquals(60, hourSize)
+        vm.setRrdTimeframe(HistoryTimeframe.DAY)
+        assertEquals(HistoryTimeframe.HOUR, vm.ui.value.rrdTimeframe)
+        assertEquals(hourSize, vm.ui.value.rrdData.size)
+        assertNotNull(vm.ui.value.error)
+        job.cancel()
+    }
+
     @Test
     fun nodeDetailViewModel_loadFailure_setsErrorMessage() = runBlocking {
         val customRepo = ProxmoxRepository(

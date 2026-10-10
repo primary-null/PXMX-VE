@@ -253,4 +253,11 @@ class ChassisLampTest {
         assertTrue(isReduceMotionEnabled(0f))
         assertFalse(isReduceMotionEnabled(1f))
     }
+
+    @Test
+    fun faultAlpha_blinksUnlessReduceMotion() {
+        assertEquals(1f, faultAlpha(0.2f, reduceMotion = true), 0.0f)
+        assertEquals(CHASSIS_FAULT_ALPHA_DIM, faultAlpha(0.2f, reduceMotion = false), 0.0f)
+        assertEquals(1f, faultAlpha(0.8f, reduceMotion = false), 0.0f)
+    }
 }

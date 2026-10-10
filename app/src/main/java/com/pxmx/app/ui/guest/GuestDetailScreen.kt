@@ -394,6 +394,8 @@ fun GuestDetailScreen(
                 TechHistoryGraph(
                     points = state.rrdData,
                     isGuest = true,
+                    timeframe = state.rrdTimeframe,
+                    onTimeframe = { viewModel.setRrdTimeframe(it) },
                 )
             }
 

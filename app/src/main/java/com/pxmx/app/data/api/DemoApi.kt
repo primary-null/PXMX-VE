@@ -1002,57 +1002,50 @@ class DemoApi : ProxmoxApi {
     override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> = PveResponse(data = "OK")
 
     override suspend fun nodeRrdData(node: String, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val steps = if (timeframe == "day") 48 else 60
+        val stepSec = if (timeframe == "day") 1_800L else 60L
         val nowSec = System.currentTimeMillis() / 1000
-        val points = (0..9).map { i ->
-            val t = nowSec - (9 - i) * 360
-            val wobble = ((i % 3) - 1) * 0.05
-            val cpu = (0.15 + wobble).coerceIn(0.02, 0.95)
-            val mem = 8_000_000_000L + (i * 200_000_000L)
-            val maxmem = 32_000_000_000L
-            val netin = 1_500_000L + (i * 100_000L)
-            val netout = 800_000L + (i * 50_000L)
+        val points = (0 until steps).map { i ->
+            val t = nowSec - (steps - 1 - i) * stepSec
+            val wobble = ((i % 7) - 3) * 0.02
             mapOf<String, Any>(
                 "time" to t,
-                "cpu" to cpu,
-                "mem" to mem,
-                "maxmem" to maxmem,
-                "netin" to netin,
-                "netout" to netout,
+                "cpu" to (0.16 + wobble).coerceIn(0.02, 0.95),
+                "iowait" to (0.03 + wobble * 0.4).coerceIn(0.0, 0.4),
+                "memused" to 8_000_000_000L + i * 40_000_000L,
+                "memtotal" to 32_000_000_000L,
+                "netin" to 1_500_000.0 + i * 12_000.0,
+                "netout" to 800_000.0 + i * 6_000.0,
+                "rootused" to 40_000_000_000L + i * 20_000_000L,
+                "roottotal" to 250_000_000_000L,
             )
         }
         return PveResponse(data = points)
     }
 
     override suspend fun guestRrdData(node: String, type: String, vmid: Long, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val steps = if (timeframe == "day") 48 else 60
+        val stepSec = if (timeframe == "day") 1_800L else 60L
         val nowSec = System.currentTimeMillis() / 1000
-        val points = (0..9).map { i ->
-            val t = nowSec - (9 - i) * 360
-            val wobble = ((i % 3) - 1) * 0.04
-            val cpu = (0.12 + wobble).coerceIn(0.01, 0.90)
-            val mem = 1_200_000_000L + (i * 50_000_000L)
-            val maxmem = 2_048_000_000L
-            val netin = 500_000L + (i * 20_000L)
-            val netout = 300_000L + (i * 15_000L)
-
+        val points = (0 until steps).map { i ->
+            val t = nowSec - (steps - 1 - i) * stepSec
+            val wobble = ((i % 7) - 3) * 0.015
             val point = mutableMapOf<String, Any>(
                 "time" to t,
-                "cpu" to cpu,
-                "mem" to mem,
-                "maxmem" to maxmem,
-                "netin" to netin,
-                "netout" to netout,
+                "cpu" to (0.12 + wobble).coerceIn(0.01, 0.90),
+                "mem" to 1_200_000_000L + i * 8_000_000L,
+                "maxmem" to 2_048_000_000L,
+                "netin" to 500_000.0 + i * 4_000.0,
+                "netout" to 300_000.0 + i * 2_500.0,
             )
-
-            // Disk gap: VM 101 and LXCs have no disk stats at all (empty series).
-            // VM 100 has disk data with a real disk gap on points 4..6.
             if (vmid == 100L) {
-                if (i !in 4..6) {
-                    point["disk"] = 10_000_000_000L + (i * 100_000_000L)
-                    point["maxdisk"] = 32_000_000_000L
+                if (i !in 24..28) {
+                    point["diskread"] = 80_000.0 + i * 1_200.0
+                    point["diskwrite"] = 40_000.0 + i * 800.0
                 }
             } else if (vmid == 102L) {
-                point["disk"] = 15_000_000_000L
-                point["maxdisk"] = 64_000_000_000L
+                point["diskread"] = 12_000.0
+                point["diskwrite"] = 4_000.0
             }
             point
         }

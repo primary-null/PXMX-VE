@@ -11,6 +11,7 @@ import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.NodeStorageEntry
 import com.pxmx.app.data.model.RrdPoint
+import com.pxmx.app.data.model.withoutEmptySamples
 import com.pxmx.app.data.model.SnapshotInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -353,7 +354,9 @@ class GuestRepository(
         vmid: Long,
         timeframe: String = "hour",
     ): Result<List<RrdPoint>> = pveClient.apiCall { api ->
-        api.guestRrdData(node, type.path, vmid, timeframe).data.orEmpty().map { RrdPoint.fromMap(it) }
+        api.guestRrdData(node, type.path, vmid, timeframe).data.orEmpty()
+            .map { RrdPoint.fromMap(it) }
+            .withoutEmptySamples()
     }
 
     suspend fun createBlankGuest(

@@ -34,7 +34,7 @@ fun MetricBar(
     barHeight: Dp = 7.dp,
     fillColor: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = TechColors.Deck,
-    animationDurationMs: Int = 500,
+    animationDurationMs: Int = 300,
 ) {
     val target = (progress ?: 0f).coerceIn(0f, 1f)
     val animated by animateFloatAsState(

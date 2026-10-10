@@ -18,6 +18,21 @@ fun formatBytes(bytes: Long?): String {
     return String.format(Locale.US, "%.1f %s", v, units[i])
 }
 
+/** PVE RRD netin/netout and diskread/diskwrite are bytes per second. */
+fun formatRate(bytesPerSec: Double?): String {
+    if (bytesPerSec == null) return "—"
+    val abs = kotlin.math.abs(bytesPerSec)
+    if (abs < 1024.0) return String.format(Locale.US, "%.0f B/s", bytesPerSec)
+    val units = arrayOf("KiB/s", "MiB/s", "GiB/s", "TiB/s")
+    var v = abs
+    var i = -1
+    do {
+        v /= 1024.0
+        i++
+    } while (v >= 1024 && i < units.lastIndex)
+    return String.format(Locale.US, "%.1f %s", v, units[i])
+}
+
 fun formatUptime(seconds: Long?): String {
     if (seconds == null || seconds <= 0) return "—"
     val d = TimeUnit.SECONDS.toDays(seconds)

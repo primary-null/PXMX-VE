@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +77,36 @@ fun activityAlpha(pulse: Float, reduceMotion: Boolean): Float {
     if (reduceMotion) return 1f
     val p = pulse.coerceIn(0f, 1f)
     return CHASSIS_ACTIVITY_ALPHA_MIN + (1f - CHASSIS_ACTIVITY_ALPHA_MIN) * p
+}
+
+const val CHASSIS_FAULT_ALPHA_DIM = 0.38f
+
+fun faultAlpha(pulse: Float, reduceMotion: Boolean): Float {
+    if (reduceMotion) return 1f
+    return if (pulse.coerceIn(0f, 1f) >= 0.5f) 1f else CHASSIS_FAULT_ALPHA_DIM
+}
+
+/** Null means no shared clock; each lamp may run its own pulse. */
+val LocalChassisPulse = compositionLocalOf<Float?> { null }
+
+@Composable
+fun ProvideChassisPulse(reduceMotion: Boolean, content: @Composable () -> Unit) {
+    val pulse = if (reduceMotion) {
+        0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "chassis-pulse")
+        val value by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+        value
+    }
+    CompositionLocalProvider(LocalChassisPulse provides pulse, content = content)
 }
 
 fun shouldBlinkLog(previousKey: String?, currentKey: String?): Boolean =
@@ -195,10 +227,13 @@ fun ChassisLamp(
     blinkToken: String? = null,
     reduceMotion: Boolean = false,
 ) {
-    val pulse = if (state.mode == ChassisLampMode.ACTIVITY && !reduceMotion) {
-        ChassisLampPulse()
-    } else {
-        0f
+    val needsPulse = !reduceMotion &&
+        (state.mode == ChassisLampMode.ACTIVITY || state.mode == ChassisLampMode.FAULT)
+    val sharedPulse = LocalChassisPulse.current
+    val pulse = when {
+        !needsPulse -> 0f
+        sharedPulse != null -> sharedPulse
+        else -> ChassisLampPulse()
     }
     var blinkBoost by remember { mutableFloatStateOf(0f) }
     val lastToken = remember { mutableStateOf<String?>(null) }
@@ -216,6 +251,7 @@ fun ChassisLamp(
     val baseAlpha = when (state.mode) {
         ChassisLampMode.OFF -> 0.35f
         ChassisLampMode.ACTIVITY -> activityAlpha(pulse, reduceMotion)
+        ChassisLampMode.FAULT -> faultAlpha(pulse, reduceMotion)
         else -> 1f
     }
     val alpha = (baseAlpha + blinkBoost * (1f - baseAlpha)).coerceIn(0f, 1f)

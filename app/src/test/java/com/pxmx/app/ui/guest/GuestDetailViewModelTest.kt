@@ -9,6 +9,7 @@ import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.HistoryTimeframe
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.repo.ProxmoxRepository
@@ -125,6 +126,17 @@ class GuestDetailViewModelTest {
 
         vm.selectSection(null)
         assertNull(vm.ui.value.expanded)
+    }
+
+    @Test
+    fun rrdTimeframe_hourThenDay() {
+        assertEquals(HistoryTimeframe.HOUR, vm.ui.value.rrdTimeframe)
+        assertEquals(60, vm.ui.value.rrdData.size)
+        assertTrue(vm.ui.value.rrdData.any { it.diskread != null })
+
+        vm.setRrdTimeframe(HistoryTimeframe.DAY)
+        assertEquals(HistoryTimeframe.DAY, vm.ui.value.rrdTimeframe)
+        assertEquals(48, vm.ui.value.rrdData.size)
     }
 
     // -------------------------------------------------------------------------

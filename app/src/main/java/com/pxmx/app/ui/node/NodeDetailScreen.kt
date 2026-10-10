@@ -209,6 +209,8 @@ fun NodeDetailScreen(
                     TechHistoryGraph(
                         points = state.rrdData,
                         isGuest = false,
+                        timeframe = state.rrdTimeframe,
+                        onTimeframe = { viewModel.setRrdTimeframe(it) },
                     )
                 }
 

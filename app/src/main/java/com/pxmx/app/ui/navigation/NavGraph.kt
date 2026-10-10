@@ -73,8 +73,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pxmx.app.ui.components.ProvideChassisPulse
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.rememberReduceMotion
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableFloatStateOf
 import com.pxmx.app.ui.adaptive.AdaptivePaneSplitter
@@ -213,6 +215,7 @@ fun ProxmoxNavGraph() {
         }
     }
 
+    ProvideChassisPulse(rememberReduceMotion()) {
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
@@ -1172,5 +1175,6 @@ fun ProxmoxNavGraph() {
                 }
             }
         }
+    }
     }
 }

@@ -25,9 +25,9 @@ when a host needs hands-on attention.
 | Area | What you get |
 | --- | --- |
 | Home | Guests, nodes, and storage at a glance, with the newest cluster events pinned below. |
-| Nodes | Per-node status: CPU, memory, and disk fills, plus confirmed reboot or shutdown of the hypervisor. |
+| Nodes | Per-node status: CPU, memory, and disk fills, hour or day history, plus confirmed reboot or shutdown of the hypervisor. |
 | Storage | Usage fills across all your datastores. |
-| Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, and a deploy-from-template dialog. |
+| Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, hour or day history, and a deploy-from-template dialog. |
 | Backups | Start and delete backups from the guest menu. |
 | Updates | Refresh package lists and apply updates with a live, step-by-step progress view. On Proxmox VE 9, where the API no longer allows remote installs, the app walks you to the node shell command instead. |
 | Console | An interactive SSH console for guests, and a node shell for the host. |

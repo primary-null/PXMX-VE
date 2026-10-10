@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.HistoryTimeframe
 import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeStatus
@@ -37,6 +38,7 @@ data class NodeDetailUiState(
     val error: String? = null,
     val isTokenSession: Boolean = false,
     val rrdData: List<RrdPoint> = emptyList(),
+    val rrdTimeframe: HistoryTimeframe = HistoryTimeframe.HOUR,
     val actionInProgress: String? = null,
 )
 
@@ -93,7 +95,8 @@ class NodeDetailViewModel(
                     error = null,
                 )
             }
-            val rrdPoints = nodeRepo.nodeRrdData(node, "hour").getOrNull().orEmpty()
+            val tf = _uiState.value.rrdTimeframe
+            val rrdResult = nodeRepo.nodeRrdData(node, tf.apiName)
             nodeRepo.loadNodeBundle(node).fold(
                 onSuccess = { bundle ->
                     _uiState.update {
@@ -101,7 +104,11 @@ class NodeDetailViewModel(
                             status = bundle.status,
                             services = bundle.services,
                             tasks = bundle.tasks,
-                            rrdData = rrdPoints,
+                            rrdData = if (it.rrdTimeframe == tf) {
+                                rrdResult.getOrDefault(it.rrdData)
+                            } else {
+                                it.rrdData
+                            },
                             loading = false,
                             refreshing = false,
                         )
@@ -115,6 +122,39 @@ class NodeDetailViewModel(
                             refreshing = false,
                             error = e.message ?: "Failed to load node",
                         )
+                    }
+                },
+            )
+        }
+    }
+
+    fun setRrdTimeframe(timeframe: HistoryTimeframe) {
+        if (_uiState.value.rrdTimeframe == timeframe) return
+        val previous = _uiState.value.rrdTimeframe
+        _uiState.update { it.copy(rrdTimeframe = timeframe) }
+        val node = _uiState.value.node
+        viewModelScope.launch {
+            nodeRepo.nodeRrdData(node, timeframe.apiName).fold(
+                onSuccess = { points ->
+                    _uiState.update {
+                        if (it.rrdTimeframe == timeframe) {
+                            it.copy(rrdData = points, error = null)
+                        } else {
+                            it
+                        }
+                    }
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _uiState.update {
+                        if (it.rrdTimeframe == timeframe) {
+                            it.copy(
+                                rrdTimeframe = previous,
+                                error = e.message ?: "Failed to load history",
+                            )
+                        } else {
+                            it
+                        }
                     }
                 },
             )

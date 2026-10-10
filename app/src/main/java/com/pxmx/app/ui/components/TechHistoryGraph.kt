@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,23 +31,49 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pxmx.app.data.model.HistoryTimeframe
 import com.pxmx.app.data.model.RrdPoint
 import com.pxmx.app.ui.util.formatBytes
 import com.pxmx.app.ui.util.formatPercent
+import com.pxmx.app.ui.util.formatRate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
-enum class HistoryMetric(val label: String) {
-    CPU("CPU"),
-    MEMORY("MEM"),
-    DISK("DISK"),
-    NETWORK("NET"),
+private fun HistoryTimeframe.chipLabel(): String = when (this) {
+    HistoryTimeframe.HOUR -> "1h"
+    HistoryTimeframe.DAY -> "1d"
+}
+
+private fun HistoryTimeframe.axisCaption(): String = when (this) {
+    HistoryTimeframe.HOUR -> "PAST HOUR"
+    HistoryTimeframe.DAY -> "PAST DAY"
+}
+
+private fun HistoryRowId.label(): String = when (this) {
+    HistoryRowId.CPU -> "CPU"
+    HistoryRowId.MEM -> "MEM"
+    HistoryRowId.NET -> "NET"
+    HistoryRowId.DISK_IO -> "DISK I/O"
+    HistoryRowId.ROOT -> "ROOT"
+}
+
+@Composable
+private fun HistoryRowId.color(): Color = when (this) {
+    HistoryRowId.CPU -> TechColors.LinkGreen
+    HistoryRowId.MEM -> TechColors.CoolBlue
+    HistoryRowId.NET -> Color(0xFFCE93D8)
+    HistoryRowId.DISK_IO -> TechColors.Amber
+    HistoryRowId.ROOT -> TechColors.Amber
 }
 
 @Composable
@@ -53,215 +81,116 @@ fun TechHistoryGraph(
     points: List<RrdPoint>,
     isGuest: Boolean,
     modifier: Modifier = Modifier,
+    timeframe: HistoryTimeframe = HistoryTimeframe.HOUR,
+    onTimeframe: ((HistoryTimeframe) -> Unit)? = null,
 ) {
-    val availableMetrics = remember(isGuest) {
-        if (isGuest) {
-            listOf(HistoryMetric.CPU, HistoryMetric.MEMORY, HistoryMetric.DISK, HistoryMetric.NETWORK)
-        } else {
-            listOf(HistoryMetric.CPU, HistoryMetric.MEMORY, HistoryMetric.NETWORK)
-        }
-    }
-
-    var selectedMetric by remember { mutableStateOf(HistoryMetric.CPU) }
-
-    val hasDiskData = remember(points) {
-        points.any { it.disk != null }
+    val rows = remember(points, isGuest) { historyRows(isGuest, points) }
+    var expanded by remember { mutableStateOf<HistoryRowId?>(HistoryRowId.CPU) }
+    var scrubIndex by remember { mutableStateOf<Int?>(null) }
+    val active = expanded?.takeIf { it in rows } ?: rows.firstOrNull()
+    LaunchedEffect(timeframe, points.size, points.firstOrNull()?.time, points.lastOrNull()?.time) {
+        scrubIndex = null
     }
 
     val nowSec = remember { System.currentTimeMillis() / 1000 }
     val startTime = points.firstOrNull()?.time ?: (nowSec - 3600)
     val endTime = points.lastOrNull()?.time ?: nowSec
-    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.US) }
-    val startLabel = remember(startTime) { timeFmt.format(Date(startTime * 1000)) }
-    val endLabel = remember(endTime) { timeFmt.format(Date(endTime * 1000)) }
+    val timeFmt = remember(timeframe) {
+        SimpleDateFormat(if (timeframe == HistoryTimeframe.DAY) "MM-dd HH:mm" else "HH:mm", Locale.US)
+    }
+    val startLabel = remember(startTime, timeframe) { timeFmt.format(Date(startTime * 1000)) }
+    val endLabel = remember(endTime, timeframe) { timeFmt.format(Date(endTime * 1000)) }
 
     TechPlate(
         modifier = modifier.fillMaxWidth(),
-        railColor = when (selectedMetric) {
-            HistoryMetric.CPU -> TechColors.LinkGreen
-            HistoryMetric.MEMORY -> TechColors.CoolBlue
-            HistoryMetric.DISK -> TechColors.Amber
-            HistoryMetric.NETWORK -> Color(0xFFCE93D8)
-        }
+        railColor = active?.color() ?: TechColors.LinkGreen,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(12.dp),
         ) {
-            // Header: Section label + Hour label
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "HISTORY GRAPH",
+                    text = "HISTORY",
                     style = MaterialTheme.typography.labelMedium,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = "PAST HOUR · 1h",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 0.8.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Metric Selector Chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                availableMetrics.forEach { metric ->
-                    val isSelected = selectedMetric == metric
-                    val shape = CutCornerShape(bottomEnd = 6.dp)
-                    val activeColor = when (metric) {
-                        HistoryMetric.CPU -> TechColors.LinkGreen
-                        HistoryMetric.MEMORY -> TechColors.CoolBlue
-                        HistoryMetric.DISK -> TechColors.Amber
-                        HistoryMetric.NETWORK -> Color(0xFFCE93D8)
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(shape)
-                            .background(if (isSelected) activeColor.copy(alpha = 0.2f) else TechColors.Hull)
-                            .border(
-                                1.dp,
-                                if (isSelected) activeColor else TechColors.Edge,
-                                shape,
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HistoryTimeframe.entries.forEach { tf ->
+                        val selected = tf == timeframe
+                        val shape = CutCornerShape(bottomEnd = 6.dp)
+                        Box(
+                            modifier = Modifier
+                                .clip(shape)
+                                .background(if (selected) TechColors.LinkGreen.copy(alpha = 0.2f) else TechColors.Hull)
+                                .border(
+                                    1.dp,
+                                    if (selected) TechColors.LinkGreen else TechColors.Edge,
+                                    shape,
+                                )
+                                .clickable(enabled = onTimeframe != null) { onTimeframe?.invoke(tf) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = tf.chipLabel(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                letterSpacing = 0.8.sp,
+                                color = if (selected) TechColors.LinkGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            .clickable { selectedMetric = metric }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = metric.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            letterSpacing = 0.8.sp,
-                            color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        }
                     }
                 }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Latest value readout
-            val latestValueText = remember(points, selectedMetric) {
-                val last = points.lastOrNull()
-                when (selectedMetric) {
-                    HistoryMetric.CPU -> {
-                        val cpu = last?.cpu
-                        if (cpu != null) formatPercent(if (cpu <= 1.0) cpu * 100.0 else cpu) else "—"
-                    }
-                    HistoryMetric.MEMORY -> {
-                        val mem = last?.mem
-                        val maxmem = last?.maxmem
-                        if (mem != null && maxmem != null && maxmem > 0) {
-                            "${formatBytes(mem)} / ${formatBytes(maxmem)}"
-                        } else if (mem != null) {
-                            formatBytes(mem)
-                        } else "—"
-                    }
-                    HistoryMetric.DISK -> {
-                        val disk = last?.disk
-                        val maxdisk = last?.maxdisk
-                        if (disk != null && maxdisk != null && maxdisk > 0) {
-                            "${formatBytes(disk)} / ${formatBytes(maxdisk)}"
-                        } else if (disk != null) {
-                            formatBytes(disk)
-                        } else "—"
-                    }
-                    HistoryMetric.NETWORK -> {
-                        val netin = last?.netin
-                        val netout = last?.netout
-                        if (netin != null && netout != null) {
-                            "↓ ${formatBytes(netin)} · ↑ ${formatBytes(netout)}"
-                        } else "—"
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${selectedMetric.label}: $latestValueText",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Chart area
-            val isDiskMissing = selectedMetric == HistoryMetric.DISK && !hasDiskData
-            val lineColor = when (selectedMetric) {
-                HistoryMetric.CPU -> TechColors.LinkGreen
-                HistoryMetric.MEMORY -> TechColors.CoolBlue
-                HistoryMetric.DISK -> TechColors.Amber
-                HistoryMetric.NETWORK -> Color(0xFFCE93D8)
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(110.dp)
-                    .background(TechColors.Deck.copy(alpha = 0.4f))
-                    .border(1.dp, TechColors.Edge.copy(alpha = 0.5f))
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (points.isEmpty()) {
+            if (points.isEmpty() || rows.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .background(TechColors.Deck.copy(alpha = 0.4f))
+                        .border(1.dp, TechColors.Edge.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
                         text = "NO DATA",
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else if (isDiskMissing) {
-                    // Crucial brief rule: Missing disk is an empty series, NOT 0%
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "NO DISK METRICS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TechColors.Amber,
-                        )
-                        Text(
-                            text = "EMPTY SERIES",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    HistoryCanvas(
+                }
+            } else {
+                rows.forEach { row ->
+                    val selected = row == active
+                    HistorySparkRow(
+                        row = row,
                         points = points,
-                        metric = selectedMetric,
-                        lineColor = lineColor,
-                        modifier = Modifier.fillMaxSize(),
+                        expanded = selected,
+                        scrubIndex = if (selected) scrubIndex else null,
+                        onSelect = {
+                            if (expanded != row) {
+                                expanded = row
+                                scrubIndex = null
+                            }
+                        },
+                        onScrub = { scrubIndex = it },
                     )
+                    Spacer(Modifier.height(6.dp))
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
-
-            // Hour timestamp axis
+            Spacer(Modifier.height(2.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -274,7 +203,7 @@ fun TechHistoryGraph(
                     fontSize = 10.sp,
                 )
                 Text(
-                    text = "1 HOUR TIMEFRAME",
+                    text = timeframe.axisCaption(),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -293,20 +222,133 @@ fun TechHistoryGraph(
 }
 
 @Composable
+private fun HistorySparkRow(
+    row: HistoryRowId,
+    points: List<RrdPoint>,
+    expanded: Boolean,
+    scrubIndex: Int?,
+    onSelect: () -> Unit,
+    onScrub: (Int?) -> Unit,
+) {
+    val color = row.color()
+    val readoutIndex = scrubIndex?.coerceIn(0, points.lastIndex)
+    val readoutPoint = readoutIndex?.let { points[it] }
+        ?: lastPointWith(points) { rowHasValue(row, it) }
+    val valueText = rowValueText(row, readoutPoint)
+    val height = if (expanded) 88.dp else 40.dp
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSelect),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = row.label(),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = if (expanded) color else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = valueText,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(TechColors.Deck.copy(alpha = 0.4f))
+                .border(1.dp, if (expanded) color.copy(alpha = 0.5f) else TechColors.Edge.copy(alpha = 0.5f))
+                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .then(
+                    if (expanded) {
+                        Modifier.pointerInput(points.size) {
+                            detectTapGestures(
+                                onTap = { offset ->
+                                    onScrub(indexAt(offset.x, size.width.toFloat(), points.size))
+                                },
+                            )
+                        }.pointerInput(points.size) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = { },
+                                onHorizontalDrag = { change, _ ->
+                                    change.consume()
+                                    onScrub(indexAt(change.position.x, size.width.toFloat(), points.size))
+                                },
+                            )
+                        }
+                    } else {
+                        Modifier.clickable(onClick = onSelect)
+                    },
+                ),
+        ) {
+            HistoryCanvas(
+                points = points,
+                row = row,
+                lineColor = color,
+                scrubIndex = readoutIndex,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+private fun indexAt(x: Float, width: Float, count: Int): Int {
+    if (count <= 1 || width <= 0f) return 0
+    val t = (x / width).coerceIn(0f, 1f)
+    return (t * (count - 1)).roundToInt()
+}
+
+private fun rowValueText(row: HistoryRowId, point: RrdPoint?): String {
+    if (point == null) return "—"
+    return when (row) {
+        HistoryRowId.CPU -> {
+            val cpu = formatPercent(cpuPercent(point.cpu))
+            val io = cpuPercent(point.iowait)
+            if (io != null) "$cpu  IO ${formatPercent(io)}" else cpu
+        }
+        HistoryRowId.MEM -> {
+            val pct = formatPercent(memPercent(point))
+            if (point.mem != null && point.maxmem != null) {
+                "$pct  ${formatBytes(point.mem)} / ${formatBytes(point.maxmem)}"
+            } else pct
+        }
+        HistoryRowId.NET -> "↑ ${formatRate(point.netin)}  ↓ ${formatRate(point.netout)}"
+        HistoryRowId.DISK_IO -> "R ${formatRate(point.diskread)}  W ${formatRate(point.diskwrite)}"
+        HistoryRowId.ROOT -> {
+            val pct = formatPercent(rootPercent(point))
+            if (point.disk != null && point.maxdisk != null) {
+                "$pct  ${formatBytes(point.disk)} / ${formatBytes(point.maxdisk)}"
+            } else pct
+        }
+    }
+}
+
+@Composable
 private fun HistoryCanvas(
     points: List<RrdPoint>,
-    metric: HistoryMetric,
+    row: HistoryRowId,
     lineColor: Color,
+    scrubIndex: Int?,
     modifier: Modifier = Modifier,
 ) {
     val dividerColor = TechColors.Divider
-
+    val overlayColor = TechColors.Amber
+    val netOutColor = TechColors.CoolBlue
+    val diskWriteColor = TechColors.Danger.copy(alpha = 0.85f)
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f || points.isEmpty()) return@Canvas
 
-        // Draw 3 horizontal grid guide lines (25%, 50%, 75%)
         val gridSteps = 3
         for (i in 1..gridSteps) {
             val y = h * (i.toFloat() / (gridSteps + 1))
@@ -319,92 +361,186 @@ private fun HistoryCanvas(
             )
         }
 
-        // Extract series values
-        val values: List<Double?> = points.map { pt ->
-            when (metric) {
-                HistoryMetric.CPU -> {
-                    pt.cpu?.let { if (it <= 1.0) it * 100.0 else it }
-                }
-                HistoryMetric.MEMORY -> {
-                    if (pt.mem != null && pt.maxmem != null && pt.maxmem > 0) {
-                        (pt.mem.toDouble() / pt.maxmem.toDouble()) * 100.0
-                    } else pt.mem?.toDouble()
-                }
-                HistoryMetric.DISK -> {
-                    // Do NOT convert null to 0.0! A null disk is kept null to render gaps.
-                    if (pt.disk != null && pt.maxdisk != null && pt.maxdisk > 0) {
-                        (pt.disk.toDouble() / pt.maxdisk.toDouble()) * 100.0
-                    } else pt.disk?.toDouble()
-                }
-                HistoryMetric.NETWORK -> {
-                    val inBytes = pt.netin ?: 0L
-                    val outBytes = pt.netout ?: 0L
-                    (inBytes + outBytes).toDouble()
-                }
-            }
-        }
-
-        val nonNullVals = values.filterNotNull()
-        if (nonNullVals.isEmpty()) return@Canvas
-
-        val maxVal = when (metric) {
-            HistoryMetric.CPU, HistoryMetric.MEMORY -> {
-                val m = nonNullVals.maxOrNull() ?: 100.0
-                if (m <= 100.0) 100.0 else m
-            }
-            HistoryMetric.DISK -> {
-                val hasMaxDisk = points.any { it.maxdisk != null && it.maxdisk > 0 }
-                if (hasMaxDisk) 100.0 else (nonNullVals.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
-            }
-            HistoryMetric.NETWORK -> {
-                (nonNullVals.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
-            }
-        }
-
-        val minVal = 0.0
-        val valRange = (maxVal - minVal).coerceAtLeast(0.001)
-
-        val n = points.size
-        val xStep = if (n > 1) w / (n - 1) else w
-
-        // Draw line segments, breaking paths over nulls (so gaps are not drawn as 0)
-        var currentPath: Path? = null
-        for (i in points.indices) {
-            val v = values[i]
-            val x = i * xStep
-            if (v != null) {
-                val norm = ((v - minVal) / valRange).coerceIn(0.0, 1.0).toFloat()
-                val y = h - (norm * (h - 8f)) - 4f
-                if (currentPath == null) {
-                    currentPath = Path().apply { moveTo(x, y) }
-                } else {
-                    currentPath.lineTo(x, y)
-                }
-                // Draw point dot
-                drawCircle(
+        when (row) {
+            HistoryRowId.CPU -> {
+                drawPercentSeries(
+                    points = points,
                     color = lineColor,
-                    radius = 2.5f,
-                    center = Offset(x, y),
+                    overlayColor = overlayColor,
+                    overlay = { cpuPercent(it.iowait) },
+                    value = { cpuPercent(it.cpu) },
                 )
-            } else {
-                // Gap: finish current path and reset
-                currentPath?.let { path ->
-                    drawPath(
-                        path = path,
-                        color = lineColor,
-                        style = Stroke(width = 2f),
-                    )
-                }
-                currentPath = null
             }
+            HistoryRowId.MEM -> drawPercentSeries(points, lineColor) { memPercent(it) }
+            HistoryRowId.ROOT -> drawPercentSeries(points, lineColor) { rootPercent(it) }
+            HistoryRowId.NET -> drawBidirectional(
+                points = points,
+                upColor = lineColor,
+                downColor = netOutColor,
+                axisColor = dividerColor,
+                up = { it.netin },
+                down = { it.netout },
+            )
+            HistoryRowId.DISK_IO -> drawBidirectional(
+                points = points,
+                upColor = lineColor,
+                downColor = diskWriteColor,
+                axisColor = dividerColor,
+                up = { it.diskread },
+                down = { it.diskwrite },
+            )
         }
 
-        currentPath?.let { path ->
-            drawPath(
-                path = path,
-                color = lineColor,
-                style = Stroke(width = 2f),
+        if (scrubIndex != null && points.size > 1) {
+            val x = scrubIndex.toFloat() / (points.size - 1).toFloat() * w
+            drawLine(
+                color = lineColor.copy(alpha = 0.7f),
+                start = Offset(x, 0f),
+                end = Offset(x, h),
+                strokeWidth = 1.2f,
             )
         }
     }
+}
+
+private fun DrawScope.drawPercentSeries(
+    points: List<RrdPoint>,
+    color: Color,
+    overlayColor: Color = color,
+    overlay: ((RrdPoint) -> Double?)? = null,
+    value: (RrdPoint) -> Double?,
+) {
+    drawLineSeries(
+        points = points,
+        color = color,
+        fill = true,
+        minVal = 0.0,
+        maxVal = 100.0,
+        value = value,
+    )
+    if (overlay != null) {
+        drawLineSeries(
+            points = points,
+            color = overlayColor,
+            fill = false,
+            minVal = 0.0,
+            maxVal = 100.0,
+            value = overlay,
+            strokeWidth = 1.4f,
+        )
+    }
+}
+
+private fun DrawScope.drawBidirectional(
+    points: List<RrdPoint>,
+    upColor: Color,
+    downColor: Color,
+    axisColor: Color,
+    up: (RrdPoint) -> Double?,
+    down: (RrdPoint) -> Double?,
+) {
+    val w = size.width
+    val h = size.height
+    val mid = h / 2f
+    drawLine(
+        color = axisColor.copy(alpha = 0.8f),
+        start = Offset(0f, mid),
+        end = Offset(w, mid),
+        strokeWidth = 1f,
+    )
+    val peak = points.maxOf { p ->
+        maxOf(abs(up(p) ?: 0.0), abs(down(p) ?: 0.0))
+    }.coerceAtLeast(1.0)
+    drawLineSeries(
+        points = points,
+        color = upColor,
+        fill = true,
+        minVal = 0.0,
+        maxVal = peak,
+        value = up,
+        yZero = mid,
+        yPositiveIsUp = true,
+        halfHeight = mid,
+    )
+    drawLineSeries(
+        points = points,
+        color = downColor,
+        fill = true,
+        minVal = 0.0,
+        maxVal = peak,
+        value = down,
+        yZero = mid,
+        yPositiveIsUp = false,
+        halfHeight = mid,
+    )
+}
+
+private fun DrawScope.drawLineSeries(
+    points: List<RrdPoint>,
+    color: Color,
+    fill: Boolean,
+    minVal: Double,
+    maxVal: Double,
+    value: (RrdPoint) -> Double?,
+    strokeWidth: Float = 1.8f,
+    yZero: Float? = null,
+    yPositiveIsUp: Boolean = true,
+    halfHeight: Float? = null,
+) {
+    val w = size.width
+    val h = size.height
+    val n = points.size
+    if (n == 0) return
+    val xStep = if (n > 1) w / (n - 1) else w
+    val range = (maxVal - minVal).coerceAtLeast(0.001)
+    val baseline = yZero ?: h
+
+    fun yFor(v: Double): Float {
+        val norm = ((v - minVal) / range).coerceIn(0.0, 1.0).toFloat()
+        return if (halfHeight != null && yZero != null) {
+            if (yPositiveIsUp) yZero - norm * (halfHeight - 3f)
+            else yZero + norm * (halfHeight - 3f)
+        } else {
+            h - (norm * (h - 6f)) - 3f
+        }
+    }
+
+    var segment = mutableListOf<Offset>()
+    fun flush() {
+        if (segment.isEmpty()) return
+        if (fill && segment.size >= 2) {
+            val path = Path()
+            path.moveTo(segment.first().x, baseline)
+            path.lineTo(segment.first().x, segment.first().y)
+            for (i in 1 until segment.size) {
+                path.lineTo(segment[i].x, segment[i].y)
+            }
+            path.lineTo(segment.last().x, baseline)
+            path.close()
+            drawPath(path, color.copy(alpha = 0.16f))
+        }
+        if (segment.size == 1) {
+            drawCircle(color, radius = 2.4f, center = segment.first())
+        } else {
+            val path = Path()
+            path.moveTo(segment.first().x, segment.first().y)
+            for (i in 1 until segment.size) {
+                path.lineTo(segment[i].x, segment[i].y)
+            }
+            drawPath(path, color, style = Stroke(width = strokeWidth))
+        }
+        val last = segment.last()
+        drawCircle(color, radius = 2.4f, center = last)
+        segment = mutableListOf()
+    }
+
+    for (i in points.indices) {
+        val v = value(points[i])
+        if (v == null) {
+            flush()
+        } else {
+            segment.add(Offset(i * xStep, yFor(v)))
+        }
+    }
+    flush()
 }

@@ -25,6 +25,16 @@ class FormatTest {
     }
 
     @Test
+    fun formatRate_bytesPerSecond() {
+        assertEquals("—", formatRate(null))
+        assertEquals("0 B/s", formatRate(0.0))
+        assertEquals("512 B/s", formatRate(512.0))
+        assertEquals("1.0 KiB/s", formatRate(1024.0))
+        assertEquals("1.5 KiB/s", formatRate(1536.0))
+        assertEquals("1.0 MiB/s", formatRate(1024.0 * 1024.0))
+    }
+
+    @Test
     fun formatUptime_nullAndZero() {
         assertEquals("—", formatUptime(null))
         assertEquals("—", formatUptime(0))

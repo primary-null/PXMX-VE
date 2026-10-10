@@ -9,6 +9,7 @@ import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestStatus
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.HistoryTimeframe
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.ParsedGuestConfig
 import com.pxmx.app.data.model.RrdPoint
@@ -74,6 +75,7 @@ data class GuestDetailUiState(
     val confirmDeleteBackup: BackupVolume? = null,
     val isTokenSession: Boolean = false,
     val rrdData: List<RrdPoint> = emptyList(),
+    val rrdTimeframe: HistoryTimeframe = HistoryTimeframe.HOUR,
 )
 
 class GuestDetailViewModel(
@@ -169,14 +171,19 @@ class GuestDetailViewModel(
         val s = _ui.value
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
-            val rrdPoints = guestRepo.guestRrdData(s.node, s.guestType, s.vmid, "hour").getOrNull().orEmpty()
+            val tf = s.rrdTimeframe
+            val rrdResult = guestRepo.guestRrdData(s.node, s.guestType, s.vmid, tf.apiName)
             guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
                         it.copy(
                             status = bundle.status,
                             config = bundle.config,
-                            rrdData = rrdPoints,
+                            rrdData = if (it.rrdTimeframe == tf) {
+                                rrdResult.getOrDefault(it.rrdData)
+                            } else {
+                                it.rrdData
+                            },
                             snapshots = if ("snapshots" in bundle.sectionErrors) it.snapshots else bundle.snapshots,
                             backups = if ("backups" in bundle.sectionErrors) it.backups else
                                 (bundle.backups + it.backups.filter { backup ->
@@ -240,6 +247,39 @@ class GuestDetailViewModel(
             GuestAction.SUSPEND -> AppToast.GUEST_SUSPENDED.show(context, guestName)
             GuestAction.RESUME -> AppToast.GUEST_RESUMED.show(context, guestName)
             else -> Toasts.show(context, "$guestName: ${action.label} sent")
+        }
+    }
+
+    fun setRrdTimeframe(timeframe: HistoryTimeframe) {
+        if (_ui.value.rrdTimeframe == timeframe) return
+        val previous = _ui.value.rrdTimeframe
+        _ui.update { it.copy(rrdTimeframe = timeframe) }
+        viewModelScope.launch {
+            val s = _ui.value
+            guestRepo.guestRrdData(s.node, s.guestType, s.vmid, timeframe.apiName).fold(
+                onSuccess = { points ->
+                    _ui.update {
+                        if (it.rrdTimeframe == timeframe) {
+                            it.copy(rrdData = points, error = null)
+                        } else {
+                            it
+                        }
+                    }
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update {
+                        if (it.rrdTimeframe == timeframe) {
+                            it.copy(
+                                rrdTimeframe = previous,
+                                error = e.message ?: "Failed to load history",
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                },
+            )
         }
     }
 
