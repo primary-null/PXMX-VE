@@ -47,7 +47,8 @@ class DemoApi : ProxmoxApi {
     private val nodeBootEpoch = ConcurrentHashMap<String, Long>()
     private val statusOverride = ConcurrentHashMap<Long, String>()
     private val configOverride = ConcurrentHashMap<Long, MutableMap<String, Any>>()
-    private val clonedConfigs = ConcurrentHashMap<Long, Map<String, Any>>()
+    private val clonedConfigs = ConcurrentHashMap<Long, MutableMap<String, Any>>()
+    private val deletedConfigKeys = ConcurrentHashMap<Long, MutableSet<String>>()
 
     private fun now(): Long = System.currentTimeMillis()
 
@@ -179,7 +180,10 @@ class DemoApi : ProxmoxApi {
     }
 
     private fun tagsFor(vmid: Long): String {
-        return (configOverride[vmid]?.get("tags") as? String) ?: defaultTagsFor(vmid)
+        if (deletedConfigKeys[vmid]?.contains("tags") == true) return ""
+        return (configOverride[vmid]?.get("tags") as? String)
+            ?: (clonedConfigs[vmid]?.get("tags") as? String)
+            ?: defaultTagsFor(vmid)
     }
 
     private fun guestRow(
@@ -532,6 +536,9 @@ class DemoApi : ProxmoxApi {
         configOverride[vmid]?.let { overrides ->
             merged.putAll(overrides)
         }
+        deletedConfigKeys[vmid]?.forEach { key ->
+            merged.remove(key)
+        }
         return PveResponse(data = merged)
     }
 
@@ -561,7 +568,7 @@ class DemoApi : ProxmoxApi {
     ): PveResponse<String> {
         statusOverride[newid] = "stopped"
         val resolvedName = name ?: hostname ?: "clone-$newid"
-        clonedConfigs[newid] = mapOf(
+        clonedConfigs[newid] = mutableMapOf(
             "name" to resolvedName,
             "hostname" to (hostname ?: name ?: "clone-$newid"),
             "node" to node,
@@ -597,7 +604,7 @@ class DemoApi : ProxmoxApi {
         val list = when (node) {
             "alpha" -> listOf(
                 NodeStorageEntry(
-                    storage = "local", type = "dir", content = "backup,iso",
+                    storage = "local", type = "dir", content = "backup,iso,vztmpl",
                     active = 1, enabled = 1, total = 100_000_000_000L, used = 77_000_000_000L,
                 ),
                 NodeStorageEntry(
@@ -637,6 +644,11 @@ class DemoApi : ProxmoxApi {
                     volid = "$storage:backup/vzdump-qemu-100-2026_08_30-12_00_01.tar.zst",
                     content = "backup", size = 500000000L, vmid = 100L,
                     path = "/var/lib/vz/dump/vzdump-qemu-100-2026_08_30-12_00_01.tar.zst"
+                ),
+                StorageContentItem(
+                    volid = "$storage:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst",
+                    content = "vztmpl", size = 130000000L,
+                    path = "/var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst"
                 ),
             )
             "nfs-share" -> listOf(
@@ -1073,6 +1085,8 @@ class DemoApi : ProxmoxApi {
             config["scsi0"] = scsi0
         }
         clonedConfigs[vmid] = config
+        deletedConfigKeys.remove(vmid)
+        configOverride.remove(vmid)
         return PveResponse(data = "UPID:$node:00001239:00000000:66D1B005:qmcreate:$vmid:root@pam:")
     }
 
@@ -1080,14 +1094,21 @@ class DemoApi : ProxmoxApi {
         node: String,
         vmid: Long,
         hostname: String,
+        ostemplate: String?,
         rootfs: String?,
         cores: Int?,
         memory: Long?,
     ): PveResponse<String> {
+        if (ostemplate.isNullOrBlank()) {
+            val errorBody = "{\"message\":\"parameter 'ostemplate' is missing\"}"
+                .toResponseBody("application/json".toMediaType())
+            throw HttpException(Response.error<String>(400, errorBody))
+        }
         val config = mutableMapOf<String, Any>(
             "hostname" to hostname,
             "name" to hostname,
             "ostype" to "debian",
+            "ostemplate" to ostemplate,
             "cores" to (cores ?: 1),
             "memory" to (memory ?: 1024),
             "node" to node,
@@ -1098,6 +1119,8 @@ class DemoApi : ProxmoxApi {
             config["rootfs"] = rootfs
         }
         clonedConfigs[vmid] = config
+        deletedConfigKeys.remove(vmid)
+        configOverride.remove(vmid)
         return PveResponse(data = "UPID:$node:0000123A:00000000:66D1B006:vzcreate:$vmid:root@pam:")
     }
 
@@ -1105,8 +1128,20 @@ class DemoApi : ProxmoxApi {
     override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
         // Persist config changes in the simulation (e.g. the AUTO/onboot toggle).
         val store = configOverride.getOrPut(vmid) { mutableMapOf() }
+        val delSet = deletedConfigKeys.getOrPut(vmid) { ConcurrentHashMap.newKeySet() }
+        fields["delete"]?.split(",")?.forEach { rawKey ->
+            val key = rawKey.trim()
+            if (key.isNotEmpty()) {
+                store.remove(key)
+                (clonedConfigs[vmid] as? MutableMap<String, Any>)?.remove(key)
+                delSet.add(key)
+            }
+        }
         fields.forEach { (key, value) ->
-            if (key == "onboot") store[key] = value.toIntOrNull() ?: 0 else store[key] = value
+            if (key != "delete") {
+                delSet.remove(key)
+                if (key == "onboot") store[key] = value.toIntOrNull() ?: 0 else store[key] = value
+            }
         }
         return PveResponse(data = null)
     }

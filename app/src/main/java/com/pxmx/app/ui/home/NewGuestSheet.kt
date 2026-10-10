@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.NodeStorageEntry
+import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -35,10 +37,13 @@ fun NewGuestSheet(
     nodes: List<String>,
     maxVmid: Long,
     deploying: Boolean,
+    storages: List<NodeStorageEntry> = emptyList(),
+    osTemplates: List<StorageContentItem> = emptyList(),
     error: String? = null,
     onDismiss: () -> Unit,
     onCloneConfirm: (source: ClusterResource, newId: Long, name: String) -> Unit,
-    onBlankConfirm: (node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int) -> Unit,
+    onBlankConfirm: (node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int, storage: String, ostemplate: String?) -> Unit,
+    onNodeChange: ((String) -> Unit)? = null,
 ) {
     var guestType by remember { mutableStateOf(GuestType.QEMU) }
     var mode by remember { mutableStateOf("BLANK") } // "BLANK" or "CLONE"
@@ -54,8 +59,33 @@ fun NewGuestSheet(
         mutableStateOf(filteredTemplates.firstOrNull())
     }
 
+    val validStorages = remember(storages, guestType) {
+        val requiredContent = if (guestType == GuestType.QEMU) "images" else "rootdir"
+        storages.filter { entry ->
+            val hasContent = entry.content?.split(",")?.map { it.trim() }?.contains(requiredContent) == true
+            val isEnabled = entry.enabled == null || entry.enabled == 1
+            val isActive = entry.active == null || entry.active == 1
+            hasContent && isEnabled && isActive
+        }
+    }
+    var selectedStorage by remember { mutableStateOf<String?>(null) }
+    val activeStorage = selectedStorage?.takeIf { name -> validStorages.any { it.storage == name } }
+        ?: validStorages.firstOrNull()?.storage
+
+    val validOsTemplates = remember(osTemplates) {
+        osTemplates.filter { item ->
+            val hasContent = item.content == "vztmpl" || item.volid?.contains("vztmpl") == true
+            hasContent && !item.volid.isNullOrBlank()
+        }
+    }
+    var selectedOsTemplate by remember { mutableStateOf<String?>(null) }
+    val activeOsTemplate = selectedOsTemplate?.takeIf { vol -> validOsTemplates.any { it.volid == vol } }
+        ?: validOsTemplates.firstOrNull()?.volid
+
     var nodeDropdownOpen by remember { mutableStateOf(false) }
     var templateDropdownOpen by remember { mutableStateOf(false) }
+    var storageDropdownOpen by remember { mutableStateOf(false) }
+    var osTemplateDropdownOpen by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -189,6 +219,7 @@ fun NewGuestSheet(
                             onClick = {
                                 selectedNode = node
                                 nodeDropdownOpen = false
+                                onNodeChange?.invoke(node)
                             },
                         )
                     }
@@ -231,6 +262,115 @@ fun NewGuestSheet(
             Spacer(Modifier.height(10.dp))
 
             if (mode == "BLANK") {
+                // Storage picker
+                if (validStorages.isEmpty()) {
+                    Text(
+                        text = "No storage supporting ${if (guestType == GuestType.QEMU) "VM disks (images)" else "container rootfs (rootdir)"} found on $selectedNode",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                } else {
+                    ExposedDropdownMenuBox(
+                        expanded = storageDropdownOpen,
+                        onExpandedChange = { storageDropdownOpen = !storageDropdownOpen },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OutlinedTextField(
+                            value = activeStorage ?: "Select storage",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(if (guestType == GuestType.QEMU) "Disk storage" else "Rootfs storage") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = storageDropdownOpen) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = storageDropdownOpen,
+                            onDismissRequest = { storageDropdownOpen = false },
+                        ) {
+                            validStorages.forEach { st ->
+                                val stName = st.storage ?: return@forEach
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(stName, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "${st.type ?: ""} · ${st.content ?: ""}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedStorage = stName
+                                        storageDropdownOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // If LXC: OS template picker
+                if (guestType == GuestType.LXC) {
+                    Spacer(Modifier.height(8.dp))
+                    if (validOsTemplates.isEmpty()) {
+                        Text(
+                            text = "No OS templates (vztmpl) found on $selectedNode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                    } else {
+                        ExposedDropdownMenuBox(
+                            expanded = osTemplateDropdownOpen,
+                            onExpandedChange = { osTemplateDropdownOpen = !osTemplateDropdownOpen },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            OutlinedTextField(
+                                value = activeOsTemplate ?: "Select OS template",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("OS template") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = osTemplateDropdownOpen) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                            )
+                            ExposedDropdownMenu(
+                                expanded = osTemplateDropdownOpen,
+                                onDismissRequest = { osTemplateDropdownOpen = false },
+                            ) {
+                                validOsTemplates.forEach { item ->
+                                    val volid = item.volid ?: return@forEach
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(volid.substringAfterLast("/"), fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    volid,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedOsTemplate = volid
+                                            osTemplateDropdownOpen = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
                 OutlinedTextField(
                     value = diskSizeG,
                     onValueChange = { if (it.all { c -> c.isDigit() }) diskSizeG = it },
@@ -318,9 +458,13 @@ fun NewGuestSheet(
                     Text("CANCEL")
                 }
                 Spacer(Modifier.width(8.dp))
+                val isBlankValid = (diskSizeG.toIntOrNull() ?: 0) > 0 &&
+                        !activeStorage.isNullOrBlank() &&
+                        (guestType != GuestType.LXC || !activeOsTemplate.isNullOrBlank())
+
                 val isValid = newVmid.toLongOrNull() != null && name.isNotBlank() &&
                         (mode != "CLONE" || selectedTemplate != null) &&
-                        (mode != "BLANK" || (diskSizeG.toIntOrNull() ?: 0) > 0)
+                        (mode != "BLANK" || isBlankValid)
 
                 Button(
                     onClick = {
@@ -329,8 +473,11 @@ fun NewGuestSheet(
                             val template = selectedTemplate ?: return@Button
                             onCloneConfirm(template, parsedVmid, name.trim())
                         } else {
+                            val storage = activeStorage ?: return@Button
                             val disk = diskSizeG.toIntOrNull() ?: 32
-                            onBlankConfirm(selectedNode, guestType, parsedVmid, name.trim(), disk)
+                            val ostemplate = if (guestType == GuestType.LXC) activeOsTemplate else null
+                            if (guestType == GuestType.LXC && ostemplate.isNullOrBlank()) return@Button
+                            onBlankConfirm(selectedNode, guestType, parsedVmid, name.trim(), disk, storage, ostemplate)
                         }
                     },
                     enabled = isValid && !deploying,

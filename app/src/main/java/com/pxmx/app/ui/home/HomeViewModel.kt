@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.pxmx.app.data.model.NodeStorageEntry
+import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
@@ -109,6 +111,8 @@ data class HomeUiState(
     /** Guest id currently running a quick action (power/reboot/onboot). */
     val busyGuestIds: Set<String> = emptySet(),
     val deploying: Boolean = false,
+    val deployStorages: List<NodeStorageEntry> = emptyList(),
+    val deployOsTemplates: List<StorageContentItem> = emptyList(),
 ) {
     val activeSort: ResourceSort
         get() = when (filter) {
@@ -488,10 +492,34 @@ class HomeViewModel(
         }
     }
 
-    fun createBlankGuest(node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int) {
+    fun loadDeployStorage(node: String) {
+        viewModelScope.launch {
+            val storages = storageRepo.listNodeStorageEntries(node).getOrDefault(emptyList())
+            val templates = storageRepo.listNodeVzTemplates(node).getOrDefault(emptyList())
+            _ui.update { it.copy(deployStorages = storages, deployOsTemplates = templates) }
+        }
+    }
+
+    fun createBlankGuest(
+        node: String,
+        type: GuestType,
+        vmid: Long,
+        name: String,
+        diskSizeG: Int,
+        storage: String,
+        ostemplate: String? = null,
+    ) {
         viewModelScope.launch {
             _ui.update { it.copy(deploying = true, error = null) }
-            guestRepo.createBlankGuest(node, type, vmid, name, diskSizeG).fold(
+            guestRepo.createBlankGuest(
+                node = node,
+                type = type,
+                vmid = vmid,
+                name = name,
+                storage = storage,
+                ostemplate = ostemplate,
+                diskSizeG = diskSizeG,
+            ).fold(
                 onSuccess = {
                     _ui.update { it.copy(deploying = false, showDeployDialog = false) }
                     AppToast.DEPLOY_CREATED.show(context, name, vmid)
@@ -524,6 +552,10 @@ class HomeViewModel(
 
     fun showDeployDialog(show: Boolean) {
         _ui.update { it.copy(showDeployDialog = show, error = if (show) null else it.error) }
+        if (show) {
+            val defaultNode = _ui.value.resources.firstOrNull { it.type == "node" }?.node ?: "alpha"
+            loadDeployStorage(defaultNode)
+        }
     }
 
     fun triggerDeploy(source: ClusterResource, newId: Long, name: String) {

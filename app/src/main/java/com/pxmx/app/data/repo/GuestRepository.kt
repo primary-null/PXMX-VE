@@ -364,15 +364,23 @@ class GuestRepository(
         type: GuestType,
         vmid: Long,
         name: String,
+        storage: String,
+        ostemplate: String? = null,
         diskSizeG: Int = 32,
     ): Result<String> = pveClient.apiCall { api ->
+        if (storage.isBlank()) {
+            throw PveException("Storage is required")
+        }
+        if (type == GuestType.LXC && ostemplate.isNullOrBlank()) {
+            throw PveException("OS template is required for containers")
+        }
         val upid = when (type) {
             GuestType.QEMU -> {
                 api.createQemu(
                     node = node,
                     vmid = vmid,
                     name = name,
-                    scsi0 = "local-lvm:${diskSizeG}",
+                    scsi0 = "$storage:$diskSizeG",
                 ).data ?: throw PveException("Create VM returned no UPID")
             }
             GuestType.LXC -> {
@@ -380,7 +388,8 @@ class GuestRepository(
                     node = node,
                     vmid = vmid,
                     hostname = name,
-                    rootfs = "local-lvm:${diskSizeG}",
+                    ostemplate = ostemplate,
+                    rootfs = "$storage:$diskSizeG",
                 ).data ?: throw PveException("Create container returned no UPID")
             }
             else -> throw IllegalArgumentException("Unsupported guest type: $type")
@@ -394,11 +403,17 @@ class GuestRepository(
         vmid: Long,
         tags: String,
     ): Result<String> = pveClient.apiCall { api ->
+        val trimmed = tags.trim()
+        val fields = if (trimmed.isBlank()) {
+            mapOf("delete" to "tags")
+        } else {
+            mapOf("tags" to trimmed)
+        }
         val res = api.updateGuestConfig(
             node,
             guestType.path,
             vmid,
-            mapOf("tags" to tags),
+            fields,
         ).data ?: "OK"
         res
     }

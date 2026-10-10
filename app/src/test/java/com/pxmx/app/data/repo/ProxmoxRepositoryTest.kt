@@ -290,4 +290,85 @@ class ProxmoxRepositoryTest {
         repository.logout()
         assertNull(sessionStore.session.value)
     }
+
+    // -------------------------------------------------------------------------
+    // 8. Guest Creation & Tag Management
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun createBlankGuest_lxcWithoutOstemplate_failsWithPveException() = runBlocking {
+        val res = repository.guestRepo.createBlankGuest(
+            node = "alpha",
+            type = GuestType.LXC,
+            vmid = 801L,
+            name = "my-lxc",
+            diskSizeG = 16,
+            storage = "local-lvm",
+            ostemplate = "",
+        )
+        assertTrue(res.isFailure)
+        assertTrue(res.exceptionOrNull() is PveException)
+    }
+
+    @Test
+    fun createBlankGuest_withoutStorage_failsWithPveException() = runBlocking {
+        val res = repository.guestRepo.createBlankGuest(
+            node = "alpha",
+            type = GuestType.QEMU,
+            vmid = 802L,
+            name = "my-qemu",
+            diskSizeG = 32,
+            storage = "   ",
+            ostemplate = null,
+        )
+        assertTrue(res.isFailure)
+        assertTrue(res.exceptionOrNull() is PveException)
+    }
+
+    @Test
+    fun createBlankGuest_qemuUsesGivenStorageNotHardcoded() = runBlocking {
+        val res = repository.guestRepo.createBlankGuest(
+            node = "beta",
+            type = GuestType.QEMU,
+            vmid = 803L,
+            name = "zfs-vm",
+            diskSizeG = 40,
+            storage = "zfs-pool",
+            ostemplate = null,
+        )
+        assertTrue(res.isSuccess)
+        val config = demoApi.guestConfig("beta", "qemu", 803L).data.orEmpty()
+        assertEquals("zfs-pool:40", config["scsi0"])
+    }
+
+    @Test
+    fun updateGuestTags_emptyStringSendsDeleteTags() = runBlocking {
+        var sentFields: Map<String, String>? = null
+        val interceptingApi = object : ProxmoxApi by demoApi {
+            override suspend fun updateGuestConfig(
+                node: String,
+                type: String,
+                vmid: Long,
+                fields: Map<String, String>,
+            ): PveResponse<String?> {
+                sentFields = fields
+                return demoApi.updateGuestConfig(node, type, vmid, fields)
+            }
+        }
+        val customRepo = ProxmoxRepository(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            clientFactory = object : ProxmoxApiProvider {
+                override fun apiFor(config: ServerConfig): ProxmoxApi = interceptingApi
+                override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(interceptingApi)
+                override fun clear() {}
+            },
+        )
+        val res = customRepo.guestRepo.updateGuestTags("alpha", GuestType.QEMU, 100L, "   ")
+        assertTrue(res.isSuccess)
+        assertEquals(mapOf("delete" to "tags"), sentFields)
+
+        val config = demoApi.guestConfig("alpha", "qemu", 100L).data.orEmpty()
+        assertFalse(config.containsKey("tags"))
+    }
 }

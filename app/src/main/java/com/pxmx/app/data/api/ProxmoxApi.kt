@@ -141,6 +141,7 @@ interface ProxmoxApi {
         @Path("node") node: String,
         @Field("vmid") vmid: Long,
         @Field("hostname") hostname: String,
+        @Field("ostemplate") ostemplate: String? = null,
         @Field("rootfs") rootfs: String? = null,
         @Field("cores") cores: Int? = 1,
         @Field("memory") memory: Long? = 1024,

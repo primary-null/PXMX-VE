@@ -8,6 +8,7 @@ import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
+import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.repo.ProxmoxRepository
@@ -24,6 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -364,5 +366,41 @@ class HomeViewModelTest {
 
         val vmFromSecondary = HomeViewModel(repository, sessionStore)
         assertNotNull(vmFromSecondary)
+    }
+
+    @Test
+    fun homeViewModel_loadDeployStorage_populatesStoragesAndTemplates() = runBlocking {
+        val vm = createViewModel()
+        val job = launch(UnconfinedTestDispatcher()) { vm.ui.collect() }
+
+        vm.loadDeployStorage("alpha")
+        assertTrue("deployStorages should contain local", vm.ui.value.deployStorages.any { it.storage == "local" })
+        assertTrue("deployOsTemplates should contain debian template", vm.ui.value.deployOsTemplates.any { it.volid?.contains("debian") == true })
+
+        job.cancel()
+    }
+
+    @Test
+    fun homeViewModel_createBlankGuest_invokesRepoWithStorageAndOstemplate() = runBlocking {
+        val vm = createViewModel()
+        val job = launch(UnconfinedTestDispatcher()) { vm.ui.collect() }
+
+        vm.createBlankGuest(
+            node = "alpha",
+            type = GuestType.LXC,
+            vmid = 850L,
+            name = "my-test-ct",
+            diskSizeG = 8,
+            storage = "local-lvm",
+            ostemplate = "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst",
+        )
+        assertFalse(vm.ui.value.deploying)
+        assertNull(vm.ui.value.error)
+
+        val config = demoApi.guestConfig("alpha", "lxc", 850L).data.orEmpty()
+        assertEquals("local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst", config["ostemplate"])
+        assertEquals("local-lvm:8", config["rootfs"])
+
+        job.cancel()
     }
 }

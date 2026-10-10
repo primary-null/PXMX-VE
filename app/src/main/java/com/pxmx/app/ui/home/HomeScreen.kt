@@ -777,18 +777,27 @@ fun HomeScreen(
         val maxVmid = state.resources.maxOfOrNull { it.vmid ?: 0L } ?: 100L
         if (isTwoPane) {
             val nodes = state.resources.mapNotNull { if (it.type == "node") it.node else null }.distinct().ifEmpty { listOf("alpha") }
+            var selectedDeployNode by remember { mutableStateOf(nodes.firstOrNull() ?: "alpha") }
+            LaunchedEffect(selectedDeployNode) {
+                viewModel.loadDeployStorage(selectedDeployNode)
+            }
             NewGuestSheet(
                 templates = templates,
                 nodes = nodes,
                 maxVmid = maxVmid,
                 deploying = state.deploying,
+                storages = state.deployStorages,
+                osTemplates = state.deployOsTemplates,
                 error = state.error,
                 onDismiss = { viewModel.showDeployDialog(false) },
                 onCloneConfirm = { source, newId, name ->
                     viewModel.triggerDeploy(source, newId, name)
                 },
-                onBlankConfirm = { node, type, vmid, name, diskSizeG ->
-                    viewModel.createBlankGuest(node, type, vmid, name, diskSizeG)
+                onBlankConfirm = { node, type, vmid, name, diskSizeG, storage, ostemplate ->
+                    viewModel.createBlankGuest(node, type, vmid, name, diskSizeG, storage, ostemplate)
+                },
+                onNodeChange = { node ->
+                    selectedDeployNode = node
                 },
             )
         } else {

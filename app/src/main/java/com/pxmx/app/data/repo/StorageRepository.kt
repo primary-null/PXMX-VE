@@ -94,6 +94,31 @@ class StorageRepository(
         api.nodeStorage(node).data.orEmpty().mapNotNull { it.storage }
     }
 
+    suspend fun listNodeStorageEntries(node: String): Result<List<NodeStorageEntry>> = pveClient.apiCall { api ->
+        api.nodeStorage(node).data.orEmpty()
+    }
+
+    suspend fun listNodeVzTemplates(node: String): Result<List<StorageContentItem>> = pveClient.apiCall { api ->
+        val storages = api.nodeStorage(node).data.orEmpty()
+        val vzStorages = storages.filter {
+            (it.content?.split(",")?.map { c -> c.trim() }?.contains("vztmpl") == true) &&
+                (it.active == null || it.active == 1) &&
+                (it.enabled == null || it.enabled == 1)
+        }
+        val templates = mutableListOf<StorageContentItem>()
+        for (st in vzStorages) {
+            val storageName = st.storage ?: continue
+            try {
+                val items = api.storageContent(node, storageName, content = "vztmpl").data.orEmpty()
+                templates += items.filter { (it.content == "vztmpl" || it.volid?.contains("vztmpl") == true) && !it.volid.isNullOrBlank() }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // storage may be unreachable, continue
+            }
+        }
+        templates.distinctBy { it.volid }
+    }
+
     suspend fun loadBackupsForVmid(
         api: ProxmoxApi,
         node: String,

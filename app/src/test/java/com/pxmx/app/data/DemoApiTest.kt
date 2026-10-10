@@ -3,6 +3,7 @@ package com.pxmx.app.data
 import com.pxmx.app.data.api.DemoApi
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -151,5 +152,75 @@ class DemoApiTest {
 
         // gamma ≈90% (> 85%, red)
         assertTrue("gamma memory fraction $frac3 should be > 0.85", frac3 > 0.85)
+    }
+
+    @Test
+    fun createLxc_withoutOstemplate_fails() = runBlocking {
+        try {
+            demoApi.createLxc(
+                node = "alpha",
+                vmid = 700L,
+                hostname = "no-template-ct",
+                ostemplate = null,
+                rootfs = "local-lvm:16",
+            )
+            fail("Expected HttpException for blank ostemplate")
+        } catch (e: HttpException) {
+            assertEquals(400, e.code())
+        }
+
+        try {
+            demoApi.createLxc(
+                node = "alpha",
+                vmid = 701L,
+                hostname = "blank-template-ct",
+                ostemplate = "   ",
+                rootfs = "local-lvm:16",
+            )
+            fail("Expected HttpException for blank ostemplate")
+        } catch (e: HttpException) {
+            assertEquals(400, e.code())
+        }
+    }
+
+    @Test
+    fun createLxc_withOstemplate_succeeds() = runBlocking {
+        val res = demoApi.createLxc(
+            node = "alpha",
+            vmid = 702L,
+            hostname = "valid-ct",
+            ostemplate = "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst",
+            rootfs = "local-lvm:16",
+        )
+        assertNotNull(res.data)
+        val config = demoApi.guestConfig("alpha", "lxc", 702L).data.orEmpty()
+        assertEquals("local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst", config["ostemplate"])
+        assertEquals("local-lvm:16", config["rootfs"])
+    }
+
+    @Test
+    fun alphaNodeStorage_andStorageContent_includesVztmpl() = runBlocking {
+        val storages = demoApi.nodeStorage("alpha").data.orEmpty()
+        val localStorage = storages.find { it.storage == "local" }
+        assertNotNull(localStorage)
+        assertTrue(localStorage?.content?.contains("vztmpl") == true)
+
+        val content = demoApi.storageContent("alpha", "local", content = "vztmpl").data.orEmpty()
+        assertTrue(content.any { it.volid == "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst" })
+    }
+
+    @Test
+    fun updateGuestConfig_withDeleteTags_removesTags() = runBlocking {
+        val initialConfig = demoApi.guestConfig("alpha", "qemu", 100L).data.orEmpty()
+        assertEquals("prod;web", initialConfig["tags"])
+        val initialResource = demoApi.nodeQemu("alpha").data.orEmpty().find { it.vmid == 100L }
+        assertEquals("prod;web", initialResource?.tags)
+
+        demoApi.updateGuestConfig("alpha", "qemu", 100L, mapOf("delete" to "tags"))
+        val config = demoApi.guestConfig("alpha", "qemu", 100L).data.orEmpty()
+        assertFalse(config.containsKey("tags"))
+
+        val resource = demoApi.nodeQemu("alpha").data.orEmpty().find { it.vmid == 100L }
+        assertEquals("", resource?.tags)
     }
 }
