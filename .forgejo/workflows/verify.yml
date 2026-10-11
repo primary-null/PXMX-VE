@@ -20,6 +20,26 @@ jobs:
       - name: Unit Tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2 --build-cache
 
+      - name: Detekt
+        run: ./gradlew :app:detekt --no-daemon --max-workers=2 --build-cache
+
+      - name: Kover XML Report
+        run: ./gradlew :app:koverXmlReportDebug --no-daemon --max-workers=2 --build-cache
+
+      - name: Lint (warn-only)
+        continue-on-error: true
+        run: ./gradlew :app:lintDebug --no-daemon --max-workers=2 --build-cache
+
+      - name: Connected Android Test (conditional, warn-only)
+        continue-on-error: true
+        run: |
+          if command -v adb >/dev/null 2>&1 && adb devices | grep -v "List of devices" | grep -q "[[:alnum:]].*[[:space:]]device"; then
+            echo "Active device detected; running connectedDebugAndroidTest..."
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2 --build-cache
+          else
+            echo "No active adb device found; skipping connectedDebugAndroidTest."
+          fi
+
       - name: Update Proven Green
         if: success()
         run: |

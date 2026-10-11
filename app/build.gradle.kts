@@ -3,9 +3,22 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    baseline = file("${rootProject.projectDir}/config/detekt-baseline.xml")
+    val detektConfig = file("${rootProject.projectDir}/config/detekt.yml")
+    if (detektConfig.exists()) {
+        config.setFrom(detektConfig)
+    }
+}
 
 android {
     namespace = "com.pxmx.app"
@@ -44,11 +57,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -66,6 +76,13 @@ android {
                 "META-INF/NOTICE",
             )
         }
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 

@@ -75,6 +75,9 @@ object SecurePrefs {
             produceFile = { vaultFile },
         )
 
+        // Parks the caller (Application.onCreate is main). Disk work already
+        // runs on this DataStore's IO scope. Do not runBlocking(Dispatchers.IO)
+        // around DataStore — that dispatcher is the actor and can deadlock.
         val initialPayload = try {
             runBlocking { dataStore.data.first() }
         } catch (e: Throwable) {

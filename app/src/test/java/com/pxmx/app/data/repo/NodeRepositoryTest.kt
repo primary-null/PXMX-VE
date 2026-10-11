@@ -6,6 +6,7 @@ import com.pxmx.app.data.api.DemoApi
 import com.pxmx.app.data.api.ProbeApi
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
+import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.PveResponse
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionState
@@ -74,6 +75,20 @@ class NodeRepositoryTest {
                             "name" to "node-standalone",
                             "ip" to "192.0.2.50",
                             "local" to 1,
+                        )
+                    )
+                )
+            }
+
+            override suspend fun nodes(): PveResponse<List<ClusterResource>> {
+                return PveResponse(
+                    data = listOf(
+                        ClusterResource(
+                            id = "node/node-standalone",
+                            type = "node",
+                            node = "node-standalone",
+                            name = "node-standalone",
+                            status = "online",
                         )
                     )
                 )

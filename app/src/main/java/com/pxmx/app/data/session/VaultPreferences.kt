@@ -220,6 +220,9 @@ class VaultPreferences(
             val (snapshot, changedKeys) = applyModificationsToMemory()
             notifyListeners(changedKeys)
             return try {
+                // Park the caller; DataStore's own scope does the file IO.
+                // Do not runBlocking(Dispatchers.IO) here — that shares the
+                // DataStore actor's dispatcher and can skip/deadlock the write.
                 runBlocking {
                     dataStore.updateData { snapshot }
                 }

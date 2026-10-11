@@ -1,13 +1,17 @@
 package com.pxmx.app.data.session
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.pxmx.app.data.FakeSharedPreferences
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +22,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.security.GeneralSecurityException
 import java.security.KeyStoreException
 
@@ -130,8 +135,12 @@ class VaultTest {
         val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
         val aead = keysetHandle.getPrimitive(Aead::class.java)
 
-        val tempFile = File.createTempFile("vault_test_", ".json")
-        tempFile.deleteOnExit()
+        // DataStore must create the file. An empty createTempFile makes
+        // VaultSerializer.readFrom return defaultValue (empty bytes).
+        val tempDir = Files.createTempDirectory("vault_test_").toFile()
+        tempDir.deleteOnExit()
+        val tempFile = File(tempDir, "vault.json")
+        assertFalse(tempFile.exists())
 
         val scope1 = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
         val dataStore = DataStoreFactory.create(
@@ -180,26 +189,76 @@ class VaultTest {
         assertFalse(prefs.contains("p1"))
         assertEquals(99, prefs.getInt("auto", 0))
 
-        scope1.cancel()
+        // Serializer roundtrip through this DataStore's actor. A second
+        // DataStoreFactory on the same file is unsupported. On Windows the
+        // previous ciphertext can linger in vault.json after updateData
+        // has already published the new snapshot, so disk proof is
+        // "file exists and decrypts" plus data.first() matching memory.
+        val persisted = runBlocking { dataStore.data.first() }
+        assertEquals(emptyMap<String, String>(), persisted.strings)
+        assertEquals(emptyMap<String, Boolean>(), persisted.booleans)
+        assertEquals(99, persisted.ints["auto"])
+        assertEquals(8006, persisted.ints["port"])
+        assertEquals(1700000000L, persisted.longs["timestamp"])
+        assertEquals(0.75f, persisted.floats["ratio"] ?: 0f, 0.001f)
+        assertEquals(setOf("prod", "pve"), persisted.stringSets["tags"])
 
-        // Re-read file from scratch with a new DataStore to verify encrypted on-disk persistence
-        val scope2 = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
-        val dataStore2 = DataStoreFactory.create(
-            serializer = VaultSerializer(aead),
-            scope = scope2,
-            produceFile = { tempFile },
-        )
-        val reloaded = runBlocking { dataStore2.data.first() }
-        val prefs2 = VaultPreferences(dataStore2, reloaded)
+        assertTrue(tempFile.exists() && tempFile.length() > 0L)
+        val onDisk = VaultCodec.decode(tempFile.readBytes(), aead)
+        assertTrue(onDisk.ints.containsKey("port"))
+        assertEquals(8006, onDisk.ints["port"])
+        assertEquals(1700000000L, onDisk.longs["timestamp"])
+        assertEquals(setOf("prod", "pve"), onDisk.stringSets["tags"])
 
-        assertNull(prefs2.getString("p1", null))
-        assertEquals(99, prefs2.getInt("auto", 0))
-        assertEquals(8006, prefs2.getInt("port", 0))
-        assertEquals(1700000000L, prefs2.getLong("timestamp", 0L))
-        assertEquals(0.75f, prefs2.getFloat("ratio", 0f), 0.001f)
-        assertEquals(setOf("prod", "pve"), prefs2.getStringSet("tags", null))
-
-        scope2.cancel()
+        runBlocking { scope1.coroutineContext[Job]!!.cancelAndJoin() }
         tempFile.delete()
+        tempDir.delete()
+    }
+
+    @Test
+    fun testCommitInvokesDataStoreUpdate() {
+        var updated = false
+        val store = object : DataStore<VaultPayload> {
+            override val data = flowOf(VaultPayload())
+            override suspend fun updateData(transform: suspend (t: VaultPayload) -> VaultPayload): VaultPayload {
+                updated = true
+                return transform(VaultPayload())
+            }
+        }
+        val prefs = VaultPreferences(store, VaultPayload())
+        assertTrue(prefs.edit().putString("k", "v").commit())
+        assertEquals("v", prefs.getString("k", null))
+        assertTrue(updated)
+    }
+
+    @Test
+    fun testCommitReturnsFalseOnPersistFailure() {
+        val store = object : DataStore<VaultPayload> {
+            override val data = flowOf(VaultPayload())
+            override suspend fun updateData(transform: suspend (t: VaultPayload) -> VaultPayload): VaultPayload {
+                throw IOException("persist failed")
+            }
+        }
+        val prefs = VaultPreferences(store, VaultPayload())
+        assertFalse(prefs.edit().putString("k", "v").commit())
+        assertEquals("v", prefs.getString("k", null))
+    }
+
+    @Test
+    fun testCommitRethrowsCancellationException() {
+        val store = object : DataStore<VaultPayload> {
+            override val data = flowOf(VaultPayload())
+            override suspend fun updateData(transform: suspend (t: VaultPayload) -> VaultPayload): VaultPayload {
+                throw CancellationException("cancelled")
+            }
+        }
+        val prefs = VaultPreferences(store, VaultPayload())
+        var thrown: Throwable? = null
+        try {
+            prefs.edit().putString("k", "v").commit()
+        } catch (e: Throwable) {
+            thrown = e
+        }
+        assertTrue(thrown is CancellationException)
     }
 }
