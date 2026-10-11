@@ -162,7 +162,8 @@ object SecurePrefs {
                     copyAll(esp, editor)
                     editor.putBoolean(VAULT_MIGRATION_MARKER, true)
                     editor.putBoolean(LEGACY_MIGRATION_KEY, true)
-                    editor.commit()
+                    val persisted = editor.commit()
+                    if (!persisted) return
                 }
                 context.deleteSharedPreferences(SECURE_PREFS_NAME)
                 runCatching {
