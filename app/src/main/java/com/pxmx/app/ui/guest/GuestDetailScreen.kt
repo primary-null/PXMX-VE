@@ -87,6 +87,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -100,12 +101,12 @@ import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ParsedGuestConfig
 import com.pxmx.app.data.model.SnapshotInfo
 import com.pxmx.app.ui.components.ExpandableSection
+import com.pxmx.app.ui.components.GuestIdentityBay
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
 import com.pxmx.app.ui.components.TechDropdownMenu
-import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
 import com.pxmx.app.ui.components.TechMetaLine
@@ -209,7 +210,15 @@ fun GuestDetailScreen(
                 colors = com.pxmx.app.ui.components.techTopAppBarColors(),
                 title = {
                     Column {
-                        Text(state.name, maxLines = 1)
+                        Text(
+                            text = state.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Text(
                             text = "${state.guestType.label} ${state.vmid} · ${state.node}",
                             style = MaterialTheme.typography.bodySmall,
@@ -388,6 +397,7 @@ fun GuestDetailScreen(
                     maxdisk = st?.maxdisk,
                     tags = st?.tags ?: cfg?.tags,
                     busy = busy,
+                    vmid = state.vmid,
                     onAddTag = { viewModel.addTag(it) },
                     onRemoveTag = { viewModel.removeTag(it) },
                 )
@@ -448,14 +458,19 @@ fun GuestDetailScreen(
                     NetworkUsbBody(
                         cfg = cfg,
                         hostUsbs = state.hostUsbs,
+                        liveInterfaces = state.liveInterfaces,
+                        firewall = state.firewall,
                         isQemu = state.guestType == GuestType.QEMU,
                         busy = busy,
                         onDetach = { viewModel.detachUsb(it) },
                         onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
                         onRefreshUsb = { viewModel.refreshUsbOnly() },
+                        onToggleFirewall = viewModel::toggleNicFirewall,
+                        onToggleLinkDown = viewModel::toggleNicLinkDown,
                     )
                 }
             }
+
 
             item(key = "firewall") {
                 val fw = state.firewall
@@ -677,9 +692,11 @@ private fun HeroCard(
     maxdisk: Long?,
     tags: String?,
     busy: Boolean,
+    vmid: Long? = null,
     onAddTag: (String) -> Unit = {},
     onRemoveTag: (String) -> Unit = {},
 ) {
+    val callsign = GuestIcons.callsign(name, vmid)
     TechPlate(railColor = techRailColor(status, busy)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -687,21 +704,24 @@ private fun HeroCard(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 14.dp),
         ) {
-            TechIconBay(
-                icon = icon,
+            GuestIdentityBay(
+                callsign = callsign,
+                kindIcon = icon,
                 accent = accent,
-                contentDescription = kindLabel,
+                contentDescription = "$callsign, $kindLabel",
                 size = 48.dp,
-                iconSize = 28.dp,
+                pipSize = 12.dp,
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = name.uppercase(),
+                    text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.6.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.15.sp,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = kindLabel.uppercase(),

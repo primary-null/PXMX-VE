@@ -1,19 +1,8 @@
 package com.pxmx.app.ui.icons
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DataObject
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Laptop
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.Window
 import com.pxmx.app.data.model.ClusterResource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class GuestIconsTest {
@@ -39,7 +28,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.NODE, style.kind)
         assertEquals("Node", style.label)
-        assertEquals(Icons.Default.Dns, style.icon)
+        assertSame(GuestGlyphs.Node, style.icon)
     }
 
     @Test
@@ -48,7 +37,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.STORAGE, style.kind)
         assertEquals("Storage", style.label)
-        assertEquals(Icons.Default.Storage, style.icon)
+        assertSame(GuestGlyphs.Storage, style.icon)
     }
 
     @Test
@@ -57,7 +46,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.CONTAINER, style.kind)
         assertEquals("Container", style.label)
-        assertEquals(Icons.Default.Inventory2, style.icon)
+        assertSame(GuestGlyphs.Container, style.icon)
     }
 
     @Test
@@ -66,7 +55,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.TEMPLATE, style.kind)
         assertEquals("CT template", style.label)
-        assertEquals(Icons.Default.GridView, style.icon)
+        assertSame(GuestGlyphs.Template, style.icon)
     }
 
     @Test
@@ -75,7 +64,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.TEMPLATE, style.kind)
         assertEquals("VM template", style.label)
-        assertEquals(Icons.Default.GridView, style.icon)
+        assertSame(GuestGlyphs.Template, style.icon)
     }
 
     @Test
@@ -84,11 +73,12 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.HOME_ASSISTANT, style1.kind)
         assertEquals("Home Assistant", style1.label)
-        assertEquals(Icons.Default.Home, style1.icon)
+        assertSame(GuestGlyphs.HomeAssistant, style1.icon)
 
         val res2 = resource(type = "qemu", name = "vm-smarthome", tags = "hass,iot")
         val style2 = GuestIcons.styleFor(res2)
         assertEquals(GuestKind.HOME_ASSISTANT, style2.kind)
+        assertSame(GuestGlyphs.HomeAssistant, style2.icon)
     }
 
     @Test
@@ -98,17 +88,23 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.WINDOWS, style1.kind)
         assertEquals("Windows", style1.label)
-        assertEquals(Icons.Default.Window, style1.icon)
+        assertSame(GuestGlyphs.Windows, style1.icon)
 
         val res2 = resource(type = "qemu", name = "legacy", ostype = "wxp")
-        assertEquals(GuestKind.WINDOWS, GuestIcons.styleFor(res2).kind)
+        val style2 = GuestIcons.styleFor(res2)
+        assertEquals(GuestKind.WINDOWS, style2.kind)
+        assertSame(GuestGlyphs.Windows, style2.icon)
 
         // By name or tag heuristic
         val res3 = resource(type = "qemu", name = "win-ad-server", ostype = "l26")
-        assertEquals(GuestKind.WINDOWS, GuestIcons.styleFor(res3).kind)
+        val style3 = GuestIcons.styleFor(res3)
+        assertEquals(GuestKind.WINDOWS, style3.kind)
+        assertSame(GuestGlyphs.Windows, style3.icon)
 
         val res4 = resource(type = "qemu", name = "sql-box", tags = "mssql,prod")
-        assertEquals(GuestKind.WINDOWS, GuestIcons.styleFor(res4).kind)
+        val style4 = GuestIcons.styleFor(res4)
+        assertEquals(GuestKind.WINDOWS, style4.kind)
+        assertSame(GuestGlyphs.Windows, style4.icon)
     }
 
     @Test
@@ -118,19 +114,24 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.LINUX, style1.kind)
         assertEquals("Linux", style1.label)
-        assertEquals(Icons.Default.Terminal, style1.icon)
+        assertSame(GuestGlyphs.Linux, style1.icon)
 
         // Linux by name keywords
         val res2 = resource(type = "qemu", name = "docker-runner", ostype = "other")
-        assertEquals(GuestKind.LINUX, GuestIcons.styleFor(res2).kind)
+        val style2 = GuestIcons.styleFor(res2)
+        assertEquals(GuestKind.LINUX, style2.kind)
+        assertSame(GuestGlyphs.Linux, style2.icon)
 
         val res3 = resource(type = "qemu", name = "k8s-worker", ostype = null)
-        assertEquals(GuestKind.LINUX, GuestIcons.styleFor(res3).kind)
+        val style3 = GuestIcons.styleFor(res3)
+        assertEquals(GuestKind.LINUX, style3.kind)
+        assertSame(GuestGlyphs.Linux, style3.icon)
 
         val res4 = resource(type = "qemu", name = "solaris-box", ostype = "solaris10")
         val style4 = GuestIcons.styleFor(res4)
         assertEquals(GuestKind.LINUX, style4.kind)
         assertEquals("Solaris", style4.label)
+        assertSame(GuestGlyphs.Linux, style4.icon)
     }
 
     @Test
@@ -139,7 +140,7 @@ class GuestIconsTest {
         val style = GuestIcons.styleFor(res)
         assertEquals(GuestKind.GENERIC_VM, style.kind)
         assertEquals("VM", style.label)
-        assertEquals(Icons.Default.Laptop, style.icon)
+        assertSame(GuestGlyphs.GenericVm, style.icon)
     }
 
     @Test
@@ -148,11 +149,12 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.FIREWALL, style1.kind)
         assertEquals("Firewall", style1.label)
-        assertEquals(Icons.Default.Security, style1.icon)
+        assertSame(GuestGlyphs.Firewall, style1.icon)
 
         val res2 = resource(type = "qemu", name = "edge-router", tags = "opnsense,firewall")
         val style2 = GuestIcons.styleFor(res2)
         assertEquals(GuestKind.FIREWALL, style2.kind)
+        assertSame(GuestGlyphs.Firewall, style2.icon)
     }
 
     @Test
@@ -161,11 +163,12 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.MEDIA, style1.kind)
         assertEquals("Media", style1.label)
-        assertEquals(Icons.Default.Tv, style1.icon)
+        assertSame(GuestGlyphs.Media, style1.icon)
 
         val res2 = resource(type = "qemu", name = "streamer", tags = "jellyfin")
         val style2 = GuestIcons.styleFor(res2)
         assertEquals(GuestKind.MEDIA, style2.kind)
+        assertSame(GuestGlyphs.Media, style2.icon)
     }
 
     @Test
@@ -174,10 +177,11 @@ class GuestIconsTest {
         val style1 = GuestIcons.styleFor(res1)
         assertEquals(GuestKind.DATABASE, style1.kind)
         assertEquals("Database", style1.label)
-        assertEquals(Icons.Default.DataObject, style1.icon)
+        assertSame(GuestGlyphs.Database, style1.icon)
 
         val res2 = resource(type = "qemu", name = "cache-tier", tags = "redis")
         val style2 = GuestIcons.styleFor(res2)
         assertEquals(GuestKind.DATABASE, style2.kind)
+        assertSame(GuestGlyphs.Database, style2.icon)
     }
 }

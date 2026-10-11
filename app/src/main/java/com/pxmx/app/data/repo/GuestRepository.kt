@@ -4,8 +4,10 @@ import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.config.GuestConfigParser
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.ClusterResource
+import com.pxmx.app.data.model.ConfigNet
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestBundle
+import com.pxmx.app.data.model.GuestLiveInterface
 import com.pxmx.app.data.model.GuestStatus
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.HostUsbDevice
@@ -142,6 +144,7 @@ class GuestRepository(
         val type = source.type ?: throw PveException("Template has no type")
         val vmid = source.vmid ?: throw PveException("Template has no VMID")
         val isQemu = type == "qemu"
+        recentActionRegistry.record(if (isQemu) "qmclone" else "vzclone", newId)
         api.cloneGuest(
             node = node,
             type = type,
@@ -150,6 +153,10 @@ class GuestRepository(
             name = if (isQemu) name else null,
             hostname = if (!isQemu) name else null
         ).data ?: throw PveException("Clone returned no UPID")
+    }
+
+    suspend fun fetchRawGuestConfig(node: String, type: String, vmid: Long): Result<Map<String, Any>> = pveClient.apiCall { api ->
+        api.guestConfig(node, type, vmid).data.orEmpty()
     }
 
     /**
@@ -310,6 +317,34 @@ class GuestRepository(
         res
     }
 
+    /**
+     * Safe toggle of NIC firewall=0|1 or link_down=0|1 via guest config PUT.
+     * Preserves MAC address, model, and all other options.
+     */
+    suspend fun updateNicOption(
+        node: String,
+        guestType: GuestType,
+        vmid: Long,
+        net: ConfigNet,
+        toggleFirewall: Boolean = false,
+        toggleLinkDown: Boolean = false,
+    ): Result<String> = pveClient.apiCall { api ->
+        val updatedValue = buildUpdatedNicValue(net, toggleFirewall, toggleLinkDown)
+        val res = api.updateGuestConfig(
+            node,
+            guestType.path,
+            vmid,
+            mapOf(net.key to updatedValue),
+        ).data ?: "OK"
+        res
+    }
+
+    suspend fun fetchLiveInterfaces(
+        node: String,
+        isQemu: Boolean,
+        vmid: Long,
+    ): List<GuestLiveInterface> = GuestNetworkHelper.fetchLiveInterfaces(pveClient, node, isQemu, vmid)
+
     suspend fun createSnapshot(
         node: String,
         guestType: GuestType,
@@ -376,6 +411,7 @@ class GuestRepository(
         }
         val upid = when (type) {
             GuestType.QEMU -> {
+                recentActionRegistry.record("qmcreate", vmid)
                 api.createQemu(
                     node = node,
                     vmid = vmid,
@@ -384,6 +420,7 @@ class GuestRepository(
                 ).data ?: throw PveException("Create VM returned no UPID")
             }
             GuestType.LXC -> {
+                recentActionRegistry.record("vzcreate", vmid)
                 api.createLxc(
                     node = node,
                     vmid = vmid,
@@ -416,5 +453,37 @@ class GuestRepository(
             fields,
         ).data ?: "OK"
         res
+    }
+
+    companion object {
+        fun buildUpdatedNicValue(
+            net: ConfigNet,
+            toggleFirewall: Boolean = false,
+            toggleLinkDown: Boolean = false,
+        ): String {
+            val parts = net.raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+
+            if (toggleFirewall) {
+                val newFw = if (net.firewall) "0" else "1"
+                val fwIdx = parts.indexOfFirst { it.startsWith("firewall=") }
+                if (fwIdx >= 0) {
+                    parts[fwIdx] = "firewall=$newFw"
+                } else {
+                    parts.add("firewall=$newFw")
+                }
+            }
+
+            if (toggleLinkDown) {
+                val newDown = if (net.linkDown) "0" else "1"
+                val downIdx = parts.indexOfFirst { it.startsWith("link_down=") }
+                if (downIdx >= 0) {
+                    parts[downIdx] = "link_down=$newDown"
+                } else {
+                    parts.add("link_down=$newDown")
+                }
+            }
+
+            return parts.joinToString(",")
+        }
     }
 }

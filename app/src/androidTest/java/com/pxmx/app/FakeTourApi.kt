@@ -19,8 +19,8 @@ import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
-import retrofit2.HttpException
-import retrofit2.Response
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -444,4 +444,7 @@ class FakeTourApi : ProxmoxApi {
     override suspend fun qemuFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
     override suspend fun lxcFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse()
     override suspend fun lxcFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
+    override suspend fun qemuAgentNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse(data = buildJsonObject {})
+    override suspend fun lxcNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse(data = buildJsonObject {})
 }
+

@@ -15,42 +15,63 @@ enum class TourStep(
     val title: String,
     val instruction: String,
     val placement: TourPanelPlacement = TourPanelPlacement.BOTTOM,
+    val usesNext: Boolean = false,
 ) {
     GUEST_CARD(
         stepNumber = 1,
         title = "GUEST DETAIL",
         instruction = "Tap any guest card to open its detail.",
         placement = TourPanelPlacement.BOTTOM,
+        usesNext = false,
     ),
     PWR_BUTTON(
         stepNumber = 2,
         title = "POWER ACTIONS",
         instruction = "Tap PWR to see the power menu.",
         placement = TourPanelPlacement.TOP,
+        usesNext = false,
     ),
     AUTO_BUTTON(
         stepNumber = 3,
         title = "AUTO-START",
         instruction = "AUTO arms the guest to start on boot.",
         placement = TourPanelPlacement.BOTTOM,
+        usesNext = false,
     ),
     LOG_STRIP(
         stepNumber = 4,
         title = "CLUSTER LOG",
         instruction = "The log strip at the bottom opens the full cluster log.",
         placement = TourPanelPlacement.TOP,
+        usesNext = false,
     ),
-    MENU_BUTTON(
+    SERVER_LAMPS(
         stepNumber = 5,
-        title = "CLUSTER MENU",
-        instruction = "MENU holds Updates and Open in browser.",
+        title = "SERVER LAMPS",
+        instruction = "One lamp per host. Solid green is idle. Pulse is load. Amber is high. Set the percents in Settings.",
+        placement = TourPanelPlacement.TOP,
+        usesNext = true,
+    ),
+    CONSOLE(
+        stepNumber = 6,
+        title = "GUEST CONSOLE",
+        instruction = "OPEN CONSOLE on a guest is a live noVNC session through the app pin.",
         placement = TourPanelPlacement.BOTTOM,
+        usesNext = true,
+    ),
+    HISTORY(
+        stepNumber = 7,
+        title = "PERFORMANCE HISTORY",
+        instruction = "Guest and node HISTORY charts hour and day, including host memory and pressure.",
+        placement = TourPanelPlacement.BOTTOM,
+        usesNext = true,
     ),
     SUMMARY(
-        stepNumber = 6,
+        stepNumber = 8,
         title = "HIDDEN EXTRAS",
         instruction = "Hidden extras: long-press PWR for shutdown, reboot, suspend. Five taps on the PXMX title at login unlocks demo mode. Creator link lives at the bottom of Settings.",
         placement = TourPanelPlacement.BOTTOM,
+        usesNext = false,
     );
 
     val next: TourStep?
@@ -58,8 +79,10 @@ enum class TourStep(
             GUEST_CARD -> PWR_BUTTON
             PWR_BUTTON -> AUTO_BUTTON
             AUTO_BUTTON -> LOG_STRIP
-            LOG_STRIP -> MENU_BUTTON
-            MENU_BUTTON -> SUMMARY
+            LOG_STRIP -> SERVER_LAMPS
+            SERVER_LAMPS -> CONSOLE
+            CONSOLE -> HISTORY
+            HISTORY -> SUMMARY
             SUMMARY -> null
         }
 }

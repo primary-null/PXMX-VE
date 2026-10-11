@@ -355,4 +355,16 @@ class GuestDetailViewModelTest {
         assertEquals(100L, directVm.ui.value.vmid)
         assertEquals("pve1", directVm.ui.value.node)
     }
+
+    @Test
+    fun liveInterfaces_demoGuest100_containsExpectedIpAndNoLoopback() {
+        val state = vm.ui.value
+        assertTrue(state.liveInterfaces.isNotEmpty())
+        val eth0 = state.liveInterfaces.firstOrNull { it.name == "eth0" }
+        assertNotNull(eth0)
+        assertTrue(eth0!!.addresses.any { it.ip == "192.168.1.100" })
+        assertFalse(state.liveInterfaces.any { it.name == "lo" })
+        assertFalse(state.liveInterfaces.flatMap { it.addresses }.any { it.ip == "127.0.0.1" })
+    }
 }
+

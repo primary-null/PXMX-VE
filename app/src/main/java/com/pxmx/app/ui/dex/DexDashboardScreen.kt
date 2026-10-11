@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.home.ResourceCard
 import com.pxmx.app.ui.home.StatusSectionHeader
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.ui.adaptive.DetailPaneSelection
 
@@ -35,6 +36,7 @@ fun DexDashboardScreen(
     selectedDetail: DetailPaneSelection?,
     onSelectDetail: (DetailPaneSelection?) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenLampSettings: () -> Unit = {},
     onOpenServers: () -> Unit,
     onSwitchAccount: () -> Unit,
     onOpenLogs: () -> Unit,
@@ -43,6 +45,7 @@ fun DexDashboardScreen(
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
+    val lampThresholds by viewModel.serverLampThresholds.collectAsStateWithLifecycle()
 
     Row(modifier = Modifier.fillMaxSize()) {
         // Left Nav Rail
@@ -101,6 +104,8 @@ fun DexDashboardScreen(
             ClusterBezel(
                 nodes = clusterBezelNodes(state.resources),
                 reduceMotion = rememberReduceMotion(),
+                thresholds = lampThresholds,
+                onOpenLampSettings = onOpenLampSettings,
             )
             OutlinedTextField(
                 value = state.searchQuery,
@@ -179,6 +184,7 @@ fun DexDashboardScreen(
                             ResourceCard(
                                 resource = res,
                                 busy = false, // state.busyGuestIds not available easily, default false
+                                thresholds = lampThresholds,
                                 onClick = {
                                     when (res.type) {
                                         "node" -> res.node?.let { onSelectDetail(DetailPaneSelection.Node(it)) }

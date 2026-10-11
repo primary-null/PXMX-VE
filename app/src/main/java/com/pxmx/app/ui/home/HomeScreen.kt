@@ -89,18 +89,20 @@ import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.ThemeMode
-import com.pxmx.app.ui.components.ChassisLamp
+import com.pxmx.app.ui.components.ServerLamp
 import com.pxmx.app.ui.components.ClusterBezel
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
-import com.pxmx.app.ui.components.chassisLampDescription
+import com.pxmx.app.ui.components.serverLampDescription
 import com.pxmx.app.ui.components.clusterBezelNodes
 import com.pxmx.app.ui.components.lampForResource
 import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
+import com.pxmx.app.ui.components.GuestIdentityBay
 import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
@@ -123,6 +125,7 @@ fun HomeScreen(
     onOpenStorage: (node: String, storage: String) -> Unit,
     onOpenNode: (node: String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenLampSettings: () -> Unit = {},
     onOpenTasks: () -> Unit,
     onOpenLogs: () -> Unit = {},
     onOpenServers: () -> Unit,
@@ -137,6 +140,7 @@ fun HomeScreen(
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val lampThresholds by viewModel.serverLampThresholds.collectAsStateWithLifecycle()
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
     val version = state.session?.version?.display ?: "…"
     val host = state.session?.config?.displayHost ?: ""
@@ -313,7 +317,6 @@ fun HomeScreen(
                             label = "Menu",
                             onClick = {
                                 menuOpen = true
-                                com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.MENU_BUTTON)
                             },
                             emphasized = menuOpen,
                         )
@@ -417,6 +420,8 @@ fun HomeScreen(
             ClusterBezel(
                 nodes = bezelNodes,
                 reduceMotion = reduceMotion,
+                thresholds = lampThresholds,
+                onOpenLampSettings = onOpenLampSettings,
             )
             Column(
                 modifier = Modifier
@@ -620,6 +625,7 @@ fun HomeScreen(
                                             ResourceCard(
                                                 resource = res,
                                                 busy = id in state.busyGuestIds,
+                                                thresholds = lampThresholds,
                                                 selectedTag = state.selectedTag,
                                                 onTagClick = { tag -> viewModel.toggleTagFilter(tag) },
                                                 onClick = {
@@ -1037,6 +1043,7 @@ fun ResourceCard(
     onBackupToDevice: () -> Unit = {},
     onReboot: () -> Unit = {},
     onOnbootToggle: (Boolean) -> Unit = {},
+    thresholds: ServerLampThresholds = ServerLampThresholds(),
 ) {
     val clickable = resource.isGuest || resource.type == "storage" || resource.type == "node"
     val reduceMotion = rememberReduceMotion()
@@ -1132,30 +1139,43 @@ fun ResourceCard(
                         )
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                 ) {
-                    TechIconBay(
-                        icon = iconStyle.icon,
-                        accent = accent,
-                        contentDescription = iconStyle.label,
-                        size = if (isGuest) 44.dp else 36.dp,
-                        iconSize = if (isGuest) 26.dp else 22.dp,
-                    )
+                    if (isGuest) {
+                        val callsign = GuestIcons.callsign(resource.displayName, resource.vmid)
+                        GuestIdentityBay(
+                            callsign = callsign,
+                            kindIcon = iconStyle.icon,
+                            accent = accent,
+                            contentDescription = "$callsign, ${iconStyle.label}",
+                            size = 44.dp,
+                            pipSize = 11.dp,
+                        )
+                    } else {
+                        TechIconBay(
+                            icon = iconStyle.icon,
+                            accent = accent,
+                            contentDescription = iconStyle.label,
+                            size = 36.dp,
+                            iconSize = 22.dp,
+                        )
+                    }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            lampForResource(resource, busy)?.let { lamp ->
-                                ChassisLamp(
+                            lampForResource(resource, busy, thresholds)?.let { lamp ->
+                                ServerLamp(
                                     state = lamp,
-                                    contentDescription = chassisLampDescription(resource.displayName, lamp),
+                                    contentDescription = serverLampDescription(resource.displayName, lamp),
                                     reduceMotion = reduceMotion,
                                 )
                                 Spacer(Modifier.width(8.dp))
                             }
                             Text(
-                                text = resource.displayName.uppercase(),
+                                text = if (isGuest) resource.displayName else resource.displayName.uppercase(),
                                 style = if (isGuest) MaterialTheme.typography.titleMedium
                                 else MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.6.sp,
+                                fontFamily = if (isGuest) FontFamily.Monospace else FontFamily.Default,
+                                fontWeight = if (isGuest) FontWeight.SemiBold else FontWeight.Bold,
+                                letterSpacing = if (isGuest) 1.15.sp else 0.6.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),

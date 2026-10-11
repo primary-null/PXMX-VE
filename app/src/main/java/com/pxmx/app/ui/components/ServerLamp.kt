@@ -8,6 +8,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
@@ -41,60 +43,72 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.data.model.ClusterResource
+import com.pxmx.app.data.model.ServerLampThresholds
 import kotlinx.coroutines.delay
 
+typealias ServerLampThresholds = com.pxmx.app.data.model.ServerLampThresholds
+
 /** Front-panel lamp language. Hue is palette, not Compose Color, so mapping stays unit-testable. */
-enum class ChassisLampHue {
+enum class ServerLampHue {
     MUTE,
     GREEN,
     AMBER,
     RED,
 }
 
-enum class ChassisLampMode {
+enum class ServerLampMode {
     OFF,
     STEADY,
     ACTIVITY,
     FAULT,
 }
 
-data class ChassisLampState(
-    val mode: ChassisLampMode,
-    val hue: ChassisLampHue,
+data class ServerLampState(
+    val mode: ServerLampMode,
+    val hue: ServerLampHue,
 )
 
 /** CPU fraction (0–1) at which a live node/guest starts a few-percent flicker. */
-const val CHASSIS_ACTIVITY_CPU = 0.05
+const val SERVER_LAMP_ACTIVITY_CPU_DEFAULT = 0.05
 
 /** CPU fraction (0–1) that turns activity amber — load caution, not an alarm. */
-const val CHASSIS_WARN_CPU = 0.85
+const val SERVER_LAMP_WARN_CPU_DEFAULT = 0.85
 
-const val CHASSIS_ACTIVITY_ALPHA_MIN = 0.88f
+const val SERVER_LAMP_ACTIVITY_ALPHA_MIN = 0.88f
+const val SERVER_LAMP_FAULT_ALPHA_DIM = 0.38f
+
+// Legacy aliases for backward compatibility
+const val CHASSIS_ACTIVITY_CPU = SERVER_LAMP_ACTIVITY_CPU_DEFAULT
+const val CHASSIS_WARN_CPU = SERVER_LAMP_WARN_CPU_DEFAULT
+const val CHASSIS_ACTIVITY_ALPHA_MIN = SERVER_LAMP_ACTIVITY_ALPHA_MIN
+const val CHASSIS_FAULT_ALPHA_DIM = SERVER_LAMP_FAULT_ALPHA_DIM
+typealias ChassisLampHue = ServerLampHue
+typealias ChassisLampMode = ServerLampMode
+typealias ChassisLampState = ServerLampState
 
 fun isReduceMotionEnabled(animatorDurationScale: Float): Boolean = animatorDurationScale == 0f
 
 fun activityAlpha(pulse: Float, reduceMotion: Boolean): Float {
     if (reduceMotion) return 1f
     val p = pulse.coerceIn(0f, 1f)
-    return CHASSIS_ACTIVITY_ALPHA_MIN + (1f - CHASSIS_ACTIVITY_ALPHA_MIN) * p
+    return SERVER_LAMP_ACTIVITY_ALPHA_MIN + (1f - SERVER_LAMP_ACTIVITY_ALPHA_MIN) * p
 }
-
-const val CHASSIS_FAULT_ALPHA_DIM = 0.38f
 
 fun faultAlpha(pulse: Float, reduceMotion: Boolean): Float {
     if (reduceMotion) return 1f
-    return if (pulse.coerceIn(0f, 1f) >= 0.5f) 1f else CHASSIS_FAULT_ALPHA_DIM
+    return if (pulse.coerceIn(0f, 1f) >= 0.5f) 1f else SERVER_LAMP_FAULT_ALPHA_DIM
 }
 
 /** Null means no shared clock; each lamp may run its own pulse. */
-val LocalChassisPulse = compositionLocalOf<Float?> { null }
+val LocalServerLampPulse = compositionLocalOf<Float?> { null }
+val LocalChassisPulse get() = LocalServerLampPulse
 
 @Composable
-fun ProvideChassisPulse(reduceMotion: Boolean, content: @Composable () -> Unit) {
+fun ProvideServerLampPulse(reduceMotion: Boolean, content: @Composable () -> Unit) {
     val pulse = if (reduceMotion) {
         0f
     } else {
-        val transition = rememberInfiniteTransition(label = "chassis-pulse")
+        val transition = rememberInfiniteTransition(label = "server-lamp-pulse")
         val value by transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
@@ -106,8 +120,12 @@ fun ProvideChassisPulse(reduceMotion: Boolean, content: @Composable () -> Unit) 
         )
         value
     }
-    CompositionLocalProvider(LocalChassisPulse provides pulse, content = content)
+    CompositionLocalProvider(LocalServerLampPulse provides pulse, content = content)
 }
+
+@Composable
+fun ProvideChassisPulse(reduceMotion: Boolean, content: @Composable () -> Unit) =
+    ProvideServerLampPulse(reduceMotion, content)
 
 fun shouldBlinkLog(previousKey: String?, currentKey: String?): Boolean =
     currentKey != null && previousKey != null && previousKey != currentKey
@@ -116,90 +134,108 @@ fun clusterBezelNodes(resources: List<ClusterResource>): List<ClusterResource> =
     resources.filter { it.type == "node" }
         .sortedBy { it.node?.lowercase() ?: it.displayName.lowercase() }
 
-fun lampForResource(resource: ClusterResource, busy: Boolean = false): ChassisLampState? = when {
-    resource.type == "node" -> lampForNode(resource)
-    resource.isGuest -> lampForGuest(resource, busy)
+fun lampForResource(
+    resource: ClusterResource,
+    busy: Boolean = false,
+    thresholds: ServerLampThresholds = ServerLampThresholds(),
+): ServerLampState? = when {
+    resource.type == "node" -> lampForNode(resource, thresholds)
+    resource.isGuest -> lampForGuest(resource, busy, thresholds)
     else -> null
 }
 
-fun lampForNode(resource: ClusterResource): ChassisLampState {
+fun lampForNode(
+    resource: ClusterResource,
+    thresholds: ServerLampThresholds = ServerLampThresholds(),
+): ServerLampState {
     if (resource.readErrors.isNotEmpty()) {
-        return ChassisLampState(ChassisLampMode.FAULT, ChassisLampHue.RED)
+        return ServerLampState(ServerLampMode.FAULT, ServerLampHue.RED)
     }
     val status = resource.status?.lowercase()
     if (status == "error") {
-        return ChassisLampState(ChassisLampMode.FAULT, ChassisLampHue.RED)
+        return ServerLampState(ServerLampMode.FAULT, ServerLampHue.RED)
     }
     if (status == "offline" || status == "stopped") {
-        return ChassisLampState(ChassisLampMode.OFF, ChassisLampHue.MUTE)
+        return ServerLampState(ServerLampMode.OFF, ServerLampHue.MUTE)
     }
     if (status != "online" && status != "running") {
-        return ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.MUTE)
+        return ServerLampState(ServerLampMode.STEADY, ServerLampHue.MUTE)
     }
     val cpu = resource.cpu ?: 0.0
+    val warnCpu = thresholds.warnPercent / 100.0
+    val activityCpu = thresholds.activityPercent / 100.0
     return when {
-        cpu >= CHASSIS_WARN_CPU -> ChassisLampState(ChassisLampMode.ACTIVITY, ChassisLampHue.AMBER)
-        cpu >= CHASSIS_ACTIVITY_CPU -> ChassisLampState(ChassisLampMode.ACTIVITY, ChassisLampHue.GREEN)
-        else -> ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)
+        cpu >= warnCpu -> ServerLampState(ServerLampMode.ACTIVITY, ServerLampHue.AMBER)
+        cpu >= activityCpu -> ServerLampState(ServerLampMode.ACTIVITY, ServerLampHue.GREEN)
+        else -> ServerLampState(ServerLampMode.STEADY, ServerLampHue.GREEN)
     }
 }
 
-fun lampForGuest(resource: ClusterResource, busy: Boolean = false): ChassisLampState {
+fun lampForGuest(
+    resource: ClusterResource,
+    busy: Boolean = false,
+    thresholds: ServerLampThresholds = ServerLampThresholds(),
+): ServerLampState {
     if (resource.readErrors.isNotEmpty()) {
-        return ChassisLampState(ChassisLampMode.FAULT, ChassisLampHue.RED)
+        return ServerLampState(ServerLampMode.FAULT, ServerLampHue.RED)
     }
     val status = resource.status?.lowercase()
     if (status == "error") {
-        return ChassisLampState(ChassisLampMode.FAULT, ChassisLampHue.RED)
+        return ServerLampState(ServerLampMode.FAULT, ServerLampHue.RED)
     }
     if (busy) {
-        return ChassisLampState(ChassisLampMode.ACTIVITY, ChassisLampHue.AMBER)
+        return ServerLampState(ServerLampMode.ACTIVITY, ServerLampHue.AMBER)
     }
     if (resource.template == 1) {
-        return ChassisLampState(ChassisLampMode.OFF, ChassisLampHue.MUTE)
+        return ServerLampState(ServerLampMode.OFF, ServerLampHue.MUTE)
     }
     if (resource.isPausedOrSuspended) {
-        return ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.AMBER)
+        return ServerLampState(ServerLampMode.STEADY, ServerLampHue.AMBER)
     }
     if (!resource.isRunning) {
-        return ChassisLampState(ChassisLampMode.OFF, ChassisLampHue.MUTE)
+        return ServerLampState(ServerLampMode.OFF, ServerLampHue.MUTE)
     }
     val cpu = resource.cpu ?: 0.0
+    val warnCpu = thresholds.warnPercent / 100.0
+    val activityCpu = thresholds.activityPercent / 100.0
     return when {
-        cpu >= CHASSIS_WARN_CPU -> ChassisLampState(ChassisLampMode.ACTIVITY, ChassisLampHue.AMBER)
-        cpu >= CHASSIS_ACTIVITY_CPU -> ChassisLampState(ChassisLampMode.ACTIVITY, ChassisLampHue.GREEN)
-        else -> ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)
+        cpu >= warnCpu -> ServerLampState(ServerLampMode.ACTIVITY, ServerLampHue.AMBER)
+        cpu >= activityCpu -> ServerLampState(ServerLampMode.ACTIVITY, ServerLampHue.GREEN)
+        else -> ServerLampState(ServerLampMode.STEADY, ServerLampHue.GREEN)
     }
 }
 
-fun lampForLog(entry: ClusterLogEntry?): ChassisLampState {
+fun lampForLog(entry: ClusterLogEntry?): ServerLampState {
     if (entry == null) {
-        return ChassisLampState(ChassisLampMode.OFF, ChassisLampHue.MUTE)
+        return ServerLampState(ServerLampMode.OFF, ServerLampHue.MUTE)
     }
     val pri = entry.pri
     return when {
-        pri == null -> ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.MUTE)
-        pri <= 3 -> ChassisLampState(ChassisLampMode.FAULT, ChassisLampHue.RED)
-        pri == 4 -> ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.AMBER)
-        else -> ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)
+        pri == null -> ServerLampState(ServerLampMode.STEADY, ServerLampHue.MUTE)
+        pri <= 3 -> ServerLampState(ServerLampMode.FAULT, ServerLampHue.RED)
+        pri == 4 -> ServerLampState(ServerLampMode.STEADY, ServerLampHue.AMBER)
+        else -> ServerLampState(ServerLampMode.STEADY, ServerLampHue.GREEN)
     }
 }
 
-fun chassisLampDescription(name: String?, state: ChassisLampState): String {
+fun serverLampDescription(name: String?, state: ServerLampState): String {
     val who = name?.takeIf { it.isNotBlank() } ?: "server"
     val status = when (state.mode) {
-        ChassisLampMode.OFF -> "off"
-        ChassisLampMode.FAULT -> "fault"
-        ChassisLampMode.ACTIVITY -> if (state.hue == ChassisLampHue.AMBER) "load" else "activity"
-        ChassisLampMode.STEADY -> when (state.hue) {
-            ChassisLampHue.AMBER -> "paused"
-            ChassisLampHue.GREEN -> "on"
-            ChassisLampHue.RED -> "fault"
-            ChassisLampHue.MUTE -> "idle"
+        ServerLampMode.OFF -> "off"
+        ServerLampMode.FAULT -> "fault"
+        ServerLampMode.ACTIVITY -> if (state.hue == ServerLampHue.AMBER) "load" else "activity"
+        ServerLampMode.STEADY -> when (state.hue) {
+            ServerLampHue.AMBER -> "paused"
+            ServerLampHue.GREEN -> "on"
+            ServerLampHue.RED -> "fault"
+            ServerLampHue.MUTE -> "idle"
         }
     }
     return "$who $status"
 }
+
+fun chassisLampDescription(name: String?, state: ServerLampState): String =
+    serverLampDescription(name, state)
 
 @Composable
 fun rememberReduceMotion(): Boolean {
@@ -220,20 +256,20 @@ fun rememberReduceMotion(): Boolean {
 }
 
 @Composable
-fun ChassisLamp(
-    state: ChassisLampState,
+fun ServerLamp(
+    state: ServerLampState,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     blinkToken: String? = null,
     reduceMotion: Boolean = false,
 ) {
     val needsPulse = !reduceMotion &&
-        (state.mode == ChassisLampMode.ACTIVITY || state.mode == ChassisLampMode.FAULT)
-    val sharedPulse = LocalChassisPulse.current
+        (state.mode == ServerLampMode.ACTIVITY || state.mode == ServerLampMode.FAULT)
+    val sharedPulse = LocalServerLampPulse.current
     val pulse = when {
         !needsPulse -> 0f
         sharedPulse != null -> sharedPulse
-        else -> ChassisLampPulse()
+        else -> ServerLampPulse()
     }
     var blinkBoost by remember { mutableFloatStateOf(0f) }
     val lastToken = remember { mutableStateOf<String?>(null) }
@@ -249,14 +285,14 @@ fun ChassisLamp(
         blinkBoost = 0f
     }
     val baseAlpha = when (state.mode) {
-        ChassisLampMode.OFF -> 0.35f
-        ChassisLampMode.ACTIVITY -> activityAlpha(pulse, reduceMotion)
-        ChassisLampMode.FAULT -> faultAlpha(pulse, reduceMotion)
+        ServerLampMode.OFF -> 0.35f
+        ServerLampMode.ACTIVITY -> activityAlpha(pulse, reduceMotion)
+        ServerLampMode.FAULT -> faultAlpha(pulse, reduceMotion)
         else -> 1f
     }
     val alpha = (baseAlpha + blinkBoost * (1f - baseAlpha)).coerceIn(0f, 1f)
     val color = lampColor(state.hue)
-    val description = contentDescription ?: chassisLampDescription(null, state)
+    val description = contentDescription ?: serverLampDescription(null, state)
     Box(
         modifier = modifier
             .size(6.dp)
@@ -266,8 +302,23 @@ fun ChassisLamp(
 }
 
 @Composable
-private fun ChassisLampPulse(): Float {
-    val transition = rememberInfiniteTransition(label = "chassis-lamp")
+fun ChassisLamp(
+    state: ServerLampState,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    blinkToken: String? = null,
+    reduceMotion: Boolean = false,
+) = ServerLamp(
+    state = state,
+    modifier = modifier,
+    contentDescription = contentDescription,
+    blinkToken = blinkToken,
+    reduceMotion = reduceMotion,
+)
+
+@Composable
+private fun ServerLampPulse(): Float {
+    val transition = rememberInfiniteTransition(label = "server-lamp")
     val pulse by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -281,11 +332,11 @@ private fun ChassisLampPulse(): Float {
 }
 
 @Composable
-private fun lampColor(hue: ChassisLampHue): Color = when (hue) {
-    ChassisLampHue.MUTE -> TechColors.Mute
-    ChassisLampHue.GREEN -> TechColors.LinkGreen
-    ChassisLampHue.AMBER -> TechColors.Amber
-    ChassisLampHue.RED -> TechColors.Danger
+private fun lampColor(hue: ServerLampHue): Color = when (hue) {
+    ServerLampHue.MUTE -> TechColors.Mute
+    ServerLampHue.GREEN -> TechColors.LinkGreen
+    ServerLampHue.AMBER -> TechColors.Amber
+    ServerLampHue.RED -> TechColors.Danger
 }
 
 @Composable
@@ -293,12 +344,25 @@ fun ClusterBezel(
     nodes: List<ClusterResource>,
     modifier: Modifier = Modifier,
     reduceMotion: Boolean = false,
+    thresholds: ServerLampThresholds = ServerLampThresholds(),
+    onOpenLampSettings: (() -> Unit)? = null,
 ) {
     if (nodes.isEmpty()) return
+    val interactionSource = remember { MutableInteractionSource() }
+    val clickableModifier = if (onOpenLampSettings != null) {
+        Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onOpenLampSettings,
+        )
+    } else {
+        Modifier
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(TechColors.Hull)
+            .then(clickableModifier)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -318,10 +382,10 @@ fun ClusterBezel(
             modifier = Modifier.weight(1f),
         ) {
             nodes.forEach { node ->
-                val lamp = lampForNode(node)
-                ChassisLamp(
+                val lamp = lampForNode(node, thresholds)
+                ServerLamp(
                     state = lamp,
-                    contentDescription = chassisLampDescription(node.node ?: node.displayName, lamp),
+                    contentDescription = serverLampDescription(node.node ?: node.displayName, lamp),
                     reduceMotion = reduceMotion,
                 )
             }

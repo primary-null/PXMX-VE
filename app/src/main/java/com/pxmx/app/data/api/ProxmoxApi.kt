@@ -15,6 +15,7 @@ import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
 import kotlinx.serialization.Contextual
+import kotlinx.serialization.json.JsonElement
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.DELETE
@@ -461,4 +462,17 @@ interface ProxmoxApi {
         @Path("node") node: String,
         @Path("vmid") vmid: Long,
     ): PveResponse<List<Map<String, @Contextual Any>>>
+
+    @GET("nodes/{node}/qemu/{vmid}/agent/network-get-interfaces")
+    suspend fun qemuAgentNetworkInterfaces(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<JsonElement>
+
+    @GET("nodes/{node}/lxc/{vmid}/interfaces")
+    suspend fun lxcNetworkInterfaces(
+        @Path("node") node: String,
+        @Path("vmid") vmid: Long,
+    ): PveResponse<JsonElement>
 }
+

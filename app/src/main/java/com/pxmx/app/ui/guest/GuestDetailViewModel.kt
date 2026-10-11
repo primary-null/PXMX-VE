@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.GuestAction
+import com.pxmx.app.data.model.ConfigNet
+import com.pxmx.app.data.model.GuestLiveInterface
 import com.pxmx.app.data.model.GuestStatus
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.HistoryTimeframe
@@ -68,6 +70,7 @@ data class GuestDetailUiState(
     val snapshots: List<SnapshotInfo> = emptyList(),
     val backups: List<BackupVolume> = emptyList(),
     val hostUsbs: List<HostUsbDevice> = emptyList(),
+    val liveInterfaces: List<GuestLiveInterface> = emptyList(),
     val backupStorages: List<String> = emptyList(),
     val loading: Boolean = true,
     val actionInProgress: String? = null,
@@ -180,6 +183,7 @@ class GuestDetailViewModel(
             val tf = s.rrdTimeframe
             val rrdResult = guestRepo.guestRrdData(s.node, s.guestType, s.vmid, tf.apiName)
             val fwResult = networkRepo.loadGuestFirewall(s.node, s.guestType, s.vmid)
+            val liveIfaces = guestRepo.fetchLiveInterfaces(s.node, s.guestType == GuestType.QEMU, s.vmid)
             guestRepo.loadGuestBundle(s.node, s.guestType, s.vmid).fold(
                 onSuccess = { bundle ->
                     _ui.update {
@@ -193,6 +197,7 @@ class GuestDetailViewModel(
                             },
                             firewall = fwResult.getOrNull(),
                             firewallError = fwResult.exceptionOrNull()?.message,
+                            liveInterfaces = liveIfaces,
                             snapshots = if ("snapshots" in bundle.sectionErrors) it.snapshots else bundle.snapshots,
                             backups = if ("backups" in bundle.sectionErrors) it.backups else
                                 (bundle.backups + it.backups.filter { backup ->
@@ -424,6 +429,67 @@ class GuestDetailViewModel(
             refresh()
         }
     }
+
+    fun toggleNicFirewall(net: ConfigNet) {
+        val s = _ui.value
+        viewModelScope.launch {
+            _ui.update { it.copy(actionInProgress = "net:firewall", message = null, error = null) }
+            try {
+                guestRepo.updateNicOption(
+                    node = s.node,
+                    guestType = s.guestType,
+                    vmid = s.vmid,
+                    net = net,
+                    toggleFirewall = true,
+                ).fold(
+                    onSuccess = {
+                        _ui.update { it.copy(actionInProgress = null, message = "Updated ${net.key} firewall") }
+                        refresh()
+                    },
+                    onFailure = { e ->
+                        if (e is CancellationException) throw e
+                        _ui.update { it.copy(actionInProgress = null, error = e.message ?: "Failed to update firewall") }
+                    }
+                )
+            } catch (e: CancellationException) {
+                _ui.update { it.copy(actionInProgress = null) }
+                throw e
+            } catch (e: Exception) {
+                _ui.update { it.copy(actionInProgress = null, error = e.message ?: "Failed to update firewall") }
+            }
+        }
+    }
+
+    fun toggleNicLinkDown(net: ConfigNet) {
+        val s = _ui.value
+        viewModelScope.launch {
+            _ui.update { it.copy(actionInProgress = "net:linkdown", message = null, error = null) }
+            try {
+                guestRepo.updateNicOption(
+                    node = s.node,
+                    guestType = s.guestType,
+                    vmid = s.vmid,
+                    net = net,
+                    toggleLinkDown = true,
+                ).fold(
+                    onSuccess = {
+                        _ui.update { it.copy(actionInProgress = null, message = "Updated ${net.key} link") }
+                        refresh()
+                    },
+                    onFailure = { e ->
+                        if (e is CancellationException) throw e
+                        _ui.update { it.copy(actionInProgress = null, error = e.message ?: "Failed to update link") }
+                    }
+                )
+            } catch (e: CancellationException) {
+                _ui.update { it.copy(actionInProgress = null) }
+                throw e
+            } catch (e: Exception) {
+                _ui.update { it.copy(actionInProgress = null, error = e.message ?: "Failed to update link") }
+            }
+        }
+    }
+
 
     private fun runTask(
         key: String,

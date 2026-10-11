@@ -7,11 +7,13 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.pxmx.app.R
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.model.UpidLiveTask
 import com.pxmx.app.data.session.SessionStore
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -30,38 +32,49 @@ class PlatformNotificationPoster(private val context: Context) : TaskNotificatio
     }
 
     override fun postOngoing(id: Int, title: String, text: String) {
-        if (Build.VERSION.SDK_INT < 36) return
         val nm = notificationManager ?: return
         ensureChannel(nm)
 
-        val progressStyle = Notification.ProgressStyle()
-            .setProgressIndeterminate(true)
+        if (Build.VERSION.SDK_INT >= 36) {
+            val progressStyle = Notification.ProgressStyle()
+                .setProgressIndeterminate(true)
 
-        val builder = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_task)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setOngoing(true)
-            .setRequestPromotedOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setColorized(false)
-            .setStyle(progressStyle)
+            val builder = Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_task)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setOngoing(true)
+                .setRequestPromotedOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setColorized(false)
+                .setStyle(progressStyle)
 
-        nm.notify(id, builder.build())
+            nm.notify(id, builder.build())
+        } else {
+            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_task)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+            nm.notify(id, builder.build())
+        }
     }
 
     override fun postCompleted(id: Int, title: String, text: String) {
-        if (Build.VERSION.SDK_INT < 36) return
         val nm = notificationManager ?: return
         ensureChannel(nm)
 
-        val builder = Notification.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_task)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(false)
+            .setAutoCancel(true)
             .setOnlyAlertOnce(true)
-            .setColorized(false)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
         nm.notify(id, builder.build())
     }
@@ -105,10 +118,17 @@ class PveTaskLiveUpdate(
         }
     },
     private val sdkInt: Int = Build.VERSION.SDK_INT,
-    private val completionDismissDelayMs: Long = 2_000L,
+    private val completionDismissDelayMs: Long? = null,
 ) {
+    private val activeWatches = ConcurrentHashMap<String, Job>()
+
     fun watchTask(upid: String): Job? {
         val liveTask = UpidLiveTask.parse(upid) ?: return null
+        activeWatches[upid]?.let { return it }
+        if (activeWatches.size >= MAX_IN_FLIGHT_WATCHES) {
+            return null
+        }
+
         val currentSession = sessionStore.session.value ?: return null
         val host = currentSession.config.host
         val hasPermission = permissionChecker(context)
@@ -124,7 +144,7 @@ class PveTaskLiveUpdate(
             text = "In progress…",
         )
 
-        return scope.launch {
+        val job = scope.launch {
             try {
                 val startTime = System.currentTimeMillis()
                 val capMs = 600_000L
@@ -144,13 +164,17 @@ class PveTaskLiveUpdate(
                         if (!status.isRunning) {
                             if (status.isOk) {
                                 notificationPoster.postCompleted(notifId, liveTask.title, "Completed")
-                                delay(completionDismissDelayMs)
-                                notificationPoster.cancel(notifId)
+                                if (completionDismissDelayMs != null && completionDismissDelayMs > 0) {
+                                    delay(completionDismissDelayMs)
+                                    notificationPoster.cancel(notifId)
+                                }
                             } else {
                                 val errText = status.exitstatus ?: "Failed"
                                 notificationPoster.postCompleted(notifId, liveTask.title, errText)
-                                delay(completionDismissDelayMs)
-                                notificationPoster.cancel(notifId)
+                                if (completionDismissDelayMs != null && completionDismissDelayMs > 0) {
+                                    delay(completionDismissDelayMs)
+                                    notificationPoster.cancel(notifId)
+                                }
                             }
                             return@launch
                         }
@@ -162,8 +186,12 @@ class PveTaskLiveUpdate(
                 throw e
             } catch (e: Exception) {
                 notificationPoster.cancel(notifId)
+            } finally {
+                activeWatches.remove(upid)
             }
         }
+        activeWatches[upid] = job
+        return job
     }
 
     fun shouldPost(
@@ -174,6 +202,7 @@ class PveTaskLiveUpdate(
 
     companion object {
         const val CHANNEL_ID = "pve-tasks"
+        const val MAX_IN_FLIGHT_WATCHES = 5
 
         fun isDemo(host: String?): Boolean {
             if (host.isNullOrBlank()) return true
@@ -186,7 +215,7 @@ class PveTaskLiveUpdate(
             hasPermission: Boolean,
             host: String?,
         ): Boolean {
-            if (sdkInt < 36) return false
+            if (sdkInt < 26) return false
             if (!hasPermission) return false
             if (isDemo(host)) return false
             return true

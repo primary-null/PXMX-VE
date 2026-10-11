@@ -64,6 +64,8 @@ enum class SettingsPaneSelection {
     FIREWALL,
     UPDATES,
     LOG,
+    SERVER_LAMPS,
+    NOTIFICATIONS,
 }
 
 fun parseSettingsPaneSelection(value: String?): SettingsPaneSelection? = when (value?.uppercase()) {
@@ -72,6 +74,8 @@ fun parseSettingsPaneSelection(value: String?): SettingsPaneSelection? = when (v
     "FIREWALL" -> SettingsPaneSelection.FIREWALL
     "UPDATES" -> SettingsPaneSelection.UPDATES
     "LOG" -> SettingsPaneSelection.LOG
+    "SERVER_LAMPS", "LAMPS" -> SettingsPaneSelection.SERVER_LAMPS
+    "NOTIFICATIONS" -> SettingsPaneSelection.NOTIFICATIONS
     else -> null
 }
 

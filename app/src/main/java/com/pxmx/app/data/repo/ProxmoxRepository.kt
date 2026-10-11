@@ -157,6 +157,7 @@ class ProxmoxRepository(
         onLogout = {
             guestRepo.clearCache()
             nodeRepo.clearCache()
+            taskNotificationWatcher.reset()
         },
     )
 
@@ -208,6 +209,17 @@ class ProxmoxRepository(
     val networkRepo: NetworkRepository = NetworkRepository(
         pveClient = pveClient,
         discoverNodeNames = { api -> nodeRepo.discoverNodeNames(api) },
+    )
+
+    val taskNotificationWatcher: ClusterTaskNotificationWatcher = ClusterTaskNotificationWatcher(
+        sessionStore = sessionStore,
+        recentActionRegistry = recentActionRegistry,
+        liveUpdate = liveUpdate,
+        scope = repoScope,
+        configFetcher = { node, type, vmid ->
+            guestRepo.fetchRawGuestConfig(node, type, vmid).getOrNull()
+        },
+        notificationPoster = ClusterTaskNotificationWatcher.createDefaultPoster(context),
     )
 
     // -------------------------------------------------------------------------

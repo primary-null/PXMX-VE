@@ -5,6 +5,7 @@ import com.pxmx.app.data.model.FirewallRule
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SdnStatusInfo
 import com.pxmx.app.data.model.ServerConfig
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.data.session.SessionStore
@@ -35,11 +36,14 @@ class CleanSlateAndTourTest {
         val profile = sessionStore.saveProfileFromLogin(config, saveCredentials = true)
         sessionStore.setSession(SessionState(config = config, ticket = "test-ticket", csrf = "csrf"))
         sessionStore.setThemeMode(ThemeMode.LIGHT)
+        sessionStore.setServerLampThresholds(ServerLampThresholds(10, 60))
         sessionStore.markTourCompleted()
 
         assertTrue(sessionStore.tourCompleted.value)
         assertEquals(1, sessionStore.profiles.value.size)
         assertEquals(ThemeMode.LIGHT, sessionStore.themeMode.value)
+        assertEquals(10, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(60, sessionStore.serverLampThresholds.value.warnPercent)
 
         // Perform Clean Slate purge
         sessionStore.purgeAll()
@@ -48,12 +52,46 @@ class CleanSlateAndTourTest {
         assertTrue(sessionStore.profiles.value.isEmpty())
         assertNull(sessionStore.session.value)
         assertEquals(ThemeMode.OLED_DARK, sessionStore.themeMode.value)
+        assertEquals(5, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(85, sessionStore.serverLampThresholds.value.warnPercent)
 
         // Verify next launch sees pristine state
         val nextLaunchStore = SessionStore(injectedPrefs = fakePrefs)
         assertFalse(nextLaunchStore.tourCompleted.value)
         assertTrue(nextLaunchStore.profiles.value.isEmpty())
         assertEquals(ThemeMode.OLED_DARK, nextLaunchStore.themeMode.value)
+        assertEquals(5, nextLaunchStore.serverLampThresholds.value.activityPercent)
+        assertEquals(85, nextLaunchStore.serverLampThresholds.value.warnPercent)
+    }
+
+    @Test
+    fun sessionStore_serverLampThresholds_persistenceAndClamping() {
+        val fakePrefs = FakeSharedPreferences()
+        val sessionStore = SessionStore(injectedPrefs = fakePrefs)
+
+        // Defaults when keys missing
+        assertEquals(5, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(85, sessionStore.serverLampThresholds.value.warnPercent)
+
+        // Set custom thresholds
+        sessionStore.setServerLampThresholds(ServerLampThresholds(10, 70))
+        assertEquals(10, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(70, sessionStore.serverLampThresholds.value.warnPercent)
+
+        // Slide activity up against warn bumps warn to activity+1 (cap 100)
+        sessionStore.setServerLampActivity(75)
+        assertEquals(75, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(76, sessionStore.serverLampThresholds.value.warnPercent)
+
+        // Slide warn down against activity drops activity to warn-1 (floor 0)
+        sessionStore.setServerLampWarn(50)
+        assertEquals(49, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(50, sessionStore.serverLampThresholds.value.warnPercent)
+
+        // Reset restores defaults
+        sessionStore.resetServerLampThresholds()
+        assertEquals(5, sessionStore.serverLampThresholds.value.activityPercent)
+        assertEquals(85, sessionStore.serverLampThresholds.value.warnPercent)
     }
 
     @Test
@@ -85,15 +123,23 @@ class CleanSlateAndTourTest {
         TourController.advance(TourStep.AUTO_BUTTON)
         assertEquals(TourStep.LOG_STRIP, TourController.currentStep.value)
 
-        // Step 4: LOG strip -> Step 5: MENU button
+        // Step 4: LOG strip -> Step 5: SERVER_LAMPS
         TourController.advance(TourStep.LOG_STRIP)
-        assertEquals(TourStep.MENU_BUTTON, TourController.currentStep.value)
+        assertEquals(TourStep.SERVER_LAMPS, TourController.currentStep.value)
 
-        // Step 5: MENU button -> Step 6: SUMMARY
-        TourController.advance(TourStep.MENU_BUTTON)
+        // Step 5: SERVER_LAMPS -> Step 6: CONSOLE
+        TourController.advance(TourStep.SERVER_LAMPS)
+        assertEquals(TourStep.CONSOLE, TourController.currentStep.value)
+
+        // Step 6: CONSOLE -> Step 7: HISTORY
+        TourController.advance(TourStep.CONSOLE)
+        assertEquals(TourStep.HISTORY, TourController.currentStep.value)
+
+        // Step 7: HISTORY -> Step 8: SUMMARY
+        TourController.advance(TourStep.HISTORY)
         assertEquals(TourStep.SUMMARY, TourController.currentStep.value)
 
-        // Step 6: Summary done -> complete tour
+        // Step 8: Summary done -> complete tour
         TourController.complete(sessionStore)
         assertNull(TourController.currentStep.value)
         assertTrue(sessionStore.tourCompleted.value)
@@ -117,7 +163,7 @@ class CleanSlateAndTourTest {
         assertEquals(TourStep.PWR_BUTTON, TourController.currentStep.value)
 
         // Advancing unrelated step does not skip or corrupt PWR step
-        TourController.advance(TourStep.MENU_BUTTON)
+        TourController.advance(TourStep.SERVER_LAMPS)
         assertEquals(TourStep.PWR_BUTTON, TourController.currentStep.value)
 
         // Advancing PWR button transitions to AUTO_BUTTON step
@@ -237,16 +283,18 @@ class CleanSlateAndTourTest {
         }
         onOpenLogs()
         assertTrue(logsOpened)
-        assertEquals(TourStep.MENU_BUTTON, TourController.currentStep.value)
+        assertEquals(TourStep.SERVER_LAMPS, TourController.currentStep.value)
 
-        // Step 5: Menu tap on Home
-        var menuOpened = false
-        val onOpenMenu: () -> Unit = {
-            TourController.advance(TourStep.MENU_BUTTON)
-            menuOpened = true
-        }
-        onOpenMenu()
-        assertTrue(menuOpened)
+        // Step 5: Observational SERVER_LAMPS advance via NEXT button
+        TourController.advance(TourStep.SERVER_LAMPS)
+        assertEquals(TourStep.CONSOLE, TourController.currentStep.value)
+
+        // Step 6: Observational CONSOLE advance via NEXT button
+        TourController.advance(TourStep.CONSOLE)
+        assertEquals(TourStep.HISTORY, TourController.currentStep.value)
+
+        // Step 7: Observational HISTORY advance via NEXT button
+        TourController.advance(TourStep.HISTORY)
         assertEquals(TourStep.SUMMARY, TourController.currentStep.value)
     }
 
@@ -288,11 +336,29 @@ class CleanSlateAndTourTest {
         // Step 4: LOG_STRIP target is SystemLogStrip at bottom bar -> panel at TOP
         assertEquals(TourPanelPlacement.TOP, TourStep.LOG_STRIP.placement)
 
-        // Step 5: MENU_BUTTON target is Menu action in TopAppBar -> panel at BOTTOM
-        assertEquals(TourPanelPlacement.BOTTOM, TourStep.MENU_BUTTON.placement)
+        // Step 5: SERVER_LAMPS target is cluster bezel at top -> panel at TOP
+        assertEquals(TourPanelPlacement.TOP, TourStep.SERVER_LAMPS.placement)
 
-        // Step 6: SUMMARY panel has internal DONE action -> panel at BOTTOM
+        // Step 6: CONSOLE target is console button in guest detail -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.CONSOLE.placement)
+
+        // Step 7: HISTORY target is history charts -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.HISTORY.placement)
+
+        // Step 8 / SUMMARY panel has internal DONE action -> panel at BOTTOM
         assertEquals(TourPanelPlacement.BOTTOM, TourStep.SUMMARY.placement)
+    }
+
+    @Test
+    fun tourStep_usesNext_onlyObservationalSteps() {
+        assertFalse(TourStep.GUEST_CARD.usesNext)
+        assertFalse(TourStep.PWR_BUTTON.usesNext)
+        assertFalse(TourStep.AUTO_BUTTON.usesNext)
+        assertFalse(TourStep.LOG_STRIP.usesNext)
+        assertTrue(TourStep.SERVER_LAMPS.usesNext)
+        assertTrue(TourStep.CONSOLE.usesNext)
+        assertTrue(TourStep.HISTORY.usesNext)
+        assertFalse(TourStep.SUMMARY.usesNext)
     }
 
     @Test

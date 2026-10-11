@@ -1,0 +1,29 @@
+{
+  "$schema": "https://t3.codes/schema/t3.json",
+  "scripts": [
+    {
+      "name": "Setup Worktree",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if (-not (Test-Path local.properties)) { $cands = @('../local.properties', '../../local.properties'); foreach ($c in $cands) { if (Test-Path $c) { Copy-Item $c local.properties; break } } }; python scripts/security_check.py --all\"",
+      "icon": "configure",
+      "runOnWorktreeCreate": true
+    },
+    {
+      "name": "Security Check",
+      "command": "python scripts/security_check.py --all",
+      "icon": "lint",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Push to Box",
+      "command": "git push box HEAD",
+      "icon": "build",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Fetch proven-green",
+      "command": "git fetch box proven-green",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    }
+  ]
+}

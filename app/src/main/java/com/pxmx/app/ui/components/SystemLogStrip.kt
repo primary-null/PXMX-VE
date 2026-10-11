@@ -73,9 +73,9 @@ fun SystemLogStrip(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                ChassisLamp(
+                ServerLamp(
                     state = lamp,
-                    contentDescription = chassisLampDescription("syslog", lamp),
+                    contentDescription = serverLampDescription("syslog", lamp),
                     blinkToken = entry?.stableKey,
                     reduceMotion = reduceMotion,
                 )

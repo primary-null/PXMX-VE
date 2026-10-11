@@ -41,6 +41,8 @@ import com.pxmx.app.ui.settings.SdnScreen
 import com.pxmx.app.ui.settings.SdnViewModel
 import com.pxmx.app.ui.settings.SettingsScreen
 import com.pxmx.app.ui.settings.SettingsViewModel
+import com.pxmx.app.ui.settings.NotificationSettingsScreen
+import com.pxmx.app.ui.settings.ServerLampSettingsScreen
 import com.pxmx.app.ui.settings.UpdatesScreen
 import com.pxmx.app.ui.settings.UpdatesViewModel
 import com.pxmx.app.ui.permissions.PermissionsScreen
@@ -73,7 +75,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.pxmx.app.ui.components.ProvideChassisPulse
+import com.pxmx.app.ui.components.ProvideServerLampPulse
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.rememberReduceMotion
@@ -116,6 +118,8 @@ object Routes {
     const val FIREWALL = "settings/firewall"
     const val UPDATES = "settings/updates"
     const val PERMISSIONS = "settings/permissions"
+    const val SERVER_LAMPS = "settings/lamps"
+    const val NOTIFICATIONS = "settings/notifications"
     const val LOG = "log"
     const val NODE = "node/{node}"
 
@@ -210,12 +214,15 @@ fun ProxmoxNavGraph() {
                 SettingsPaneSelection.FIREWALL -> navController.navigate(Routes.FIREWALL)
                 SettingsPaneSelection.UPDATES -> navController.navigate(Routes.UPDATES)
                 SettingsPaneSelection.LOG -> navController.navigate(Routes.LOG)
+                SettingsPaneSelection.SERVER_LAMPS -> navController.navigate(Routes.SERVER_LAMPS)
+                SettingsPaneSelection.NOTIFICATIONS -> navController.navigate(Routes.NOTIFICATIONS)
                 null -> Unit
             }
         }
     }
 
-    ProvideChassisPulse(rememberReduceMotion()) {
+
+    ProvideServerLampPulse(rememberReduceMotion()) {
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
@@ -282,6 +289,9 @@ fun ProxmoxNavGraph() {
                     onSelectDetail = { selectedDetail = it },
                     onOpenSettings = {
                         navController.navigate(Routes.SETTINGS)
+                    },
+                    onOpenLampSettings = {
+                        navController.navigate(Routes.SERVER_LAMPS)
                     },
                     onOpenServers = {
                         navController.navigate(Routes.SERVERS)
@@ -425,6 +435,9 @@ fun ProxmoxNavGraph() {
                             },
                             onOpenSettings = {
                                 navController.navigate(Routes.SETTINGS)
+                            },
+                            onOpenLampSettings = {
+                                navController.navigate(Routes.SERVER_LAMPS)
                             },
                             onOpenTasks = {
                                 navController.navigate(Routes.TASKS)
@@ -586,6 +599,9 @@ fun ProxmoxNavGraph() {
                     onOpenSettings = {
                         navController.navigate(Routes.SETTINGS)
                     },
+                    onOpenLampSettings = {
+                        navController.navigate(Routes.SERVER_LAMPS)
+                    },
                     onOpenTasks = {
                         navController.navigate(Routes.TASKS)
                     },
@@ -623,6 +639,8 @@ fun ProxmoxNavGraph() {
             val uiState by vm.ui.collectAsStateWithLifecycle()
             val session by app.sessionStore.session.collectAsStateWithLifecycle()
             val themeMode by app.sessionStore.themeMode.collectAsStateWithLifecycle()
+            val lampThresholds by app.sessionStore.serverLampThresholds.collectAsStateWithLifecycle()
+            val notificationPrefs by app.sessionStore.notificationPrefs.collectAsStateWithLifecycle()
 
             if (isTwoPane) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -635,6 +653,8 @@ fun ProxmoxNavGraph() {
                             versionDisplay = session?.version?.display ?: "—",
                             themeMode = themeMode,
                             uiState = uiState,
+                            lampThresholds = lampThresholds,
+                            notificationPrefs = notificationPrefs,
                             onBack = {
                                 if (selectedSettingsPane != null) selectedSettingsPane = null
                                 else navController.popBackStack()
@@ -644,6 +664,8 @@ fun ProxmoxNavGraph() {
                             onOpenFirewall = { selectedSettingsPane = SettingsPaneSelection.FIREWALL },
                             onOpenUpdates = { selectedSettingsPane = SettingsPaneSelection.UPDATES },
                             onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                            onOpenServerLamps = { selectedSettingsPane = SettingsPaneSelection.SERVER_LAMPS },
+                            onOpenNotifications = { selectedSettingsPane = SettingsPaneSelection.NOTIFICATIONS },
                             onOpenLogs = { selectedSettingsPane = SettingsPaneSelection.LOG },
                             onThemeMode = { app.sessionStore.setThemeMode(it) },
                             onSwitchAccount = {
@@ -737,6 +759,18 @@ fun ProxmoxNavGraph() {
                                     onBack = { selectedSettingsPane = null },
                                 )
                             }
+                            SettingsPaneSelection.SERVER_LAMPS -> {
+                                ServerLampSettingsScreen(
+                                    sessionStore = app.sessionStore,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
+                            SettingsPaneSelection.NOTIFICATIONS -> {
+                                NotificationSettingsScreen(
+                                    sessionStore = app.sessionStore,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
                             null -> {
                                 Box(
                                     modifier = Modifier
@@ -781,12 +815,16 @@ fun ProxmoxNavGraph() {
                     versionDisplay = session?.version?.display ?: "—",
                     themeMode = themeMode,
                     uiState = uiState,
+                    lampThresholds = lampThresholds,
                     onBack = { navController.popBackStack() },
                     onOpenNetwork = { navController.navigate(Routes.NETWORK) },
                     onOpenSdn = { navController.navigate(Routes.SDN) },
                     onOpenFirewall = { navController.navigate(Routes.FIREWALL) },
                     onOpenUpdates = { navController.navigate(Routes.UPDATES) },
                     onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                    onOpenServerLamps = { navController.navigate(Routes.SERVER_LAMPS) },
+                    notificationPrefs = notificationPrefs,
+                    onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onOpenLogs = { navController.navigate(Routes.LOG) },
                     onThemeMode = { app.sessionStore.setThemeMode(it) },
                     onSwitchAccount = {
@@ -963,6 +1001,42 @@ fun ProxmoxNavGraph() {
         composable(Routes.PERMISSIONS) {
             PermissionsScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.SERVER_LAMPS) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    selectedSettingsPane = SettingsPaneSelection.SERVER_LAMPS
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.SETTINGS)
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
+            ServerLampSettingsScreen(
+                sessionStore = app.sessionStore,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.NOTIFICATIONS) {
+            if (isTwoPane) {
+                LaunchedEffect(Unit) {
+                    selectedSettingsPane = SettingsPaneSelection.NOTIFICATIONS
+                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                    if (!popped) {
+                        navController.navigate(Routes.SETTINGS)
+                    }
+                }
+            }
+            if (isTwoPane) return@composable
+
+            NotificationSettingsScreen(
+                sessionStore = app.sessionStore,
+                onBack = { navController.popBackStack() },
             )
         }
 

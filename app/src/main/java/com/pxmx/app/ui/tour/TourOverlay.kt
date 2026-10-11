@@ -89,7 +89,7 @@ fun TourOverlay(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = if (visibleStep == TourStep.SUMMARY) "QUICK TOUR · COMPLETE"
-                                        else "QUICK TOUR · STEP ${visibleStep.stepNumber}/5",
+                                        else "QUICK TOUR · STEP ${visibleStep.stepNumber}/7",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
@@ -112,6 +112,20 @@ fun TourOverlay(
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+
+                            if (visibleStep.usesNext) {
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                ) {
+                                    TechActionPlate(
+                                        label = "NEXT",
+                                        emphasized = true,
+                                        onClick = { TourController.advance(visibleStep) },
+                                    )
+                                }
+                            }
 
                             if (visibleStep == TourStep.SUMMARY) {
                                 Spacer(Modifier.height(12.dp))

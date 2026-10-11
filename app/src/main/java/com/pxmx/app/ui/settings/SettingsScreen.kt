@@ -61,6 +61,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pxmx.app.data.model.NotificationPrefs
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechIconBay
@@ -89,6 +91,10 @@ fun SettingsScreen(
     onOpenUpdates: () -> Unit,
     onOpenPermissions: () -> Unit = {},
     onOpenLogs: () -> Unit = {},
+    lampThresholds: ServerLampThresholds = ServerLampThresholds(),
+    onOpenServerLamps: () -> Unit = {},
+    notificationPrefs: NotificationPrefs = NotificationPrefs(),
+    onOpenNotifications: () -> Unit = {},
     onThemeMode: (ThemeMode) -> Unit,
     onSwitchAccount: () -> Unit,
     onCleanSlate: () -> Unit = {},
@@ -178,6 +184,20 @@ fun SettingsScreen(
             item {
                 Spacer(Modifier.height(4.dp))
                 TechSectionLabel("App")
+            }
+            item {
+                SettingsRow(
+                    title = "Server lamps",
+                    subtitle = "Activity ${lampThresholds.activityPercent}% · Load ${lampThresholds.warnPercent}%",
+                    onClick = onOpenServerLamps,
+                )
+            }
+            item {
+                SettingsRow(
+                    title = "Notifications",
+                    subtitle = if (notificationPrefs.masterEnabled) "Master ON · ${notificationPrefs.activeTriggersCount} triggers" else "Disabled",
+                    onClick = onOpenNotifications,
+                )
             }
             item {
                 SettingsRow(

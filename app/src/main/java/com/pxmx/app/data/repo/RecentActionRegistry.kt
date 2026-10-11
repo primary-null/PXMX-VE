@@ -26,6 +26,22 @@ class RecentActionRegistry(
     }
 
     /**
+     * Checks if a specific taskType and guestId was initiated locally within TTL.
+     */
+    fun hasRecentAction(taskType: String, guestId: Long, nowMs: Long = System.currentTimeMillis()): Boolean {
+        cleanExpired(nowMs)
+        val normType = taskType.lowercase(Locale.US).trim()
+        for ((_, act) in actions) {
+            if (nowMs - act.timestampMs <= ttlMs) {
+                if (act.guestId == guestId && taskTypesEquivalent(act.taskType, normType)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /**
      * Checks if a log entry matches a recently recorded quick action from the session user.
      * Long jobs (aptupdate, vzdump, qmclone, deploy, backup) are NEVER suppressed.
      */

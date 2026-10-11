@@ -183,7 +183,15 @@ data class ConfigNet(
     val firewall: Boolean = false,
     val rate: String? = null,
     val extra: Map<String, String> = emptyMap(),
-)
+) {
+    val linkDown: Boolean get() = extra["link_down"] == "1"
+    val mtu: String? get() = extra["mtu"]
+    val queues: String? get() = extra["queues"]
+    val lxcIp: String? get() = extra["ip"]
+    val lxcGw: String? get() = extra["gw"]
+    val lxcIp6: String? get() = extra["ip6"]
+    val lxcGw6: String? get() = extra["gw6"]
+}
 
 @Serializable
 data class ConfigUsb(
@@ -240,4 +248,10 @@ data class ParsedGuestConfig(
                 else -> null
             }
         }
+
+    fun ipconfigForNet(netKey: String): String? {
+        val idx = netKey.removePrefix("net")
+        return raw["ipconfig$idx"]
+    }
 }
+

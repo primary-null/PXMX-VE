@@ -1,6 +1,7 @@
 package com.pxmx.app.ui.guest.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
@@ -22,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pxmx.app.data.model.ConfigNet
 import com.pxmx.app.data.model.ConfigUsb
+import com.pxmx.app.data.model.FirewallSnapshot
+import com.pxmx.app.data.model.GuestLiveInterface
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.ParsedGuestConfig
 
@@ -38,23 +43,108 @@ import com.pxmx.app.data.model.ParsedGuestConfig
 fun NetworkUsbBody(
     cfg: ParsedGuestConfig?,
     hostUsbs: List<HostUsbDevice>,
+    liveInterfaces: List<GuestLiveInterface> = emptyList(),
+    firewall: FirewallSnapshot? = null,
     isQemu: Boolean,
     busy: Boolean,
     onDetach: (usbKey: String) -> Unit,
     onAttach: (hostId: String, usb3: Boolean) -> Unit,
     onRefreshUsb: () -> Unit,
+    onToggleFirewall: ((net: ConfigNet) -> Unit)? = null,
+    onToggleLinkDown: ((net: ConfigNet) -> Unit)? = null,
 ) {
     if (cfg == null) {
         Text("No config", color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
 
+    if (firewall != null) {
+        val fwState = if (firewall.enabled) "on" else "off"
+        val inPol = firewall.policyIn?.uppercase() ?: "—"
+        val outPol = firewall.policyOut?.uppercase() ?: "—"
+        Text(
+            text = "Guest fw · $fwState · in $inPol · out $outPol",
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = if (firewall.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+    }
+
     Text("Network", fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(6.dp))
+
+    val matchedLiveMap = mutableMapOf<ConfigNet, GuestLiveInterface>()
+    val matchedIfaces = mutableSetOf<GuestLiveInterface>()
+
+    for (net in cfg.nets) {
+        val netMac = net.mac?.trim()?.lowercase()
+        val lxcName = net.extra["name"]?.trim()?.lowercase()
+        val match = liveInterfaces.firstOrNull { iface ->
+            iface !in matchedIfaces && (
+                (netMac != null && iface.mac?.trim()?.lowercase() == netMac) ||
+                (lxcName != null && iface.name.trim().lowercase() == lxcName) ||
+                (iface.name.trim().lowercase() == net.key.trim().lowercase())
+            )
+        }
+        if (match != null) {
+            matchedLiveMap[net] = match
+            matchedIfaces.add(match)
+        }
+    }
+    val leftoverLiveIfaces = liveInterfaces.filter { it !in matchedIfaces }
+
     if (cfg.nets.isEmpty()) {
         Text("No NICs", color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        cfg.nets.forEach { MiniNet(it) }
+        cfg.nets.forEach { net ->
+            MiniNet(
+                net = net,
+                cloudInitIp = cfg.ipconfigForNet(net.key),
+                liveInterface = matchedLiveMap[net],
+                isQemu = isQemu,
+                busy = busy,
+                onToggleFirewall = onToggleFirewall?.let { { it(net) } },
+                onToggleLinkDown = onToggleLinkDown?.let { { it(net) } },
+            )
+        }
+    }
+
+    if (leftoverLiveIfaces.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Live addresses",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        leftoverLiveIfaces.forEach { iface ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+            ) {
+                Column(Modifier.padding(10.dp)) {
+                    Text(
+                        listOfNotNull(iface.name, iface.mac).joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    iface.addresses.forEach { addr ->
+                        val p = addr.prefix?.let { "/$it" } ?: ""
+                        Text(
+                            "${addr.ip}$p (${addr.type})",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     Spacer(Modifier.height(14.dp))
@@ -122,27 +212,183 @@ fun NetworkUsbBody(
 }
 
 @Composable
-private fun MiniNet(net: ConfigNet) {
-    Column(Modifier.padding(vertical = 4.dp)) {
-        Text(
-            listOfNotNull(net.key, net.model).joinToString(" · "),
-            fontWeight = FontWeight.Medium,
-        )
-        Text(
-            buildString {
-                net.mac?.let { append(it) }
-                net.bridge?.let {
-                    if (isNotEmpty()) append(" · ")
-                    append(it)
-                    net.tag?.let { t -> append(" vlan$t") }
+private fun MiniNet(
+    net: ConfigNet,
+    cloudInitIp: String?,
+    liveInterface: GuestLiveInterface?,
+    isQemu: Boolean,
+    busy: Boolean,
+    onToggleFirewall: (() -> Unit)?,
+    onToggleLinkDown: (() -> Unit)?,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+    ) {
+        Column(Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Cable,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        listOfNotNull(net.key, net.model ?: if (isQemu) "virtio" else "veth").joinToString(" · "),
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
-                if (net.firewall) append(" · fw")
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (net.linkDown) {
+                        Text(
+                            "DOWN",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else {
+                        Text(
+                            "UP",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    if (net.firewall) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "FW",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+
+            net.mac?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            val bridgeVlan = buildString {
+                net.bridge?.let {
+                    append("bridge $it")
+                    net.tag?.let { t -> append(" · vlan $t") }
+                }
+            }
+            if (bridgeVlan.isNotEmpty()) {
+                Text(
+                    bridgeVlan,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            val extras = listOfNotNull(
+                net.rate?.let { "rate ${it}MB/s" },
+                net.mtu?.let { "mtu $it" },
+                net.queues?.let { "queues $it" },
+            ).joinToString(" · ")
+            if (extras.isNotEmpty()) {
+                Text(
+                    extras,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            val lxcIps = listOfNotNull(
+                net.lxcIp?.let { "ip $it" },
+                net.lxcGw?.let { "gw $it" },
+                net.lxcIp6?.let { "ip6 $it" },
+                net.lxcGw6?.let { "gw6 $it" },
+            ).joinToString(" · ")
+            if (lxcIps.isNotEmpty()) {
+                Text(
+                    lxcIps,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            cloudInitIp?.let {
+                Text(
+                    "ipconfig: $it",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            if (liveInterface != null && liveInterface.addresses.isNotEmpty()) {
+                liveInterface.addresses.forEach { addr ->
+                    val p = addr.prefix?.let { "/$it" } ?: ""
+                    Text(
+                        "live: ${addr.ip}$p (${addr.type})",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            if (onToggleFirewall != null || onToggleLinkDown != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (onToggleFirewall != null) {
+                        TextButton(
+                            onClick = onToggleFirewall,
+                            enabled = !busy,
+                        ) {
+                            Text(
+                                if (net.firewall) "Firewall: ON" else "Firewall: OFF",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    if (onToggleLinkDown != null) {
+                        TextButton(
+                            onClick = onToggleLinkDown,
+                            enabled = !busy,
+                        ) {
+                            Text(
+                                if (net.linkDown) "Link: DOWN" else "Link: UP",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+
 
 @Composable
 private fun MiniUsb(usb: ConfigUsb) {

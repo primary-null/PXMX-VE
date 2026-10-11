@@ -106,9 +106,9 @@ class TourTest {
         composeTestRule.onNodeWithText("NODES").assertIsDisplayed()
         composeTestRule.onNodeWithText("STORAGE").assertIsDisplayed()
 
-        // Check guests in list (ResourceCard uses uppercase for display name)
-        composeTestRule.onNodeWithText("NOVA").assertIsDisplayed()
-        composeTestRule.onNodeWithText("NEBULA").assertIsDisplayed()
+        // Check guests in list (ResourceCard uses original case for display name)
+        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nebula").assertIsDisplayed()
     }
 
     @Test
@@ -118,10 +118,10 @@ class TourTest {
         // 1. GUESTS Tab (default)
         composeTestRule.onNodeWithText("GUESTS").performClick()
         composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("NOVA").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText("nova").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("NOVA").assertIsDisplayed()
-        composeTestRule.onNodeWithText("NEBULA").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nebula").assertIsDisplayed()
 
         // 2. NODES Tab (shows 3 nodes)
         composeTestRule.onNodeWithText("NODES").performClick()
@@ -151,8 +151,8 @@ class TourTest {
 
         composeTestRule.onNodeWithText("Search name · node · vmid · tag").performTextInput("200")
 
-        composeTestRule.onNodeWithText("NEBULA").assertIsDisplayed()
-        composeTestRule.onNodeWithText("NOVA").assertDoesNotExist()
+        composeTestRule.onNodeWithText("nebula").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nova").assertDoesNotExist()
     }
 
     @Test
@@ -182,13 +182,13 @@ class TourTest {
     fun runningGuestDetail_showsSectionsAndActions() {
         performFakeLogin()
 
-        composeTestRule.onNodeWithText("NOVA").performClick()
+        composeTestRule.onNodeWithText("nova").performClick()
 
         // Detail screen header & state
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("RUNNING").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("NOVA").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
         composeTestRule.onNodeWithText("RUNNING").assertIsDisplayed()
 
         // Detail sections
@@ -210,14 +210,14 @@ class TourTest {
 
         composeTestRule.onNodeWithText("Search name · node · vmid · tag").performTextInput("meteor")
         composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("METEOR").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText("meteor").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("METEOR").performClick()
+        composeTestRule.onNodeWithText("meteor").performClick()
 
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("STOPPED").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("METEOR").assertIsDisplayed()
+        composeTestRule.onNodeWithText("meteor").assertIsDisplayed()
         composeTestRule.onNodeWithText("STOPPED").assertIsDisplayed()
         composeTestRule.onNodeWithText("Start", ignoreCase = true).assertExists()
         composeTestRule.onNodeWithText("Shutdown", ignoreCase = true).assertDoesNotExist()
@@ -288,7 +288,7 @@ class TourTest {
     fun guestConsole_inDemoMode_showsGracefulError() {
         performFakeLogin()
 
-        composeTestRule.onNodeWithText("NOVA").performClick()
+        composeTestRule.onNodeWithText("nova").performClick()
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("OPEN CONSOLE").fetchSemanticsNodes().isNotEmpty()
         }
@@ -303,7 +303,7 @@ class TourTest {
         composeTestRule.onNodeWithText("BACK").performClick()
 
         // Back on detail
-        composeTestRule.onNodeWithText("NOVA").assertIsDisplayed()
+        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
         composeTestRule.onNodeWithText("OPEN CONSOLE").assertIsDisplayed()
     }
 

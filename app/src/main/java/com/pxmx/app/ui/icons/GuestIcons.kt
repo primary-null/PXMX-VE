@@ -1,17 +1,5 @@
 package com.pxmx.app.ui.icons
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DataObject
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Laptop
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.Window
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.pxmx.app.data.model.ClusterResource
@@ -58,26 +46,38 @@ object GuestIcons {
     private val RedOrange = Color(0xFFFF7043)
     private val Amber = Color(0xFFFFB300)
 
+    fun callsign(displayName: String, vmid: Long? = null): String {
+        val chars = displayName.filter { it.isLetterOrDigit() }
+        if (chars.isNotEmpty()) {
+            return chars.take(2).uppercase()
+        }
+        if (vmid != null) {
+            val lastTwo = (kotlin.math.abs(vmid) % 100).toInt()
+            return "%02d".format(lastTwo)
+        }
+        return "?"
+    }
+
     fun styleFor(resource: ClusterResource): GuestIconStyle {
         return when (resource.type) {
-            "node" -> GuestIconStyle(GuestKind.NODE, Icons.Default.Dns, Orange, "Node")
-            "storage" -> GuestIconStyle(GuestKind.STORAGE, Icons.Default.Storage, Cyan, "Storage")
+            "node" -> GuestIconStyle(GuestKind.NODE, GuestGlyphs.Node, Orange, "Node")
+            "storage" -> GuestIconStyle(GuestKind.STORAGE, GuestGlyphs.Storage, Cyan, "Storage")
             "lxc" -> containerStyle(resource)
             "qemu" -> qemuStyle(resource)
-            else -> GuestIconStyle(GuestKind.GENERIC_VM, Icons.Default.Laptop, Grey, "Guest")
+            else -> GuestIconStyle(GuestKind.GENERIC_VM, GuestGlyphs.GenericVm, Grey, "Guest")
         }
     }
 
     private fun containerStyle(r: ClusterResource): GuestIconStyle {
         if (r.template == 1) {
-            return GuestIconStyle(GuestKind.TEMPLATE, Icons.Default.GridView, Purple, "CT template")
+            return GuestIconStyle(GuestKind.TEMPLATE, GuestGlyphs.Template, Purple, "CT template")
         }
-        return GuestIconStyle(GuestKind.CONTAINER, Icons.Default.Inventory2, Green, "Container")
+        return GuestIconStyle(GuestKind.CONTAINER, GuestGlyphs.Container, Green, "Container")
     }
 
     private fun qemuStyle(r: ClusterResource): GuestIconStyle {
         if (r.template == 1) {
-            return GuestIconStyle(GuestKind.TEMPLATE, Icons.Default.GridView, Purple, "VM template")
+            return GuestIconStyle(GuestKind.TEMPLATE, GuestGlyphs.Template, Purple, "VM template")
         }
 
         val ostype = r.ostype?.lowercase()?.trim().orEmpty()
@@ -87,31 +87,31 @@ object GuestIcons {
 
         when {
             looksLikeHomeAssistant(blob) ->
-                return GuestIconStyle(GuestKind.HOME_ASSISTANT, Icons.Default.Home, Color(0xFF41BDF5), "Home Assistant")
+                return GuestIconStyle(GuestKind.HOME_ASSISTANT, GuestGlyphs.HomeAssistant, Color(0xFF41BDF5), "Home Assistant")
             looksLikeFirewall(blob) ->
-                return GuestIconStyle(GuestKind.FIREWALL, Icons.Default.Security, RedOrange, "Firewall")
+                return GuestIconStyle(GuestKind.FIREWALL, GuestGlyphs.Firewall, RedOrange, "Firewall")
             looksLikeMedia(blob) ->
-                return GuestIconStyle(GuestKind.MEDIA, Icons.Default.Tv, Amber, "Media")
+                return GuestIconStyle(GuestKind.MEDIA, GuestGlyphs.Media, Amber, "Media")
             looksLikeDatabase(blob) ->
-                return GuestIconStyle(GuestKind.DATABASE, Icons.Default.DataObject, Purple, "Database")
+                return GuestIconStyle(GuestKind.DATABASE, GuestGlyphs.Database, Purple, "Database")
             looksLikeWindows(name, tags, ostype) ->
-                return GuestIconStyle(GuestKind.WINDOWS, Icons.Default.Window, WinBlue, "Windows")
+                return GuestIconStyle(GuestKind.WINDOWS, GuestGlyphs.Windows, WinBlue, "Windows")
         }
 
         when {
             ostype.startsWith("win") || ostype in setOf("wxp", "w2k", "w2k3", "w2k8", "wvista") ->
-                return GuestIconStyle(GuestKind.WINDOWS, Icons.Default.Window, WinBlue, "Windows")
+                return GuestIconStyle(GuestKind.WINDOWS, GuestGlyphs.Windows, WinBlue, "Windows")
             ostype in setOf("l24", "l26", "linux", "other") || ostype.startsWith("l") ->
-                return GuestIconStyle(GuestKind.LINUX, Icons.Default.Terminal, Blue, "Linux")
+                return GuestIconStyle(GuestKind.LINUX, GuestGlyphs.Linux, Blue, "Linux")
             ostype.contains("solaris") ->
-                return GuestIconStyle(GuestKind.LINUX, Icons.Default.Terminal, Orange, "Solaris")
+                return GuestIconStyle(GuestKind.LINUX, GuestGlyphs.Linux, Orange, "Solaris")
         }
 
         if (looksLikeLinux(blob)) {
-            return GuestIconStyle(GuestKind.LINUX, Icons.Default.Terminal, Blue, "Linux")
+            return GuestIconStyle(GuestKind.LINUX, GuestGlyphs.Linux, Blue, "Linux")
         }
 
-        return GuestIconStyle(GuestKind.GENERIC_VM, Icons.Default.Laptop, Grey, "VM")
+        return GuestIconStyle(GuestKind.GENERIC_VM, GuestGlyphs.GenericVm, Grey, "VM")
     }
 
     private fun looksLikeFirewall(blob: String): Boolean {

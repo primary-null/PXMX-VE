@@ -18,6 +18,11 @@ import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.add
 import retrofit2.HttpException
 import retrofit2.Response
 import java.util.concurrent.ConcurrentHashMap
@@ -458,6 +463,7 @@ class DemoApi : ProxmoxApi {
                 "cores" to 2,
                 "memory" to 2048,
                 "net0" to "virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0",
+                "ipconfig0" to "ip=192.168.1.100/24,gw=192.168.1.1",
                 "scsi0" to "local-lvm:vm-100-disk-0,size=32G",
             )
             101L -> mapOf(
@@ -484,6 +490,7 @@ class DemoApi : ProxmoxApi {
                 "onboot" to 1,
                 "cores" to 1,
                 "memory" to 1024,
+                "net0" to "name=eth0,bridge=vmbr0,hwaddr=BC:24:11:AA:BB:01,ip=192.168.1.100/24,gw=192.168.1.1,type=veth",
                 "rootfs" to "local-lvm:subvol-200-disk-0,size=8G",
             )
             201L -> mapOf(
@@ -1433,6 +1440,62 @@ class DemoApi : ProxmoxApi {
             emptyList()
         }
     )
+
+    override suspend fun qemuAgentNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> {
+        val array = if (vmid == 100L) {
+            buildJsonArray {
+                add(buildJsonObject {
+                    put("name", "eth0")
+                    put("hardware-address", "AA:BB:CC:DD:EE:FF")
+                    put("ip-addresses", buildJsonArray {
+                        add(buildJsonObject {
+                            put("ip-address", "192.168.1.100")
+                            put("ip-address-type", "ipv4")
+                            put("prefix", 24)
+                        })
+                    })
+                })
+                add(buildJsonObject {
+                    put("name", "lo")
+                    put("hardware-address", "00:00:00:00:00:00")
+                    put("ip-addresses", buildJsonArray {
+                        add(buildJsonObject {
+                            put("ip-address", "127.0.0.1")
+                            put("ip-address-type", "ipv4")
+                            put("prefix", 8)
+                        })
+                    })
+                })
+            }
+        } else {
+            buildJsonArray {}
+        }
+        val data = buildJsonObject {
+            put("result", array)
+        }
+        return PveResponse(data = data)
+    }
+
+    override suspend fun lxcNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> {
+        val array = if (vmid == 200L) {
+            buildJsonArray {
+                add(buildJsonObject {
+                    put("name", "eth0")
+                    put("hwaddr", "BC:24:11:AA:BB:01")
+                    put("inet", "192.168.1.100/24")
+                })
+                add(buildJsonObject {
+                    put("name", "lo")
+                    put("hwaddr", "00:00:00:00:00:00")
+                    put("inet", "127.0.0.1/8")
+                })
+            }
+        } else {
+            buildJsonArray {}
+        }
+        return PveResponse(data = array)
+    }
 }
+
 
 

@@ -259,7 +259,14 @@ data class FirewallSnapshot(
 
     val hasInbound8006Accept: Boolean
         get() = rules.any { it.coversInbound8006() }
+
+    val policyIn: String?
+        get() = (options["policy_in"] ?: options["policy_in6"])?.toString()
+
+    val policyOut: String?
+        get() = (options["policy_out"] ?: options["policy_out6"])?.toString()
 }
+
 
 @Serializable
 data class FirewallRule(

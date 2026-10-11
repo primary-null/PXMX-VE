@@ -6,7 +6,9 @@ import androidx.core.content.edit
 import com.pxmx.app.data.api.AppJson
 import com.pxmx.app.data.model.AuthMode
 import com.pxmx.app.data.model.SavedProfile
+import com.pxmx.app.data.model.NotificationPrefs
 import com.pxmx.app.data.model.ServerConfig
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.ThemeMode
@@ -43,6 +45,12 @@ class SessionStore(
 
     private val _themeMode = MutableStateFlow(loadThemeMode())
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _serverLampThresholds = MutableStateFlow(loadServerLampThresholds())
+    val serverLampThresholds: StateFlow<ServerLampThresholds> = _serverLampThresholds.asStateFlow()
+
+    private val _notificationPrefs = MutableStateFlow(loadNotificationPrefs())
+    val notificationPrefs: StateFlow<NotificationPrefs> = _notificationPrefs.asStateFlow()
 
     private val _autoConnect = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CONNECT, true))
     val autoConnect: StateFlow<Boolean> = _autoConnect.asStateFlow()
@@ -296,6 +304,76 @@ class SessionStore(
         return ThemeMode.entries.find { it.name == raw } ?: ThemeMode.OLED_DARK
     }
 
+    // ---- server lamp thresholds prefs ----
+
+    fun setServerLampThresholds(thresholds: ServerLampThresholds) {
+        val clamped = ServerLampThresholds.clamp(thresholds.activityPercent, thresholds.warnPercent)
+        prefs.edit {
+            putInt(KEY_SERVER_LAMP_ACTIVITY, clamped.activityPercent)
+            putInt(KEY_SERVER_LAMP_WARN, clamped.warnPercent)
+        }
+        _serverLampThresholds.value = clamped
+    }
+
+    fun setServerLampActivity(activityPercent: Int) {
+        val current = _serverLampThresholds.value
+        setServerLampThresholds(current.slideActivity(activityPercent))
+    }
+
+    fun setServerLampWarn(warnPercent: Int) {
+        val current = _serverLampThresholds.value
+        setServerLampThresholds(current.slideWarn(warnPercent))
+    }
+
+    fun resetServerLampThresholds() {
+        setServerLampThresholds(ServerLampThresholds())
+    }
+
+    private fun loadServerLampThresholds(): ServerLampThresholds {
+        if (!prefs.contains(KEY_SERVER_LAMP_ACTIVITY) && !prefs.contains(KEY_SERVER_LAMP_WARN)) {
+            return ServerLampThresholds()
+        }
+        val activity = prefs.getInt(KEY_SERVER_LAMP_ACTIVITY, ServerLampThresholds.DEFAULT_ACTIVITY_PERCENT)
+        val warn = prefs.getInt(KEY_SERVER_LAMP_WARN, ServerLampThresholds.DEFAULT_WARN_PERCENT)
+        return ServerLampThresholds.clamp(activity, warn)
+    }
+
+    fun setNotificationPrefs(notificationPrefs: NotificationPrefs) {
+        prefs.edit {
+            putBoolean(KEY_NOTIF_MASTER, notificationPrefs.masterEnabled)
+            putBoolean(KEY_NOTIF_NEW_GUEST, notificationPrefs.newGuest)
+            putBoolean(KEY_NOTIF_BACKUP_FAIL, notificationPrefs.backupFail)
+            putBoolean(KEY_NOTIF_FENCING, notificationPrefs.fencing)
+            putBoolean(KEY_NOTIF_MIGRATE, notificationPrefs.migrate)
+            putBoolean(KEY_NOTIF_PACKAGE_UPDATES, notificationPrefs.packageUpdates)
+            putBoolean(KEY_NOTIF_EXTERNAL_START_STOP, notificationPrefs.externalStartStop)
+        }
+        _notificationPrefs.value = notificationPrefs
+    }
+
+    fun updateNotificationPrefs(transform: (NotificationPrefs) -> NotificationPrefs) {
+        setNotificationPrefs(transform(_notificationPrefs.value))
+    }
+
+    private fun loadNotificationPrefs(): NotificationPrefs {
+        val master = prefs.getBoolean(KEY_NOTIF_MASTER, true)
+        val newGuest = prefs.getBoolean(KEY_NOTIF_NEW_GUEST, true)
+        val backupFail = prefs.getBoolean(KEY_NOTIF_BACKUP_FAIL, true)
+        val fencing = prefs.getBoolean(KEY_NOTIF_FENCING, true)
+        val migrate = prefs.getBoolean(KEY_NOTIF_MIGRATE, true)
+        val packageUpdates = prefs.getBoolean(KEY_NOTIF_PACKAGE_UPDATES, false)
+        val externalStartStop = prefs.getBoolean(KEY_NOTIF_EXTERNAL_START_STOP, false)
+        return NotificationPrefs(
+            masterEnabled = master,
+            newGuest = newGuest,
+            backupFail = backupFail,
+            fencing = fencing,
+            migrate = migrate,
+            packageUpdates = packageUpdates,
+            externalStartStop = externalStartStop,
+        )
+    }
+
     // ---- host keys ----
 
     fun getHostKey(host: String): String? = prefs.getString(hostKeyPref(host), null)
@@ -364,6 +442,8 @@ class SessionStore(
         _autoConnect.value = true
         _previousSession.value = null
         _tourCompleted.value = false
+        _serverLampThresholds.value = ServerLampThresholds()
+        _notificationPrefs.value = NotificationPrefs()
 
         prefs.edit().clear().commit()
 
@@ -442,6 +522,15 @@ class SessionStore(
         private const val KEY_PREVIOUS_SESSION = "previous_session_json"
         private const val KEY_VERSION_TOAST_SHOWN = "version_toast_shown"
         private const val KEY_TOUR_COMPLETED = "tour_completed"
+        private const val KEY_SERVER_LAMP_ACTIVITY = "server_lamp_activity_percent"
+        private const val KEY_SERVER_LAMP_WARN = "server_lamp_warn_percent"
+        private const val KEY_NOTIF_MASTER = "notif_master_enabled"
+        private const val KEY_NOTIF_NEW_GUEST = "notif_new_guest"
+        private const val KEY_NOTIF_BACKUP_FAIL = "notif_backup_fail"
+        private const val KEY_NOTIF_FENCING = "notif_fencing"
+        private const val KEY_NOTIF_MIGRATE = "notif_migrate"
+        private const val KEY_NOTIF_PACKAGE_UPDATES = "notif_package_updates"
+        private const val KEY_NOTIF_EXTERNAL_START_STOP = "notif_external_start_stop"
 
         private const val LEGACY_HOST = "host"
         private const val LEGACY_PORT = "port"

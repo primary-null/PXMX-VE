@@ -34,10 +34,8 @@ class PveTaskLiveUpdateTest {
 
     @Test
     fun testShouldPostConditions() {
-        // SDK < 36 is false
-        assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 35, hasPermission = true, host = "pve.example.com"))
-        assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 34, hasPermission = true, host = "pve.example.com"))
-        assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 27, hasPermission = true, host = "pve.example.com"))
+        // SDK < 26 is false
+        assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 25, hasPermission = true, host = "pve.example.com"))
 
         // Missing permission is false
         assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 36, hasPermission = false, host = "pve.example.com"))
@@ -50,7 +48,10 @@ class PveTaskLiveUpdateTest {
         assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 36, hasPermission = true, host = ""))
         assertFalse(PveTaskLiveUpdate.shouldPost(sdkInt = 36, hasPermission = true, host = null))
 
-        // SDK >= 36, permission granted, non-demo host is true
+        // SDK >= 26 (including 27, 34, 35, 36, 37), permission granted, non-demo host is true
+        assertTrue(PveTaskLiveUpdate.shouldPost(sdkInt = 27, hasPermission = true, host = "pve.example.com"))
+        assertTrue(PveTaskLiveUpdate.shouldPost(sdkInt = 34, hasPermission = true, host = "pve.example.com"))
+        assertTrue(PveTaskLiveUpdate.shouldPost(sdkInt = 35, hasPermission = true, host = "pve.example.com"))
         assertTrue(PveTaskLiveUpdate.shouldPost(sdkInt = 36, hasPermission = true, host = "pve.example.com"))
         assertTrue(PveTaskLiveUpdate.shouldPost(sdkInt = 37, hasPermission = true, host = "192.168.1.100"))
     }
@@ -205,7 +206,7 @@ class PveTaskLiveUpdateTest {
         assertNull(demoLiveUpdate.watchTask("UPID:alpha:00001234:00000000:66D1B000:vzdump:100:root@pam:"))
         assertEquals(0, poster.calls.size)
 
-        // SDK < 36 -> no-op
+        // SDK < 26 -> no-op
         sessionStore.setSession(SessionState(ServerConfig(host = "pve.example.com", username = "root"), ticket = "ticket", username = "root@pam"))
         val oldSdkLiveUpdate = PveTaskLiveUpdate(
             context = ContextWrapper(null),
@@ -214,7 +215,7 @@ class PveTaskLiveUpdateTest {
             scope = testScope,
             notificationPoster = poster,
             permissionChecker = { true },
-            sdkInt = 35,
+            sdkInt = 25,
         )
         assertNull(oldSdkLiveUpdate.watchTask("UPID:alpha:00001234:00000000:66D1B000:vzdump:100:root@pam:"))
         assertEquals(0, poster.calls.size)
@@ -231,5 +232,73 @@ class PveTaskLiveUpdateTest {
         )
         assertNull(noPermLiveUpdate.watchTask("UPID:alpha:00001234:00000000:66D1B000:vzdump:100:root@pam:"))
         assertEquals(0, poster.calls.size)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testCompletionCardPersistsByDefault() = runTest {
+        val fakePrefs = FakeSharedPreferences()
+        val sessionStore = SessionStore(injectedPrefs = fakePrefs)
+        val config = ServerConfig(host = "pve.example.com", username = "root")
+        sessionStore.setSession(SessionState(config, ticket = "fake-ticket", username = "root@pam"))
+
+        val poster = RecordingNotificationPoster()
+        val liveUpdate = PveTaskLiveUpdate(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            taskStatusProvider = { _, _ ->
+                Result.success(TaskStatus(status = "stopped", exitstatus = "OK"))
+            },
+            scope = this,
+            notificationPoster = poster,
+            permissionChecker = { true },
+            sdkInt = 35, // Below 36 works too
+            completionDismissDelayMs = null, // Default
+        )
+
+        val upid = "UPID:alpha:00001234:00000000:66D1B000:vzdump:100:root@pam:"
+        val notifId = upid.hashCode()
+
+        liveUpdate.watchTask(upid)
+        advanceTimeBy(2500L)
+        runCurrent()
+
+        // postCompleted called, but cancel is NOT called (persists)
+        assertTrue(poster.calls.any { it.action == "postCompleted" && it.id == notifId })
+        assertFalse(poster.calls.any { it.action == "cancel" && it.id == notifId })
+    }
+
+    @Test
+    fun testDedupAndCapInFlightWatches() {
+        val fakePrefs = FakeSharedPreferences()
+        val sessionStore = SessionStore(injectedPrefs = fakePrefs)
+        val config = ServerConfig(host = "pve.example.com", username = "root")
+        sessionStore.setSession(SessionState(config, ticket = "fake-ticket", username = "root@pam"))
+
+        val poster = RecordingNotificationPoster()
+        val testScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+        val liveUpdate = PveTaskLiveUpdate(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            taskStatusProvider = { _, _ -> Result.success(TaskStatus(status = "running")) },
+            scope = testScope,
+            notificationPoster = poster,
+            permissionChecker = { true },
+            sdkInt = 34,
+        )
+
+        val upid1 = "UPID:alpha:00000001:00000000:66D1B000:vzdump:101:root@pam:"
+        val job1 = liveUpdate.watchTask(upid1)
+        assertNotNull(job1)
+        val job1Repeat = liveUpdate.watchTask(upid1)
+        assertSame(job1, job1Repeat) // Dedup returns same job
+
+        // Cap at 5
+        for (i in 2..5) {
+            val u = "UPID:alpha:0000000$i:00000000:66D1B000:vzdump:10$i:root@pam:"
+            assertNotNull(liveUpdate.watchTask(u))
+        }
+        val upid6 = "UPID:alpha:00000006:00000000:66D1B000:vzdump:106:root@pam:"
+        assertNull(liveUpdate.watchTask(upid6)) // Capped at MAX_IN_FLIGHT_WATCHES
     }
 }

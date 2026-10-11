@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -287,6 +289,58 @@ fun TechIconBay(
             contentDescription = contentDescription,
             tint = accent,
             modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
+fun GuestIdentityBay(
+    callsign: String,
+    kindIcon: ImageVector,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    size: Dp = 44.dp,
+    pipSize: Dp = 11.dp,
+) {
+    val cutShape = CutCornerShape(topStart = 8.dp)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(cutShape)
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(
+                        accent.copy(alpha = 0.22f),
+                        accent.copy(alpha = 0.08f),
+                    ),
+                ),
+            )
+            .border(1.dp, accent.copy(alpha = 0.55f), cutShape)
+            .clearAndSetSemantics {
+                if (contentDescription != null) {
+                    this.contentDescription = contentDescription
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = callsign,
+            color = accent,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = if (size >= 48.dp) 16.sp else 15.sp,
+            letterSpacing = (-0.5).sp,
+            maxLines = 1,
+        )
+        Icon(
+            imageVector = kindIcon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 2.dp, end = 2.dp)
+                .size(pipSize),
         )
     }
 }

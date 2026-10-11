@@ -10,12 +10,14 @@ import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.SavedProfile
+import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.SiteInfo
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.data.repo.AuthRepository
+import com.pxmx.app.data.repo.ClusterTaskNotificationWatcher
 import com.pxmx.app.data.repo.GuestRepository
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
@@ -290,6 +292,7 @@ class HomeViewModel(
     private val sessionStore: SessionStore,
     private val context: Context,
     val latestLog: StateFlow<ClusterLogEntry?>,
+    private val taskNotificationWatcher: ClusterTaskNotificationWatcher? = null,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
@@ -331,6 +334,9 @@ class HomeViewModel(
 
     val themeMode: StateFlow<ThemeMode> = sessionStore.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sessionStore.themeMode.value)
+
+    val serverLampThresholds: StateFlow<ServerLampThresholds> = sessionStore.serverLampThresholds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sessionStore.serverLampThresholds.value)
 
     fun hasShownVersionToast(): Boolean = sessionStore.hasShownVersionToast()
 
@@ -377,6 +383,7 @@ class HomeViewModel(
     private suspend fun silentRefresh() {
         val listResult = nodeRepo.listResources()
         val rawTasks = nodeRepo.clusterTasks().getOrNull().orEmpty()
+        taskNotificationWatcher?.onClusterTasks(rawTasks)
         val vzdumpTasks = parseVzdumpTasks(rawTasks)
         listResult.onSuccess { list ->
             _ui.update {
@@ -462,6 +469,7 @@ class HomeViewModel(
                 val site = siteDef.await().getOrNull()
                 val listResult = listDef.await()
                 val rawTasks = tasksDef.await().getOrNull().orEmpty()
+                taskNotificationWatcher?.onClusterTasks(rawTasks)
                 val vzdumpTasks = parseVzdumpTasks(rawTasks)
                 listResult.fold(
                     onSuccess = { list ->
@@ -777,6 +785,7 @@ class HomeViewModel(
         sessionStore = sessionStore,
         context = context,
         latestLog = repository.latestLog,
+        taskNotificationWatcher = repository.taskNotificationWatcher,
     )
 
     class Factory(
@@ -794,6 +803,7 @@ class HomeViewModel(
                 sessionStore = sessionStore,
                 context = context,
                 latestLog = repository.latestLog,
+                taskNotificationWatcher = repository.taskNotificationWatcher,
             ) as T
         }
     }
