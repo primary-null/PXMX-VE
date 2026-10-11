@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -61,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -79,10 +81,13 @@ import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
 import com.pxmx.app.ui.components.MetricBar
-import com.pxmx.app.ui.components.PingFillBar
+import com.pxmx.app.ui.components.PingPlateFill
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
+import com.pxmx.app.ui.components.TechPlateShape
+import com.pxmx.app.ui.components.pingBand
+import com.pxmx.app.ui.components.pingBandColor
 import com.pxmx.app.ui.util.formatLastLoginMs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1183,22 +1188,57 @@ private fun DiscoveredHostCard(
     onPing: () -> Unit,
     onClick: () -> Unit,
 ) {
-    TechPlate(
-        railColor = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen,
+    val hull = TechColors.Hull
+    val edge = TechColors.Edge
+    val railColor = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen
+    val pingCaption = when {
+        ping?.running == true -> "…"
+        ping?.failed == true -> "TIMEOUT"
+        ping?.latencyMs != null -> "${ping.latencyMs}ms"
+        else -> null
+    }
+    val pingCaptionColor = when {
+        ping?.running == true -> TechColors.CoolBlue
+        ping?.failed == true -> TechColors.Danger
+        ping?.latencyMs != null -> pingBandColor(pingBand(ping.latencyMs))
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clip(TechPlateShape)
+            .background(hull)
+            .border(1.dp, edge, TechPlateShape),
     ) {
-        Column(
+        PingPlateFill(
+            running = ping?.running == true,
+            latencyMs = ping?.latencyMs,
+            failed = ping?.failed == true,
+            modifier = Modifier.matchParentSize(),
+        )
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .height(IntrinsicSize.Min),
         ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(railColor),
+            )
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onClick),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (!candidate.nodeName.isNullOrBlank()) {
                             Text(
@@ -1267,14 +1307,6 @@ private fun DiscoveredHostCard(
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (candidate.latencyMs > 0) {
-                            Text(
-                                text = " · ${candidate.latencyMs}ms",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
                         Text(
                             text = " · tap to prefill",
                             style = MaterialTheme.typography.bodySmall,
@@ -1283,17 +1315,22 @@ private fun DiscoveredHostCard(
                         )
                     }
                 }
+                if (pingCaption != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = pingCaption,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = pingCaptionColor,
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
                 TechActionPlate(
                     label = "PING",
                     onClick = onPing,
                 )
             }
-            PingFillBar(
-                running = ping?.running == true,
-                latencyMs = ping?.latencyMs,
-                failed = ping?.failed == true,
-            )
         }
     }
 }

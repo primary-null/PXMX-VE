@@ -13,36 +13,37 @@ class HostPingTest {
 
     @Test
     fun hostPingMath_fillFraction_and_band_allRanges() {
-        // 12ms: GOOD, full-ish
+        // 8ms: GOOD, floor fill (8/800 coerced to 0.08)
+        assertEquals(PingBand.GOOD, HostPingMath.band(8L))
+        assertEquals(0.08f, HostPingMath.fillFraction(8L), 0.0001f)
+
+        // 12ms: GOOD, still at floor
         assertEquals(PingBand.GOOD, HostPingMath.band(12L))
-        val fill12 = HostPingMath.fillFraction(12L)
-        assertEquals(1f - 12f / 2000f, fill12, 0.001f)
-        assertTrue("12ms should be nearly full", fill12 > 0.99f)
+        assertEquals(0.08f, HostPingMath.fillFraction(12L), 0.0001f)
 
-        // 90ms: FAIR
+        // 90ms: FAIR, 90/800
         assertEquals(PingBand.FAIR, HostPingMath.band(90L))
-        val fill90 = HostPingMath.fillFraction(90L)
-        assertEquals(1f - 90f / 2000f, fill90, 0.001f)
-        assertTrue("90ms should be > 0.95", fill90 > 0.95f)
+        assertEquals(90f / 800f, HostPingMath.fillFraction(90L), 0.001f)
 
-        // 400ms: SLOW
+        // 400ms: SLOW, half plate
         assertEquals(PingBand.SLOW, HostPingMath.band(400L))
-        val fill400 = HostPingMath.fillFraction(400L)
-        assertEquals(0.8f, fill400, 0.001f)
+        assertEquals(0.5f, HostPingMath.fillFraction(400L), 0.001f)
 
-        // 1500ms: BAD
+        // 800ms: BAD, full
+        assertEquals(PingBand.BAD, HostPingMath.band(800L))
+        assertEquals(1f, HostPingMath.fillFraction(800L), 0.0001f)
+
+        // 1500ms: BAD, clamped full
         assertEquals(PingBand.BAD, HostPingMath.band(1500L))
-        val fill1500 = HostPingMath.fillFraction(1500L)
-        assertEquals(0.25f, fill1500, 0.001f)
+        assertEquals(1f, HostPingMath.fillFraction(1500L), 0.0001f)
 
-        // 3000ms: BAD with min fill 0.08
+        // 3000ms: BAD, clamped full
         assertEquals(PingBand.BAD, HostPingMath.band(3000L))
-        val fill3000 = HostPingMath.fillFraction(3000L)
-        assertEquals(0.08f, fill3000, 0.0001f)
+        assertEquals(1f, HostPingMath.fillFraction(3000L), 0.0001f)
 
         // Boundary cases
         assertEquals(PingBand.GOOD, HostPingMath.band(0L))
-        assertEquals(1.0f, HostPingMath.fillFraction(0L), 0.0001f)
+        assertEquals(0.08f, HostPingMath.fillFraction(0L), 0.0001f)
         assertEquals(PingBand.GOOD, HostPingMath.band(79L))
         assertEquals(PingBand.FAIR, HostPingMath.band(80L))
         assertEquals(PingBand.FAIR, HostPingMath.band(249L))

@@ -536,7 +536,6 @@ class LoginViewModel(
                         ),
                     )
                 }
-                launchAutoPings(fakeHosts, isDemo = true)
                 return@launch
             }
 
@@ -604,11 +603,6 @@ class LoginViewModel(
                         )
                     }
 
-                    if (progress.isFinished) {
-                        val targets = (verifiedWithBadges + detectedFinal).distinctBy { "${it.ip}:${it.port}" }
-                        launchAutoPings(targets, isDemo = false)
-                    }
-
                     // Task 4: Launch elevation for PVE_DETECTED with secrets
                     progress.pveDetected.forEach { discovered ->
                         val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
@@ -669,8 +663,8 @@ class LoginViewModel(
         pingJobs[key]?.cancel()
 
         _ui.update { state ->
-            val current = state.scanState.hostPings[key] ?: HostPingUi()
-            val updated = state.scanState.hostPings + (key to current.copy(running = true, failed = false))
+            val updated = state.scanState.hostPings +
+                (key to HostPingUi(running = true, latencyMs = null, failed = false))
             state.copy(scanState = state.scanState.copy(hostPings = updated))
         }
 
@@ -705,42 +699,6 @@ class LoginViewModel(
                 _ui.update { state ->
                     val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = null, failed = true))
                     state.copy(scanState = state.scanState.copy(hostPings = updated))
-                }
-            }
-        }
-    }
-
-    private fun launchAutoPings(hosts: List<DiscoveredHost>, isDemo: Boolean) {
-        hosts.forEach { host ->
-            val key = "${host.ip}:${host.port}"
-            pingJobs[key]?.cancel()
-            pingJobs[key] = viewModelScope.launch {
-                try {
-                    if (isDemo) {
-                        delay(250)
-                        val latency = demoLatencyFor(host.ip)
-                        _ui.update { state ->
-                            val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = latency, failed = false))
-                            state.copy(scanState = state.scanState.copy(hostPings = updated))
-                        }
-                    } else {
-                        val result = hostPing.tcpPing(host.ip, host.port, timeoutMs = 2000)
-                        _ui.update { state ->
-                            val pingUi = result.fold(
-                                onSuccess = { latency -> HostPingUi(running = false, latencyMs = latency, failed = false) },
-                                onFailure = { HostPingUi(running = false, latencyMs = null, failed = true) },
-                            )
-                            val updated = state.scanState.hostPings + (key to pingUi)
-                            state.copy(scanState = state.scanState.copy(hostPings = updated))
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _ui.update { state ->
-                        val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = null, failed = true))
-                        state.copy(scanState = state.scanState.copy(hostPings = updated))
-                    }
                 }
             }
         }

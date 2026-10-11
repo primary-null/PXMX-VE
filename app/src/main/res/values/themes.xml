@@ -11,9 +11,9 @@
         <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:windowLightStatusBar">false</item>
-        <!-- Android 12+ system splash (before our Compose splash) -->
+        <!-- Android 12+ system splash: current PXMX X, black field, no orange disc. -->
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
     </style>
 </resources>

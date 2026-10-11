@@ -420,7 +420,7 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun scan_demoMode_triggersAutoPing_andManualPingHost() = runTest {
+    fun scan_demoMode_doesNotAutoPing_manualPingHostWorks() = runTest {
         val vm = LoginViewModel(repository, sessionStore)
         vm.update { it.copy(host = "demo") }
 
@@ -430,30 +430,14 @@ class LoginViewModelTest {
         val state = vm.ui.value.scanState
         assertTrue("Scan should be complete", state.isComplete)
         assertFalse("Scan should not be scanning", state.isScanning)
+        assertEquals(3, state.discoveredHosts.size)
+        assertTrue("SCAN NETWORK must not auto-ping", state.hostPings.isEmpty())
 
-        val ping10 = state.hostPings["192.0.2.10:8006"]
-        assertNotNull("Auto ping should exist for 192.0.2.10", ping10)
-        assertFalse(ping10!!.running)
-        assertEquals(8L, ping10.latencyMs)
-        assertFalse(ping10.failed)
-
-        val ping11 = state.hostPings["192.0.2.11:8006"]
-        assertNotNull("Auto ping should exist for 192.0.2.11", ping11)
-        assertFalse(ping11!!.running)
-        assertEquals(14L, ping11.latencyMs)
-        assertFalse(ping11.failed)
-
-        val ping12 = state.hostPings["192.0.2.12:8006"]
-        assertNotNull("Auto ping should exist for 192.0.2.12", ping12)
-        assertFalse(ping12!!.running)
-        assertEquals(11L, ping12.latencyMs)
-        assertFalse(ping12.failed)
-
-        // Manual re-ping
         vm.pingHost("192.0.2.10", 8006)
         val inFlight = vm.ui.value.scanState.hostPings["192.0.2.10:8006"]
         assertNotNull(inFlight)
         assertTrue("Manual ping should be running", inFlight!!.running)
+        assertNull("PING must not prefill a prior latency", inFlight.latencyMs)
         assertFalse(inFlight.failed)
 
         testScheduler.advanceUntilIdle()
@@ -462,6 +446,9 @@ class LoginViewModelTest {
         assertFalse("Manual ping should finish running", completed!!.running)
         assertEquals(8L, completed.latencyMs)
         assertFalse(completed.failed)
+
+        assertNull(vm.ui.value.scanState.hostPings["192.0.2.11:8006"])
+        assertNull(vm.ui.value.scanState.hostPings["192.0.2.12:8006"])
     }
 
     @Test
@@ -516,6 +503,9 @@ class LoginViewModelTest {
         vm.startNetworkScan()
         testScheduler.advanceUntilIdle()
 
+        assertTrue("SCAN NETWORK must not auto-ping", vm.ui.value.scanState.hostPings.isEmpty())
+        vm.pingHost("192.0.2.10", 8006)
+        testScheduler.advanceUntilIdle()
         assertTrue(vm.ui.value.scanState.hostPings.isNotEmpty())
 
         vm.clearScanResults()

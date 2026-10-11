@@ -15,7 +15,7 @@ enum class PingBand {
 
 object HostPingMath {
     fun fillFraction(latencyMs: Long): Float =
-        (1f - latencyMs / 2000f).coerceIn(0.08f, 1f)
+        (latencyMs / 800f).coerceIn(0.08f, 1f)
 
     fun band(latencyMs: Long): PingBand = when {
         latencyMs < 80L -> PingBand.GOOD
