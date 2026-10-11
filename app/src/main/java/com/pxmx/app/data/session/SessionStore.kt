@@ -23,7 +23,7 @@ data class ProbeAuth(val ticket: String, val csrf: String? = null)
 /**
  * Live session + multi-profile store + theme / auto-connect prefs.
  *
- * Secrets are stored only in [EncryptedSharedPreferences] (AES-256 via Keystore).
+ * Secrets are stored only in encrypted vault storage (AES-256 via Keystore).
  * Live PVE tickets stay in memory and are never persisted.
  * UI never renders full secrets (host / user / “••••” masks only).
  */
@@ -370,6 +370,20 @@ class SessionStore(
         if (context != null) {
             // Clear and close the encrypted store BEFORE its key and files go away.
             runCatching { SecurePrefs.open(context).edit().clear().commit() }
+            runCatching {
+                val vaultFile = SecurePrefs.getVaultFile(context)
+                if (vaultFile.exists()) vaultFile.delete()
+            }
+            runCatching {
+                val directVaultFile = java.io.File(context.filesDir, SecurePrefs.VAULT_FILE_NAME)
+                if (directVaultFile.exists()) directVaultFile.delete()
+            }
+            runCatching { context.deleteSharedPreferences(SecurePrefs.TINK_PREFS_NAME) }
+            runCatching {
+                val prefsDir = java.io.File(context.applicationInfo.dataDir, "shared_prefs")
+                java.io.File(prefsDir, "${SecurePrefs.TINK_PREFS_NAME}.xml").delete()
+                java.io.File(prefsDir, "${SecurePrefs.TINK_PREFS_NAME}.xml.bak").delete()
+            }
             runCatching { context.deleteSharedPreferences(SecurePrefs.SECURE_PREFS_NAME) }
             runCatching {
                 val prefsDir = java.io.File(context.applicationInfo.dataDir, "shared_prefs")
@@ -380,10 +394,12 @@ class SessionStore(
             runCatching {
                 val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
                 keyStore.load(null)
-                // Only the EncryptedSharedPreferences master key belongs to
-                // this app; never delete aliases other libraries may own.
+                // Only the pxmx_vault_master and EncryptedSharedPreferences master keys
+                // belong to this app; never delete aliases other libraries may own.
+                keyStore.deleteEntry(SecurePrefs.KEYSTORE_MASTER_ALIAS)
                 keyStore.deleteEntry("_androidx_security_master_key_")
             }
+            SecurePrefs.resetInstance()
         }
     }
 

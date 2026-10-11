@@ -92,6 +92,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coroutines.android)
     implementation(libs.security.crypto)
+    implementation(libs.tink.android)
+    implementation(libs.androidx.datastore)
     implementation(libs.sshj)
     implementation(libs.bouncycastle)
     implementation(libs.bouncycastleUtil)
