@@ -626,7 +626,6 @@ private fun ConnectionPaneContent(
                     candidate = candidate,
                     isDemo = scan.isDemoSim,
                     onClick = { viewModel.onCandidateSelected(candidate) },
-                    onUse = { viewModel.onCandidateSelected(candidate) },
                 )
                 Spacer(Modifier.height(6.dp))
             }
@@ -648,7 +647,6 @@ private fun ConnectionPaneContent(
                     candidate = candidate,
                     isDemo = scan.isDemoSim,
                     onClick = { viewModel.onCandidateSelected(candidate) },
-                    onUse = { viewModel.onCandidateSelected(candidate) },
                 )
                 Spacer(Modifier.height(6.dp))
             }
@@ -1106,7 +1104,6 @@ private fun DiscoveredHostCard(
     candidate: DiscoveredHost,
     isDemo: Boolean,
     onClick: () -> Unit,
-    onUse: () -> Unit,
 ) {
     TechPlate(
         railColor = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen,
@@ -1119,7 +1116,6 @@ private fun DiscoveredHostCard(
                 .fillMaxWidth()
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1169,21 +1165,17 @@ private fun DiscoveredHostCard(
                     }
                     if (candidate.isPveDetectedOnly) {
                         Spacer(Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(1.dp),
-                            color = TechColors.Amber.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, TechColors.Amber.copy(alpha = 0.6f)),
-                            onClick = onUse, // Same as USE on verified cards
-                        ) {
-                            Text(
-                                text = "AUTH REQUIRED",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                color = TechColors.Amber,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
+                        Text(
+                            text = "AUTH REQUIRED",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = TechColors.Amber,
+                            modifier = Modifier
+                                .border(1.dp, TechColors.Amber.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                                .background(TechColors.Amber.copy(alpha = 0.12f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
                     }
                 }
                 Spacer(Modifier.height(2.dp))
@@ -1209,12 +1201,6 @@ private fun DiscoveredHostCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
                 }
-            }
-            if (!candidate.isPveDetectedOnly) {
-                TechActionPlate(
-                    label = "USE",
-                    onClick = onUse,
-                )
             }
         }
     }
