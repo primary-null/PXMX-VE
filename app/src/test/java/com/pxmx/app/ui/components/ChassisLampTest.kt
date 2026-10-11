@@ -242,6 +242,22 @@ class ChassisLampTest {
     }
 
     @Test
+    fun chassisLampDescription_blankOrNullName_fallsBackToServer() {
+        assertEquals(
+            "server on",
+            chassisLampDescription(null, ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)),
+        )
+        assertEquals(
+            "server on",
+            chassisLampDescription("", ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)),
+        )
+        assertEquals(
+            "server on",
+            chassisLampDescription("   ", ChassisLampState(ChassisLampMode.STEADY, ChassisLampHue.GREEN)),
+        )
+    }
+
+    @Test
     fun activityAlpha_reduceMotionIsFull() {
         assertEquals(1f, activityAlpha(0.3f, reduceMotion = true), 0.0f)
         assertEquals(CHASSIS_ACTIVITY_ALPHA_MIN, activityAlpha(0f, reduceMotion = false), 0.0f)

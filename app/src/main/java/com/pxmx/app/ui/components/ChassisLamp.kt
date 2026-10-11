@@ -186,7 +186,7 @@ fun lampForLog(entry: ClusterLogEntry?): ChassisLampState {
 }
 
 fun chassisLampDescription(name: String?, state: ChassisLampState): String {
-    val who = name?.takeIf { it.isNotBlank() } ?: "chassis"
+    val who = name?.takeIf { it.isNotBlank() } ?: "server"
     val status = when (state.mode) {
         ChassisLampMode.OFF -> "off"
         ChassisLampMode.FAULT -> "fault"
@@ -303,7 +303,7 @@ fun ClusterBezel(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "CHASSIS",
+            text = "SERVER",
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
