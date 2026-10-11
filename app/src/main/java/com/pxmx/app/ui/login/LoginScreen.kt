@@ -79,6 +79,7 @@ import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
 import com.pxmx.app.ui.components.MetricBar
+import com.pxmx.app.ui.components.PingFillBar
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
@@ -668,9 +669,12 @@ private fun ConnectionPaneContent(
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )
                 group.items.forEach { candidate ->
+                    val hostKey = "${candidate.ip}:${candidate.port}"
                     DiscoveredHostCard(
                         candidate = candidate,
                         isDemo = scan.isDemoSim,
+                        ping = scan.hostPings[hostKey],
+                        onPing = { viewModel.pingHost(candidate.ip, candidate.port) },
                         onClick = { viewModel.onCandidateSelected(candidate) },
                     )
                     Spacer(Modifier.height(6.dp))
@@ -687,9 +691,12 @@ private fun ConnectionPaneContent(
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )
                 groupedDiscovered.unmatched.forEach { candidate ->
+                    val hostKey = "${candidate.ip}:${candidate.port}"
                     DiscoveredHostCard(
                         candidate = candidate,
                         isDemo = scan.isDemoSim,
+                        ping = scan.hostPings[hostKey],
+                        onPing = { viewModel.pingHost(candidate.ip, candidate.port) },
                         onClick = { viewModel.onCandidateSelected(candidate) },
                     )
                     Spacer(Modifier.height(6.dp))
@@ -709,9 +716,12 @@ private fun ConnectionPaneContent(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             )
             scan.pveDetectedHosts.forEach { candidate ->
+                val hostKey = "${candidate.ip}:${candidate.port}"
                 DiscoveredHostCard(
                     candidate = candidate,
                     isDemo = scan.isDemoSim,
+                    ping = scan.hostPings[hostKey],
+                    onPing = { viewModel.pingHost(candidate.ip, candidate.port) },
                     onClick = { viewModel.onCandidateSelected(candidate) },
                 )
                 Spacer(Modifier.height(6.dp))
@@ -1169,6 +1179,8 @@ private fun ProfileCard(
 private fun DiscoveredHostCard(
     candidate: DiscoveredHost,
     isDemo: Boolean,
+    ping: HostPingUi?,
+    onPing: () -> Unit,
     onClick: () -> Unit,
 ) {
     TechPlate(
@@ -1177,97 +1189,111 @@ private fun DiscoveredHostCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (!candidate.nodeName.isNullOrBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!candidate.nodeName.isNullOrBlank()) {
+                            Text(
+                                text = candidate.nodeName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
-                            text = candidate.nodeName,
+                            text = "${candidate.ip}:${candidate.port}",
                             style = MaterialTheme.typography.titleSmall,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = if (candidate.isPveDetectedOnly) TechColors.Amber else TechColors.LinkGreen,
                         )
-                        Spacer(Modifier.width(6.dp))
+                        if (isDemo) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "DEMO",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TechColors.CoolBlue,
+                                modifier = Modifier
+                                    .border(1.dp, TechColors.CoolBlue.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                                    .background(TechColors.CoolBlue.copy(alpha = 0.12f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        if (candidate.isSavedKnown) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "KNOWN · SAVED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TechColors.LinkGreen,
+                                modifier = Modifier
+                                    .border(1.dp, TechColors.LinkGreen.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                                    .background(TechColors.LinkGreen.copy(alpha = 0.12f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        if (candidate.isPveDetectedOnly) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "AUTH REQUIRED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TechColors.Amber,
+                                modifier = Modifier
+                                    .border(1.dp, TechColors.Amber.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                                    .background(TechColors.Amber.copy(alpha = 0.12f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
                     }
-                    Text(
-                        text = "${candidate.ip}:${candidate.port}",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (isDemo) {
-                        Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "DEMO",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TechColors.CoolBlue,
-                            modifier = Modifier
-                                .border(1.dp, TechColors.CoolBlue.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
-                                .background(TechColors.CoolBlue.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                    if (candidate.isSavedKnown) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "KNOWN · SAVED",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TechColors.LinkGreen,
-                            modifier = Modifier
-                                .border(1.dp, TechColors.LinkGreen.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
-                                .background(TechColors.LinkGreen.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                    if (candidate.isPveDetectedOnly) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "AUTH REQUIRED",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TechColors.Amber,
-                            modifier = Modifier
-                                .border(1.dp, TechColors.Amber.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
-                                .background(TechColors.Amber.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "PVE ${candidate.version}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (candidate.latencyMs > 0) {
-                        Text(
-                            text = " · ${candidate.latencyMs}ms",
+                            text = "PVE ${candidate.version}",
                             style = MaterialTheme.typography.bodySmall,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (candidate.latencyMs > 0) {
+                            Text(
+                                text = " · ${candidate.latencyMs}ms",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = " · tap to prefill",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
                     }
-                    Text(
-                        text = " · tap to prefill",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    )
                 }
+                Spacer(Modifier.width(8.dp))
+                TechActionPlate(
+                    label = "PING",
+                    onClick = onPing,
+                )
             }
+            PingFillBar(
+                running = ping?.running == true,
+                latencyMs = ping?.latencyMs,
+                failed = ping?.failed == true,
+            )
         }
     }
 }

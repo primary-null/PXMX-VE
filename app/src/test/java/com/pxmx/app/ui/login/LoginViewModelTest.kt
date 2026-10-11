@@ -14,10 +14,12 @@ import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
+import com.pxmx.app.data.net.HostPing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -415,5 +417,115 @@ class LoginViewModelTest {
             )
         )
         assertTrue(vm.knownClusters.value.isEmpty())
+    }
+
+    @Test
+    fun scan_demoMode_triggersAutoPing_andManualPingHost() = runTest {
+        val vm = LoginViewModel(repository, sessionStore)
+        vm.update { it.copy(host = "demo") }
+
+        vm.startNetworkScan()
+        testScheduler.advanceUntilIdle()
+
+        val state = vm.ui.value.scanState
+        assertTrue("Scan should be complete", state.isComplete)
+        assertFalse("Scan should not be scanning", state.isScanning)
+
+        val ping10 = state.hostPings["192.0.2.10:8006"]
+        assertNotNull("Auto ping should exist for 192.0.2.10", ping10)
+        assertFalse(ping10!!.running)
+        assertEquals(8L, ping10.latencyMs)
+        assertFalse(ping10.failed)
+
+        val ping11 = state.hostPings["192.0.2.11:8006"]
+        assertNotNull("Auto ping should exist for 192.0.2.11", ping11)
+        assertFalse(ping11!!.running)
+        assertEquals(14L, ping11.latencyMs)
+        assertFalse(ping11.failed)
+
+        val ping12 = state.hostPings["192.0.2.12:8006"]
+        assertNotNull("Auto ping should exist for 192.0.2.12", ping12)
+        assertFalse(ping12!!.running)
+        assertEquals(11L, ping12.latencyMs)
+        assertFalse(ping12.failed)
+
+        // Manual re-ping
+        vm.pingHost("192.0.2.10", 8006)
+        val inFlight = vm.ui.value.scanState.hostPings["192.0.2.10:8006"]
+        assertNotNull(inFlight)
+        assertTrue("Manual ping should be running", inFlight!!.running)
+        assertFalse(inFlight.failed)
+
+        testScheduler.advanceUntilIdle()
+        val completed = vm.ui.value.scanState.hostPings["192.0.2.10:8006"]
+        assertNotNull(completed)
+        assertFalse("Manual ping should finish running", completed!!.running)
+        assertEquals(8L, completed.latencyMs)
+        assertFalse(completed.failed)
+    }
+
+    @Test
+    fun pingHost_withCustomHostPing_handlesSuccessAndFailure() = runTest {
+        var succeed = true
+        val stubPing = object : HostPing() {
+            override suspend fun tcpPing(host: String, port: Int, timeoutMs: Int): Result<Long> {
+                kotlinx.coroutines.delay(50)
+                return if (succeed) {
+                    Result.success(55L)
+                } else {
+                    Result.failure(java.net.SocketTimeoutException("Timed out"))
+                }
+            }
+        }
+
+        val vm = LoginViewModel(
+            authRepo = repository.authRepo,
+            localNet = repository.localNet,
+            sessionStore = sessionStore,
+            hostPing = stubPing,
+        )
+
+        vm.update { it.copy(host = "example.com") }
+        vm.pingHost("example.com", 8006)
+        assertTrue(vm.ui.value.scanState.hostPings["example.com:8006"]?.running == true)
+
+        testScheduler.advanceUntilIdle()
+        val successPing = vm.ui.value.scanState.hostPings["example.com:8006"]
+        assertNotNull(successPing)
+        assertFalse(successPing!!.running)
+        assertEquals(55L, successPing.latencyMs)
+        assertFalse(successPing.failed)
+
+        // Failure
+        succeed = false
+        vm.pingHost("example.com", 8006)
+        assertTrue(vm.ui.value.scanState.hostPings["example.com:8006"]?.running == true)
+
+        testScheduler.advanceUntilIdle()
+        val failedPing = vm.ui.value.scanState.hostPings["example.com:8006"]
+        assertNotNull(failedPing)
+        assertFalse(failedPing!!.running)
+        assertNull(failedPing.latencyMs)
+        assertTrue(failedPing.failed)
+    }
+
+    @Test
+    fun startNetworkScan_and_clearScanResults_clearsHostPings() = runTest {
+        val vm = LoginViewModel(repository, sessionStore)
+        vm.update { it.copy(host = "demo") }
+        vm.startNetworkScan()
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(vm.ui.value.scanState.hostPings.isNotEmpty())
+
+        vm.clearScanResults()
+        assertTrue(vm.ui.value.scanState.hostPings.isEmpty())
+        assertFalse(vm.ui.value.scanState.isScanning)
+
+        // Start scan again resets hostPings immediately
+        vm.update { it.copy(host = "demo") }
+        vm.startNetworkScan()
+        assertTrue(vm.ui.value.scanState.hostPings.isEmpty())
+        assertTrue(vm.ui.value.scanState.isScanning)
     }
 }

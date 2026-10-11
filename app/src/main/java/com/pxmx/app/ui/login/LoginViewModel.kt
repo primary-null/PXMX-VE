@@ -12,6 +12,7 @@ import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
+import com.pxmx.app.data.net.HostPing
 import com.pxmx.app.data.net.LocalNet
 import com.pxmx.app.data.net.SubnetInfo
 import com.pxmx.app.data.repo.AuthRepository
@@ -37,6 +38,12 @@ data class ProfileTestState(
     val error: String? = null,
 )
 
+data class HostPingUi(
+    val running: Boolean = false,
+    val latencyMs: Long? = null,
+    val failed: Boolean = false,
+)
+
 data class NetworkScanState(
     val isScanning: Boolean = false,
     val scannedCount: Int = 0,
@@ -49,6 +56,7 @@ data class NetworkScanState(
     val infoMessage: String? = null,
     val isComplete: Boolean = false,
     val isDemoSim: Boolean = false,
+    val hostPings: Map<String, HostPingUi> = emptyMap(),
 )
 
 data class LoginUiState(
@@ -80,15 +88,18 @@ class LoginViewModel(
     private val authRepo: AuthRepository,
     private val localNet: LocalNet,
     private val sessionStore: SessionStore,
+    private val hostPing: HostPing = HostPing(),
 ) : ViewModel() {
 
     constructor(
         repository: ProxmoxRepository,
         sessionStore: SessionStore,
+        hostPing: HostPing = HostPing(),
     ) : this(
         authRepo = repository.authRepo,
         localNet = repository.localNet,
         sessionStore = sessionStore,
+        hostPing = hostPing,
     )
 
     private val _ui = MutableStateFlow(
@@ -104,6 +115,7 @@ class LoginViewModel(
     private var pendingLabel: String = ""
     private var pendingForceNewProfile: Boolean = false
     private var scanJob: Job? = null
+    private val pingJobs = mutableMapOf<String, Job>()
 
     val profiles: StateFlow<List<SavedProfile>> = combine(
         sessionStore.profiles,
@@ -130,7 +142,12 @@ class LoginViewModel(
     ) { clusters, sess ->
         val demoActive = sess?.config?.host?.equals("demo", ignoreCase = true) == true
         if (demoActive) emptyList() else clusters
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        if (sessionStore.session.value?.config?.host?.equals("demo", ignoreCase = true) == true) emptyList()
+        else sessionStore.knownClusters.value,
+    )
 
     val lastResumable: SavedProfile?
         get() = sessionStore.lastResumableProfile()
@@ -470,6 +487,8 @@ class LoginViewModel(
     fun startNetworkScan() {
         if (_ui.value.scanState.isScanning) return
         scanJob?.cancel()
+        pingJobs.values.forEach { it.cancel() }
+        pingJobs.clear()
 
         val isDemo = _ui.value.host.trim().equals("demo", ignoreCase = true) ||
             sessionStore.session.value?.config?.host?.equals("demo", ignoreCase = true) == true
@@ -485,6 +504,7 @@ class LoginViewModel(
                         discoveredHosts = emptyList(),
                         error = null,
                         isComplete = false,
+                        hostPings = emptyMap(),
                     ),
                 )
             }
@@ -516,6 +536,7 @@ class LoginViewModel(
                         ),
                     )
                 }
+                launchAutoPings(fakeHosts, isDemo = true)
                 return@launch
             }
 
@@ -538,12 +559,14 @@ class LoginViewModel(
                 }
 
                 localNet.scanSubnet(null).collect { progress ->
+                    var verifiedWithBadges = emptyList<DiscoveredHost>()
+                    var detectedFinal = emptyList<DiscoveredHost>()
                     _ui.update { state ->
                         val currentVerified = progress.verified.toMutableList()
                         val currentDetected = progress.pveDetected.toMutableList()
                         
                         // Process verified hosts for KNOWN badge
-                        val verifiedWithBadges = currentVerified.map { discovered ->
+                        verifiedWithBadges = currentVerified.map { discovered ->
                             val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
                             if (profile != null && profile.hasSavedSecret) {
                                 discovered.copy(isSavedKnown = true)
@@ -553,7 +576,7 @@ class LoginViewModel(
                         }
 
                         // Process PVE_DETECTED for elevation or KNOWN badge
-                        val detectedFinal = currentDetected.map { discovered ->
+                        detectedFinal = currentDetected.map { discovered ->
                             val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
                             if (profile != null && profile.hasSavedSecret) {
                                 // Task 4: Attempt authenticated verification for elevation
@@ -579,6 +602,11 @@ class LoginViewModel(
                                 isDemoSim = false,
                             ),
                         )
+                    }
+
+                    if (progress.isFinished) {
+                        val targets = (verifiedWithBadges + detectedFinal).distinctBy { "${it.ip}:${it.port}" }
+                        launchAutoPings(targets, isDemo = false)
                     }
 
                     // Task 4: Launch elevation for PVE_DETECTED with secrets
@@ -626,12 +654,108 @@ class LoginViewModel(
 
     fun stopNetworkScan() {
         scanJob?.cancel()
+        pingJobs.values.forEach { it.cancel() }
+        pingJobs.clear()
         _ui.update { it.copy(scanState = it.scanState.copy(isScanning = false)) }
     }
 
     fun clearScanResults() {
         stopNetworkScan()
         _ui.update { it.copy(scanState = NetworkScanState()) }
+    }
+
+    fun pingHost(ip: String, port: Int) {
+        val key = "$ip:$port"
+        pingJobs[key]?.cancel()
+
+        _ui.update { state ->
+            val current = state.scanState.hostPings[key] ?: HostPingUi()
+            val updated = state.scanState.hostPings + (key to current.copy(running = true, failed = false))
+            state.copy(scanState = state.scanState.copy(hostPings = updated))
+        }
+
+        val isDemo = _ui.value.scanState.isDemoSim ||
+            _ui.value.host.trim().equals("demo", ignoreCase = true) ||
+            ip.startsWith("192.0.2.") ||
+            sessionStore.session.value?.config?.host?.equals("demo", ignoreCase = true) == true
+
+        pingJobs[key] = viewModelScope.launch {
+            try {
+                if (isDemo) {
+                    delay(250)
+                    val latency = demoLatencyFor(ip)
+                    _ui.update { state ->
+                        val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = latency, failed = false))
+                        state.copy(scanState = state.scanState.copy(hostPings = updated))
+                    }
+                } else {
+                    val result = hostPing.tcpPing(ip, port, timeoutMs = 2000)
+                    _ui.update { state ->
+                        val pingUi = result.fold(
+                            onSuccess = { latency -> HostPingUi(running = false, latencyMs = latency, failed = false) },
+                            onFailure = { HostPingUi(running = false, latencyMs = null, failed = true) },
+                        )
+                        val updated = state.scanState.hostPings + (key to pingUi)
+                        state.copy(scanState = state.scanState.copy(hostPings = updated))
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _ui.update { state ->
+                    val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = null, failed = true))
+                    state.copy(scanState = state.scanState.copy(hostPings = updated))
+                }
+            }
+        }
+    }
+
+    private fun launchAutoPings(hosts: List<DiscoveredHost>, isDemo: Boolean) {
+        hosts.forEach { host ->
+            val key = "${host.ip}:${host.port}"
+            pingJobs[key]?.cancel()
+            pingJobs[key] = viewModelScope.launch {
+                try {
+                    if (isDemo) {
+                        delay(250)
+                        val latency = demoLatencyFor(host.ip)
+                        _ui.update { state ->
+                            val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = latency, failed = false))
+                            state.copy(scanState = state.scanState.copy(hostPings = updated))
+                        }
+                    } else {
+                        val result = hostPing.tcpPing(host.ip, host.port, timeoutMs = 2000)
+                        _ui.update { state ->
+                            val pingUi = result.fold(
+                                onSuccess = { latency -> HostPingUi(running = false, latencyMs = latency, failed = false) },
+                                onFailure = { HostPingUi(running = false, latencyMs = null, failed = true) },
+                            )
+                            val updated = state.scanState.hostPings + (key to pingUi)
+                            state.copy(scanState = state.scanState.copy(hostPings = updated))
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _ui.update { state ->
+                        val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = null, failed = true))
+                        state.copy(scanState = state.scanState.copy(hostPings = updated))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun demoLatencyFor(ip: String): Long {
+        return when (ip) {
+            "192.0.2.10" -> 8L
+            "192.0.2.11" -> 14L
+            "192.0.2.12" -> 11L
+            else -> {
+                val last = ip.substringAfterLast('.').toLongOrNull() ?: 10L
+                (last % 50L + 5L)
+            }
+        }
     }
 
     fun onCandidateSelected(candidate: DiscoveredHost) {
@@ -737,9 +861,17 @@ class LoginViewModel(
         login()
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        scanJob?.cancel()
+        pingJobs.values.forEach { it.cancel() }
+        pingJobs.clear()
+    }
+
     class Factory(
         private val repository: ProxmoxRepository,
         private val sessionStore: SessionStore,
+        private val hostPing: HostPing = HostPing(),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -747,6 +879,7 @@ class LoginViewModel(
                 authRepo = repository.authRepo,
                 localNet = repository.localNet,
                 sessionStore = sessionStore,
+                hostPing = hostPing,
             ) as T
         }
     }
