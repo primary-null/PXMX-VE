@@ -33,6 +33,7 @@ class StorageRepository(
     private val taskStatusProvider: suspend (node: String, upid: String) -> Result<TaskStatus>,
     private val sftp: SftpDownloader = SftpDownloader(sessionStore::getHostKey, sessionStore::saveHostKey),
     private val downloadSink: (suspend (String, suspend (OutputStream) -> Unit) -> Result<Unit>)? = null,
+    private val onLongTask: ((String) -> Unit)? = null,
 ) {
 
     suspend fun loadStorage(
@@ -155,8 +156,9 @@ class StorageRepository(
         storage: String,
         mode: String = "snapshot",
         compress: String = "zstd",
+        onLongTask: ((String) -> Unit)? = null,
     ): Result<String> = pveClient.apiCall { api ->
-        api.createBackup(
+        val upid = api.createBackup(
             node = node,
             vmid = vmid,
             storage = storage,
@@ -164,6 +166,14 @@ class StorageRepository(
             compress = compress,
             notesTemplate = "{{guestname}}",
         ).data ?: throw PveException("Backup returned no UPID")
+        try {
+            (onLongTask ?: this.onLongTask)?.invoke(upid)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Live update callback must never fail the backup itself
+        }
+        upid
     }
 
     suspend fun deleteBackup(

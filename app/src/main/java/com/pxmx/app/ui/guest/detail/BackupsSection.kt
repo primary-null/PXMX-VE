@@ -1,5 +1,12 @@
 package com.pxmx.app.ui.guest.detail
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,8 +86,15 @@ fun CreateBackupDialog(
     onDismiss: () -> Unit,
     onConfirm: (storage: String, mode: String) -> Unit,
 ) {
+    val context = LocalContext.current
     var storage by remember { mutableStateOf(storages.firstOrNull().orEmpty()) }
     var mode by remember { mutableStateOf("snapshot") }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { _ ->
+        onConfirm(storage, mode)
+    }
+
     AdaptiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Backup now") },
@@ -112,7 +126,24 @@ fun CreateBackupDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(storage, mode) }, enabled = storage.isNotBlank()) {
+            TextButton(
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val hasPermission = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (!hasPermission) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            onConfirm(storage, mode)
+                        }
+                    } else {
+                        onConfirm(storage, mode)
+                    }
+                },
+                enabled = storage.isNotBlank(),
+            ) {
                 Text("Start")
             }
         },

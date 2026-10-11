@@ -160,11 +160,19 @@ class ProxmoxRepository(
         },
     )
 
+    val liveUpdate: PveTaskLiveUpdate = PveTaskLiveUpdate(
+        context = context,
+        sessionStore = sessionStore,
+        taskStatusProvider = { node, upid -> nodeRepo.taskStatus(node, upid) },
+        scope = repoScope,
+    )
+
     val storageRepo: StorageRepository = StorageRepository(
         context = context,
         sessionStore = sessionStore,
         pveClient = pveClient,
         taskStatusProvider = { node, upid -> nodeRepo.taskStatus(node, upid) },
+        onLongTask = { upid -> liveUpdate.watchTask(upid) },
     )
 
     val guestRepo: GuestRepository = GuestRepository(
@@ -418,7 +426,8 @@ class ProxmoxRepository(
         storage: String,
         mode: String = "snapshot",
         compress: String = "zstd",
-    ): Result<String> = storageRepo.createBackup(node, vmid, storage, mode, compress)
+        onLongTask: ((String) -> Unit)? = null,
+    ): Result<String> = storageRepo.createBackup(node, vmid, storage, mode, compress, onLongTask)
 
     suspend fun deleteBackup(node: String, volid: String): Result<String> =
         storageRepo.deleteBackup(node, volid)
