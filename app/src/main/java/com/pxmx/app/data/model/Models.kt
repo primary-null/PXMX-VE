@@ -49,6 +49,7 @@ data class SiteInfo(
     /** Local / primary node name. */
     val nodeName: String? = null,
     val nodeCount: Int = 1,
+    val members: List<ClusterMember> = emptyList(),
 ) {
     /** Top bar title: cluster name, or the node name for standalone. */
     val title: String

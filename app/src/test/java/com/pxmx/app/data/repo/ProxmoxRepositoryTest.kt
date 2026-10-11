@@ -102,6 +102,7 @@ class ProxmoxRepositoryTest {
         assertNotNull(info)
         assertTrue("3-node demo cluster should have isCluster == true", info!!.isCluster)
         assertTrue("Node count should be at least 3", info.nodeCount >= 3)
+        assertTrue("Members should contain node IPs", info.members.isNotEmpty())
     }
 
     // -------------------------------------------------------------------------

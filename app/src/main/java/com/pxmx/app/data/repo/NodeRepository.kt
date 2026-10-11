@@ -3,6 +3,7 @@ package com.pxmx.app.data.repo
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.ClusterLogEntry
+import com.pxmx.app.data.model.ClusterMember
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.ClusterStatusEntry
 import com.pxmx.app.data.model.NetworkIface
@@ -87,11 +88,17 @@ class NodeRepository(
             )
             val clusterName = clusterEntry?.name
             val isCluster = clusterEntry != null || nodeCount > 1
+            val members = nodes.mapNotNull { entry ->
+                val ip = entry.ip?.trim().orEmpty()
+                if (ip.isBlank()) null
+                else ClusterMember(host = ip, nodeName = entry.name?.trim()?.ifBlank { null })
+            }
             SiteInfo(
                 isCluster = isCluster,
                 clusterName = clusterName,
                 nodeName = nodeName,
                 nodeCount = nodeCount,
+                members = members,
             )
         }
     }

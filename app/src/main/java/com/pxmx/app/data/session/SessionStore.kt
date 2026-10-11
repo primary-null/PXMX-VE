@@ -5,14 +5,18 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.pxmx.app.data.api.AppJson
 import com.pxmx.app.data.model.AuthMode
-import com.pxmx.app.data.model.SavedProfile
+import com.pxmx.app.data.model.ClusterGrouping
+import com.pxmx.app.data.model.ClusterMember
+import com.pxmx.app.data.model.KnownCluster
 import com.pxmx.app.data.model.NotificationPrefs
+import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.data.model.VersionInfo
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +47,9 @@ class SessionStore(
     private val _profiles = MutableStateFlow<List<SavedProfile>>(emptyList())
     val profiles: StateFlow<List<SavedProfile>> = _profiles.asStateFlow()
 
+    private val _knownClusters = MutableStateFlow<List<KnownCluster>>(emptyList())
+    val knownClusters: StateFlow<List<KnownCluster>> = _knownClusters.asStateFlow()
+
     private val _themeMode = MutableStateFlow(loadThemeMode())
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
@@ -65,6 +72,7 @@ class SessionStore(
     init {
         migrateLegacyIfNeeded()
         _profiles.value = loadProfiles().sortedByDescending { it.lastUsedEpochMs }
+        _knownClusters.value = loadKnownClusters().sortedByDescending { it.lastSeenEpochMs }
     }
 
     // ---- session ----
@@ -287,6 +295,90 @@ class SessionStore(
         }
     }
 
+    // ---- known clusters ----
+
+    fun listKnownClusters(): List<KnownCluster> = _knownClusters.value
+
+    fun getKnownCluster(id: String): KnownCluster? = _knownClusters.value.find { it.id == id }
+
+    @Synchronized
+    fun upsertKnownCluster(name: String, members: List<ClusterMember>) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) return
+        if (_session.value?.config?.host?.equals("demo", ignoreCase = true) == true) return
+
+        val currentList = _knownClusters.value.toMutableList()
+        val existingIndex = currentList.indexOfFirst { it.name.trim().equals(trimmedName, ignoreCase = true) }
+
+        val updatedCluster = if (existingIndex >= 0) {
+            val existing = currentList[existingIndex]
+            val mergedMembers = mergeClusterMembers(existing.members, members)
+            existing.copy(
+                name = trimmedName,
+                members = mergedMembers,
+                lastSeenEpochMs = System.currentTimeMillis(),
+            )
+        } else {
+            KnownCluster(
+                id = UUID.randomUUID().toString(),
+                name = trimmedName,
+                members = mergeClusterMembers(emptyList(), members),
+                lastSeenEpochMs = System.currentTimeMillis(),
+            )
+        }
+
+        if (existingIndex >= 0) {
+            currentList[existingIndex] = updatedCluster
+        } else {
+            currentList.add(updatedCluster)
+        }
+        persistKnownClusters(currentList.sortedByDescending { it.lastSeenEpochMs })
+    }
+
+    private fun mergeClusterMembers(
+        existing: List<ClusterMember>,
+        incoming: List<ClusterMember>,
+    ): List<ClusterMember> {
+        val map = linkedMapOf<String, ClusterMember>()
+        for (m in existing) {
+            val hostKey = ClusterGrouping.normalizeHost(m.host)
+            if (hostKey.isNotEmpty()) {
+                map[hostKey] = m
+            }
+        }
+        for (m in incoming) {
+            val hostKey = ClusterGrouping.normalizeHost(m.host)
+            if (hostKey.isNotEmpty()) {
+                val prev = map[hostKey]
+                if (prev != null) {
+                    val resolvedNode = m.nodeName?.trim()?.ifBlank { null }
+                        ?: prev.nodeName?.trim()?.ifBlank { null }
+                    map[hostKey] = prev.copy(
+                        host = if (m.host.isNotBlank()) m.host else prev.host,
+                        nodeName = resolvedNode,
+                    )
+                } else {
+                    map[hostKey] = m
+                }
+            }
+        }
+        return map.values.toList()
+    }
+
+    private fun persistKnownClusters(list: List<KnownCluster>) {
+        prefs.edit { putString(KEY_CLUSTERS_JSON, json.encodeToString(list)) }
+        _knownClusters.value = list
+    }
+
+    private fun loadKnownClusters(): List<KnownCluster> {
+        val raw = prefs.getString(KEY_CLUSTERS_JSON, null) ?: return emptyList()
+        return try {
+            json.decodeFromString<List<KnownCluster>>(raw)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     // ---- prefs ----
 
     fun setAutoConnect(enabled: Boolean) {
@@ -438,6 +530,7 @@ class SessionStore(
     fun purgeAll(context: Context? = null) {
         clearSession(rememberAsPrevious = false)
         _profiles.value = emptyList()
+        _knownClusters.value = emptyList()
         _themeMode.value = ThemeMode.OLED_DARK
         _autoConnect.value = true
         _previousSession.value = null
@@ -516,6 +609,7 @@ class SessionStore(
 
     companion object {
         private const val KEY_PROFILES_JSON = "profiles_json"
+        private const val KEY_CLUSTERS_JSON = "clusters_json"
         private const val KEY_LAST_PROFILE_ID = "last_profile_id"
         private const val KEY_AUTO_CONNECT = "auto_connect"
         private const val KEY_THEME_MODE = "theme_mode"

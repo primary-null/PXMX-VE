@@ -403,4 +403,19 @@ class HomeViewModelTest {
 
         job.cancel()
     }
+
+    @Test
+    fun homeViewModel_refresh_learnsKnownClusterWhenMultiNode() = runBlocking {
+        val vm = createViewModel()
+        val job = launch(UnconfinedTestDispatcher()) { vm.ui.collect() }
+
+        vm.refresh(initial = true)
+
+        val clusters = sessionStore.listKnownClusters()
+        assertEquals(1, clusters.size)
+        assertEquals("demo-cluster", clusters[0].name)
+        assertTrue(clusters[0].members.size >= 3)
+
+        job.cancel()
+    }
 }

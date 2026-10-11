@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import android.os.SystemClock
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.KnownCluster
 import com.pxmx.app.data.model.LoginOutcome
 import com.pxmx.app.data.model.ProfileConflictResolver
 import com.pxmx.app.data.model.SavedProfile
@@ -122,6 +123,14 @@ class LoginViewModel(
 
     val previousSession: StateFlow<SessionResumeInfo?> = sessionStore.previousSession
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sessionStore.previousSession.value)
+
+    val knownClusters: StateFlow<List<KnownCluster>> = combine(
+        sessionStore.knownClusters,
+        sessionStore.session,
+    ) { clusters, sess ->
+        val demoActive = sess?.config?.host?.equals("demo", ignoreCase = true) == true
+        if (demoActive) emptyList() else clusters
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val lastResumable: SavedProfile?
         get() = sessionStore.lastResumableProfile()

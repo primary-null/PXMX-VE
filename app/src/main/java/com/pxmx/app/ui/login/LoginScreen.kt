@@ -73,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.data.model.AuthMode
+import com.pxmx.app.data.model.ClusterGrouping
+import com.pxmx.app.data.model.KnownCluster
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
@@ -91,6 +93,7 @@ fun LoginScreen(
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
+    val knownClusters by viewModel.knownClusters.collectAsStateWithLifecycle()
     val previous by viewModel.previousSession.collectAsStateWithLifecycle()
     val last = viewModel.lastResumable
     val configuration = LocalConfiguration.current
@@ -180,6 +183,7 @@ fun LoginScreen(
                     ConnectionPaneContent(
                         state = state,
                         profiles = profiles,
+                        knownClusters = knownClusters,
                         previous = previous,
                         last = last,
                         viewModel = viewModel,
@@ -211,6 +215,7 @@ fun LoginScreen(
                     ConnectionPaneContent(
                         state = state,
                         profiles = profiles,
+                        knownClusters = knownClusters,
                         previous = previous,
                         last = last,
                         viewModel = viewModel,
@@ -360,6 +365,7 @@ private fun TfaCard(
 private fun ConnectionPaneContent(
     state: LoginUiState,
     profiles: List<SavedProfile>,
+    knownClusters: List<KnownCluster> = emptyList(),
     previous: SessionResumeInfo?,
     last: SavedProfile?,
     viewModel: LoginViewModel,
@@ -412,6 +418,9 @@ private fun ConnectionPaneContent(
 
     // Saved Connections Section
     if (profiles.isNotEmpty()) {
+        val groupedProfiles = remember(profiles, knownClusters) {
+            ClusterGrouping.groupProfiles(profiles, knownClusters)
+        }
         Spacer(Modifier.height(20.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -437,7 +446,39 @@ private fun ConnectionPaneContent(
             )
         }
         Spacer(Modifier.height(8.dp))
-        profiles.forEach { profile ->
+        groupedProfiles.clusterGroups.forEach { group ->
+            val clusterLabel = if (group.cluster.name.isNotBlank()) "CLUSTER · ${group.cluster.name.trim()}" else "CLUSTER"
+            Text(
+                text = clusterLabel,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = TechColors.CoolBlue,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+            group.items.forEach { profile ->
+                val testState = state.profileTests[profile.id]
+                ProfileCard(
+                    profile = profile,
+                    selected = state.activeProfileId == profile.id,
+                    isLast = profile.id == last?.id,
+                    testState = testState,
+                    onSelect = { viewModel.applyProfile(profile, keepSecretsInForm = false) },
+                    onTest = { viewModel.testProfile(profile.id) },
+                    onQuickConnect = {
+                        if (profile.hasSavedSecret) {
+                            viewModel.connectWithSavedProfile(profile.id)
+                        } else {
+                            viewModel.applyProfile(profile, keepSecretsInForm = false)
+                        }
+                    },
+                    onDelete = { viewModel.deleteProfile(profile.id) },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+        groupedProfiles.unmatched.forEach { profile ->
             val testState = state.profileTests[profile.id]
             ProfileCard(
                 profile = profile,
@@ -612,22 +653,47 @@ private fun ConnectionPaneContent(
 
         // Verified PVE Hosts Section
         if (scan.discoveredHosts.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "VERIFIED PVE (${scan.discoveredHosts.size})",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                color = TechColors.LinkGreen,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-            )
-            scan.discoveredHosts.forEach { candidate ->
-                DiscoveredHostCard(
-                    candidate = candidate,
-                    isDemo = scan.isDemoSim,
-                    onClick = { viewModel.onCandidateSelected(candidate) },
+            val groupedDiscovered = remember(scan.discoveredHosts, knownClusters) {
+                ClusterGrouping.groupDiscoveredHosts(scan.discoveredHosts, knownClusters)
+            }
+            groupedDiscovered.clusterGroups.forEach { group ->
+                val clusterLabel = if (group.cluster.name.isNotBlank()) "CLUSTER · ${group.cluster.name.trim()}" else "CLUSTER"
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = clusterLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = TechColors.CoolBlue,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )
-                Spacer(Modifier.height(6.dp))
+                group.items.forEach { candidate ->
+                    DiscoveredHostCard(
+                        candidate = candidate,
+                        isDemo = scan.isDemoSim,
+                        onClick = { viewModel.onCandidateSelected(candidate) },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+            if (groupedDiscovered.unmatched.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "VERIFIED PVE (${groupedDiscovered.unmatched.size})",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = TechColors.LinkGreen,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                )
+                groupedDiscovered.unmatched.forEach { candidate ->
+                    DiscoveredHostCard(
+                        candidate = candidate,
+                        isDemo = scan.isDemoSim,
+                        onClick = { viewModel.onCandidateSelected(candidate) },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
             }
         }
 

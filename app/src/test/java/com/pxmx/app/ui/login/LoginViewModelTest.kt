@@ -11,6 +11,7 @@ import com.pxmx.app.data.model.ProfileConflictResolver
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.SessionResumeInfo
+import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.Dispatchers
@@ -390,5 +391,29 @@ class LoginViewModelTest {
         val vmSecondary = LoginViewModel(repository, sessionStore)
         assertNotNull(vmSecondary.ui.value)
         assertEquals("", vmSecondary.ui.value.host)
+    }
+
+    @Test
+    fun knownClusters_reflectsSessionStore_andHidesInDemo() {
+        sessionStore.upsertKnownCluster(
+            name = "TestCluster",
+            members = listOf(
+                com.pxmx.app.data.model.ClusterMember(host = "192.0.2.10"),
+                com.pxmx.app.data.model.ClusterMember(host = "192.0.2.11"),
+            ),
+        )
+
+        val vm = LoginViewModel(repository, sessionStore)
+        assertEquals(1, vm.knownClusters.value.size)
+        assertEquals("TestCluster", vm.knownClusters.value[0].name)
+
+        // Demo session active: known clusters hidden in login view model
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(host = "demo", port = 8006),
+                ticket = "demo",
+            )
+        )
+        assertTrue(vm.knownClusters.value.isEmpty())
     }
 }

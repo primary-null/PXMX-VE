@@ -467,6 +467,13 @@ class HomeViewModel(
                 val listDef = async { nodeRepo.listResources() }
                 val tasksDef = async { nodeRepo.clusterTasks() }
                 val site = siteDef.await().getOrNull()
+                if (site != null && site.isCluster && site.members.size > 1) {
+                    val isDemo = _ui.value.session?.config?.host?.equals("demo", ignoreCase = true) == true
+                    if (!isDemo) {
+                        val clusterName = site.clusterName?.trim()?.ifBlank { null } ?: "Cluster"
+                        sessionStore.upsertKnownCluster(clusterName, site.members)
+                    }
+                }
                 val listResult = listDef.await()
                 val rawTasks = tasksDef.await().getOrNull().orEmpty()
                 taskNotificationWatcher?.onClusterTasks(rawTasks)
