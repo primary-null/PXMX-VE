@@ -92,6 +92,7 @@ import com.pxmx.app.ui.adaptive.SettingsPaneSelection
 import com.pxmx.app.ui.adaptive.DetailPaneSelection
 import com.pxmx.app.ui.adaptive.DetailPaneSelectionSaver
 import com.pxmx.app.ui.adaptive.restoreDetailPaneSelection
+import com.pxmx.app.ui.adaptive.redirectTwoPaneTool
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.collectFoldingFeaturesAsState
@@ -911,10 +912,7 @@ fun ProxmoxNavGraph() {
             LaunchedEffect(isTwoPane) {
                 if (isTwoPane) {
                     selectedSettingsPane = SettingsPaneSelection.NETWORK
-                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
-                    if (!popped) {
-                        navController.navigate(Routes.SETTINGS)
-                    }
+                    navController.redirectTwoPaneTool(Routes.NETWORK)
                 }
             }
             if (isTwoPane) return@composable
@@ -932,10 +930,7 @@ fun ProxmoxNavGraph() {
             LaunchedEffect(isTwoPane) {
                 if (isTwoPane) {
                     selectedSettingsPane = SettingsPaneSelection.SDN
-                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
-                    if (!popped) {
-                        navController.navigate(Routes.SETTINGS)
-                    }
+                    navController.redirectTwoPaneTool(Routes.SDN)
                 }
             }
             if (isTwoPane) return@composable
@@ -953,10 +948,7 @@ fun ProxmoxNavGraph() {
             LaunchedEffect(isTwoPane) {
                 if (isTwoPane) {
                     selectedSettingsPane = SettingsPaneSelection.FIREWALL
-                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
-                    if (!popped) {
-                        navController.navigate(Routes.SETTINGS)
-                    }
+                    navController.redirectTwoPaneTool(Routes.FIREWALL)
                 }
             }
             if (isTwoPane) return@composable
@@ -1007,14 +999,13 @@ fun ProxmoxNavGraph() {
         composable(Routes.SERVER_LAMPS) {
             LaunchedEffect(isTwoPane) {
                 if (isTwoPane) {
-                    selectedSettingsPane = SettingsPaneSelection.SERVER_LAMPS
                     val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
-                    if (!popped) {
-                        navController.navigate(Routes.SETTINGS)
+                    if (popped) {
+                        selectedSettingsPane = SettingsPaneSelection.SERVER_LAMPS
                     }
                 }
             }
-            if (isTwoPane) return@composable
+            if (isTwoPane && selectedSettingsPane == SettingsPaneSelection.SERVER_LAMPS) return@composable
 
             ServerLampSettingsScreen(
                 sessionStore = app.sessionStore,
@@ -1023,13 +1014,10 @@ fun ProxmoxNavGraph() {
         }
 
         composable(Routes.NOTIFICATIONS) {
-            if (isTwoPane) {
-                LaunchedEffect(Unit) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
                     selectedSettingsPane = SettingsPaneSelection.NOTIFICATIONS
-                    val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
-                    if (!popped) {
-                        navController.navigate(Routes.SETTINGS)
-                    }
+                    navController.redirectTwoPaneTool(Routes.NOTIFICATIONS)
                 }
             }
             if (isTwoPane) return@composable
