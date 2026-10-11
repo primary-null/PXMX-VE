@@ -108,28 +108,36 @@ class GuestRepository(
         vmid: Long,
         action: GuestAction,
     ): Result<String> = pveClient.apiCall { api ->
-        val taskType = when (guestType) {
-            GuestType.QEMU -> when (action) {
-                GuestAction.START -> "qmstart"
-                GuestAction.STOP -> "qmstop"
-                GuestAction.SHUTDOWN -> "qmshutdown"
-                GuestAction.REBOOT -> "qmreboot"
-                GuestAction.RESET -> "qmreset"
-                GuestAction.SUSPEND -> "qmsuspend"
-                GuestAction.RESUME -> "qmresume"
+        when (guestType) {
+            GuestType.QEMU -> {
+                val taskType = when (action) {
+                    GuestAction.START -> "qmstart"
+                    GuestAction.STOP -> "qmstop"
+                    GuestAction.SHUTDOWN -> "qmshutdown"
+                    GuestAction.REBOOT -> "qmreboot"
+                    GuestAction.RESET -> "qmreset"
+                    GuestAction.SUSPEND -> "qmsuspend"
+                    GuestAction.RESUME -> "qmresume"
+                }
+                recentActionRegistry.record(taskType, vmid)
             }
-            GuestType.LXC -> when (action) {
-                GuestAction.START -> "pctstart"
-                GuestAction.STOP -> "pctstop"
-                GuestAction.SHUTDOWN -> "pctshutdown"
-                GuestAction.REBOOT -> "pctreboot"
-                GuestAction.RESET -> "pctstop"
-                GuestAction.SUSPEND -> "pctsuspend"
-                GuestAction.RESUME -> "pctresume"
+            GuestType.LXC -> {
+                val (pct, vz) = when (action) {
+                    GuestAction.START -> "pctstart" to "vzstart"
+                    GuestAction.STOP -> "pctstop" to "vzstop"
+                    GuestAction.SHUTDOWN -> "pctshutdown" to "vzshutdown"
+                    GuestAction.REBOOT -> "pctreboot" to "vzreboot"
+                    GuestAction.RESET -> "pctstop" to "vzstop"
+                    GuestAction.SUSPEND -> "pctsuspend" to "vzsuspend"
+                    GuestAction.RESUME -> "pctresume" to "vzresume"
+                }
+                recentActionRegistry.record(pct, vmid)
+                recentActionRegistry.record(vz, vmid)
             }
-            GuestType.NODE -> "node"
+            GuestType.NODE -> {
+                recentActionRegistry.record("node", vmid)
+            }
         }
-        recentActionRegistry.record(taskType, vmid)
 
         api.guestAction(node, guestType.path, vmid, action.apiName).data
             ?: throw PveException("Action returned no UPID")

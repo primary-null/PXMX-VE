@@ -17,6 +17,10 @@ class ConsoleRepository(
     /**
      * Open the same console the Proxmox web UI uses (noVNC for QEMU / LXC, xterm.js for node).
      * Password sessions use session tickets; API token sessions open QEMU/LXC with token auth.
+     *
+     * PVE 9+ RFB auth uses `password`; `rfbPassword` prefers `password` then `ticket`;
+     * pin-loaded official noVNC fetches `vncproxy` itself for RFB; this app’s session
+     * URL uses `ticket` as `vncticket` only.
      */
     suspend fun openConsole(
         node: String,

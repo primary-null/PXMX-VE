@@ -99,12 +99,13 @@ class RecentActionRegistry(
         val QUICK_TASK_TYPES = setOf(
             "qmstart", "qmstop", "qmshutdown", "qmreboot", "qmreset", "qmsuspend", "qmresume",
             "pctstart", "pctstop", "pctshutdown", "pctreboot", "pctsuspend", "pctresume",
-            "qmset", "pctset",
+            "vzstart", "vzstop", "vzshutdown", "vzreboot", "vzsuspend", "vzresume",
+            "qmset", "pctset", "vzset",
         )
 
         private val LONG_JOB_TYPES = setOf(
             "aptupdate", "aptupgrade", "apt-update", "apt-upgrade",
-            "vzdump", "qmclone", "pctclone", "qmrestore", "pctrestore",
+            "vzdump", "qmclone", "pctclone", "vzclone", "qmrestore", "pctrestore", "vzrestore",
             "deploy", "backup",
         )
 
@@ -114,9 +115,10 @@ class RecentActionRegistry(
             }
         }
 
-        private fun taskTypesEquivalent(t1: String, t2: String): Boolean {
+        internal fun taskTypesEquivalent(t1: String, t2: String): Boolean {
             if (t1 == t2) return true
-            return t1.removePrefix("qm").removePrefix("pct") == t2.removePrefix("qm").removePrefix("pct")
+            return t1.removePrefix("qm").removePrefix("pct").removePrefix("vz") ==
+                t2.removePrefix("qm").removePrefix("pct").removePrefix("vz")
         }
     }
 }

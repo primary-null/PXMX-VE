@@ -206,4 +206,43 @@ class RecentActionRegistryTest {
         )
         assertEquals("task-apt-1", whenElsewhere?.id)
     }
+
+    @Test
+    fun quickTaskTypes_containsVzTasks() {
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzstart"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzstop"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzshutdown"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzreboot"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzsuspend"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzresume"))
+        assertTrue(RecentActionRegistry.QUICK_TASK_TYPES.contains("vzset"))
+    }
+
+    @Test
+    fun isSuppressed_pctstartRecordSuppressesVzstartLogForSameGuest() {
+        val registry = RecentActionRegistry(ttlMs = 15_000L)
+        val now = 1_000_000L
+
+        // Locally recorded action was pctstart for container 105
+        registry.record("pctstart", 105L, nowMs = now)
+
+        val vzStartEntry = ClusterLogEntry(
+            id = "UPID:alpha:00001005:00000000:66D1B005:vzstart:105:root@pam:",
+            time = now / 1000,
+            node = "alpha",
+            tag = "vzstart",
+            msg = "starting CT 105",
+            pri = 6,
+            user = "root@pam",
+        )
+
+        // Must be suppressed within TTL for same guest
+        assertTrue(registry.isSuppressed(vzStartEntry, sessionUser = "root@pam", nowMs = now + 5_000L))
+        assertTrue(registry.hasRecentAction("vzstart", 105L, nowMs = now + 5_000L))
+
+        // Different guest ID -> NOT suppressed
+        val differentCtEntry = vzStartEntry.copy(msg = "starting CT 205", id = "UPID:alpha:00001006:00000000:66D1B006:vzstart:205:root@pam:")
+        assertFalse(registry.isSuppressed(differentCtEntry, sessionUser = "root@pam", nowMs = now + 5_000L))
+        assertFalse(registry.hasRecentAction("vzstart", 205L, nowMs = now + 5_000L))
+    }
 }

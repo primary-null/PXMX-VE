@@ -61,6 +61,27 @@ fun PermissionsScreen(
             }
 
             item {
+                PermissionCard(
+                    name = "VIBRATE",
+                    reason = "Haptic feedback for actions on home, guest, node, and settings."
+                )
+            }
+
+            item {
+                PermissionCard(
+                    name = "POST_NOTIFICATIONS",
+                    reason = "Task alerts and optional external guest events. Requested at runtime on Android 13+."
+                )
+            }
+
+            item {
+                PermissionCard(
+                    name = "POST_PROMOTED_NOTIFICATIONS",
+                    reason = "Android 16 Live Updates for in-progress backup and migrate tasks."
+                )
+            }
+
+            item {
                 TechPlate(railColor = TechColors.CoolBlue) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
@@ -72,7 +93,7 @@ fun PermissionsScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "No runtime permission prompts. These two are granted at install; nothing else is ever requested.",
+                            text = "INTERNET, ACCESS_NETWORK_STATE, and VIBRATE are granted at install. POST_NOTIFICATIONS is a runtime prompt on Android 13+. POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates. No analytics, no extra SDK permissions.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )

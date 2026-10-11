@@ -27,10 +27,10 @@ when a host needs hands-on attention.
 | Home | Guests, nodes, and storage at a glance, with the newest cluster events pinned below. |
 | Nodes | Per-node status: CPU, memory, and disk fills, hour or day history, plus confirmed reboot or shutdown of the hypervisor. |
 | Storage | Usage fills across all your datastores. |
-| Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, hour or day history, and a deploy-from-template dialog. |
+| Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, hour or day history, guest firewall inspector on VM/container detail, guest network plates (live IPs, addressing, NIC firewall and link toggles), and a deploy-from-template dialog. |
 | Backups | Start and delete backups from the guest menu. |
 | Updates | Refresh package lists and apply updates with a live, step-by-step progress view. On Proxmox VE 9, where the API no longer allows remote installs, the app walks you to the node shell command instead. |
-| Console | An interactive SSH console for guests, and a node shell for the host. |
+| Console | noVNC for QEMU and LXC guests, and an xterm.js node shell for the host. API tokens can open QEMU and LXC consoles; the node shell requires a ticket (password) login. |
 | Firewall and SDN | Read-only views of cluster firewall rules and SDN zones and vnets. |
 
 **The app itself**
@@ -76,20 +76,26 @@ build from the command line:
 - TLS everywhere. Self-signed hosts get their certificate pinned on first
   login, and a changed identity is refused, never silently re-accepted.
   CA-signed hosts use the system trust store.
-- Passwords and API tokens are encrypted at rest with Android
-  EncryptedSharedPreferences, keyed by the Android Keystore. Session tickets
-  live only in memory, never on disk.
+- Passwords and API tokens are encrypted at rest with Google Tink AEAD and
+  DataStore, keyed by the Android Keystore. EncryptedSharedPreferences is kept
+  until that vault write succeeds. Session tickets live only in memory, never
+  on disk.
 - No accounts, no telemetry, no analytics, no cloud. The app talks only to
   the servers you add, and demo mode touches nothing at all.
 
 ## Permissions
 
-Two, both silent, with no pop-ups:
+INTERNET, ACCESS_NETWORK_STATE, and VIBRATE require no runtime prompt.
+POST_NOTIFICATIONS is a runtime prompt on Android 13+, and
+POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates.
 
 | Permission | Why |
 | --- | --- |
 | Internet | Reach your Proxmox servers. |
 | Network state | Find hosts on your local network. |
+| Vibrate | Haptic feedback for actions. |
+| Post notifications | Task alerts and external guest events. |
+| Post promoted notifications | Foreground progress via Android 16 Live Updates. |
 
 Details are listed in the app under **Settings > App permissions**.
 

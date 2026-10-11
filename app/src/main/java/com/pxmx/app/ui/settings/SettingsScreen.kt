@@ -202,7 +202,7 @@ fun SettingsScreen(
             item {
                 SettingsRow(
                     title = "App permissions",
-                    subtitle = "INTERNET · NETWORK_STATE",
+                    subtitle = "INTERNET · NETWORK · VIBRATE · NOTIFICATIONS",
                     onClick = onOpenPermissions,
                 )
             }

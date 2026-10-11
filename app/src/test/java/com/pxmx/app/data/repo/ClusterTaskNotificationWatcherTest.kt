@@ -286,4 +286,74 @@ class ClusterTaskNotificationWatcherTest {
         assertEquals("Guest 300", fallbackName)
         assertEquals(null, fallbackSource)
     }
+
+    @Test
+    fun externalStartStop_vzstartAndVzstopPostWhenEnabledAndNoLocalRecord() = runTest {
+        sessionStore.updateNotificationPrefs { it.copy(masterEnabled = true, externalStartStop = true) }
+        val watcher = createWatcher()
+
+        // Seed
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0000:0001:66D00000:qmcreate:99:root@pam:", "type" to "qmcreate", "id" to "99")
+        ))
+        assertTrue(posted.isEmpty())
+
+        // vzstart for VMID 200 with no local record
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0001:0001:66D00001:vzstart:200:root@pam:", "type" to "vzstart", "id" to "200", "node" to "pve", "status" to "OK")
+        ))
+        assertEquals(1, posted.size)
+        val (_, title1, body1) = posted[0]
+        assertEquals("External guest event (200)", title1)
+        assertEquals("Node pve · vzstart (OK)", body1)
+
+        // vzstop for VMID 201 with no local record
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0002:0001:66D00002:vzstop:201:root@pam:", "type" to "vzstop", "id" to "201", "node" to "pve", "status" to "OK")
+        ))
+        assertEquals(2, posted.size)
+        val (_, title2, body2) = posted[1]
+        assertEquals("External guest event (201)", title2)
+        assertEquals("Node pve · vzstop (OK)", body2)
+    }
+
+    @Test
+    fun externalStartStop_localPctstartSuppressesVzstartEcho() = runTest {
+        sessionStore.updateNotificationPrefs { it.copy(masterEnabled = true, externalStartStop = true) }
+        val watcher = createWatcher()
+
+        // Seed
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0000:0001:66D00000:qmcreate:99:root@pam:", "type" to "qmcreate", "id" to "99")
+        ))
+        assertTrue(posted.isEmpty())
+
+        // Local pctstart recorded for container 300
+        recentActionRegistry.record("pctstart", 300L)
+
+        // Incoming vzstart task for container 300
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0003:0001:66D00003:vzstart:300:root@pam:", "type" to "vzstart", "id" to "300", "node" to "pve", "status" to "OK")
+        ))
+
+        // Suppressed due to local action
+        assertTrue(posted.isEmpty())
+    }
+
+    @Test
+    fun defaultNotificationPrefs_externalStartStopIsFalse() = runTest {
+        assertFalse(sessionStore.notificationPrefs.value.externalStartStop)
+        val watcher = createWatcher()
+
+        // Seed
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0000:0001:66D00000:qmcreate:99:root@pam:", "type" to "qmcreate", "id" to "99")
+        ))
+
+        // vzstart arrives with default prefs (externalStartStop = false) -> should not post
+        watcher.onClusterTasks(listOf(
+            mapOf("upid" to "UPID:pve:0001:0001:66D00001:vzstart:200:root@pam:", "type" to "vzstart", "id" to "200", "node" to "pve", "status" to "OK")
+        ))
+        assertTrue(posted.isEmpty())
+    }
 }

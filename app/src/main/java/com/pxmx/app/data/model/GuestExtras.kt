@@ -116,7 +116,13 @@ data class StorageStatus(
     val avail: Long? = null,
 )
 
-/** Response from vncproxy / termproxy. */
+/**
+ * Response from vncproxy / termproxy.
+ *
+ * PVE 9+ RFB auth uses `password`; `rfbPassword` prefers `password` then `ticket`;
+ * pin-loaded official noVNC fetches `vncproxy` itself for RFB; this app’s session
+ * URL uses `ticket` as `vncticket` only.
+ */
 @Serializable
 data class ConsoleProxyData(
     val port: String? = null,

@@ -31,6 +31,8 @@ object ConsoleUrlBuilder {
         GuestType.QEMU, GuestType.LXC -> "novnc=1"
     }
 
+    // Note: vncticket is the proxy ticket, never password / rfbPassword.
+    // Official noVNC re-calls vncproxy for RFB auth; the websocket query requires the ticket.
     fun buildRawWebSocketPath(
         node: String,
         guestType: GuestType,
