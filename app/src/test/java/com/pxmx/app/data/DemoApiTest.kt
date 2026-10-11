@@ -2,6 +2,9 @@ package com.pxmx.app.data
 
 import com.pxmx.app.data.api.DemoApi
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -303,5 +306,46 @@ class DemoApiTest {
         val lxcOptOther = demoApi.lxcFirewallOptions("alpha", 201L).data
         assertEquals(0, lxcOptOther?.get("enable"))
         assertTrue(demoApi.lxcFirewallRules("alpha", 201L).data.orEmpty().isEmpty())
+    }
+
+    @Test
+    fun uploadStorageContent_appendsIsoToStorageContent_andRejectsStorageWithoutIso() = runBlocking {
+        val content = "iso".toRequestBody("text/plain".toMediaTypeOrNull())
+        val filePart = MultipartBody.Part.createFormData(
+            "filename",
+            "alpine-virt.iso",
+            ByteArray(32).toRequestBody("application/octet-stream".toMediaTypeOrNull()),
+        )
+
+        // 1. Success on storage that allows ISO ("local" has backup,iso,vztmpl)
+        val resp = demoApi.uploadStorageContent("alpha", "local", content, filePart)
+        assertEquals("local:iso/alpine-virt.iso", resp.data)
+
+        // 2. storageContent returns the newly uploaded ISO
+        val contentList = demoApi.storageContent("alpha", "local").data.orEmpty()
+        val uploadedItem = contentList.find { it.volid == "local:iso/alpine-virt.iso" }
+        assertNotNull("Uploaded ISO should appear in storage content", uploadedItem)
+        assertEquals("iso", uploadedItem?.content)
+
+        // 3. Filtered storageContent also returns it
+        val isoOnly = demoApi.storageContent("alpha", "local", content = "iso").data.orEmpty()
+        assertTrue(isoOnly.any { it.volid == "local:iso/alpine-virt.iso" })
+
+        // 4. Storage without ISO capability fails (local-lvm has rootdir,images)
+        try {
+            demoApi.uploadStorageContent("alpha", "local-lvm", content, filePart)
+            fail("Expected HttpException for storage without iso support")
+        } catch (e: HttpException) {
+            assertEquals(400, e.code())
+        }
+
+        // 5. Non-iso content rejected
+        val badContent = "vztmpl".toRequestBody("text/plain".toMediaTypeOrNull())
+        try {
+            demoApi.uploadStorageContent("alpha", "local", badContent, filePart)
+            fail("Expected HttpException for non-iso content")
+        } catch (e: HttpException) {
+            assertEquals(400, e.code())
+        }
     }
 }

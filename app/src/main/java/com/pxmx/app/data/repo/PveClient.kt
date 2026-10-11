@@ -49,14 +49,26 @@ class PveClient(
     suspend fun <T> apiCall(expected: SessionSnapshot, block: suspend (ProxmoxApi) -> T): Result<T> =
         withContext(OperationSession(expected)) { apiCall(block) }
 
-    suspend fun <T> apiCall(block: suspend (ProxmoxApi) -> T): Result<T> {
+    suspend fun <T> apiCall(block: suspend (ProxmoxApi) -> T): Result<T> =
+        executeCall({ clientFactory.apiForSession(it) }, block)
+
+    suspend fun <T> apiCallForUpload(expected: SessionSnapshot, block: suspend (ProxmoxApi) -> T): Result<T> =
+        withContext(OperationSession(expected)) { apiCallForUpload(block) }
+
+    suspend fun <T> apiCallForUpload(block: suspend (ProxmoxApi) -> T): Result<T> =
+        executeCall({ clientFactory.apiForUpload(it) }, block)
+
+    private suspend fun <T> executeCall(
+        getApi: (SessionSnapshot) -> ProxmoxApi,
+        block: suspend (ProxmoxApi) -> T,
+    ): Result<T> {
         val snapshot = currentCoroutineContext()[OperationSession]?.snapshot ?: sessionStore.snapshot()
             ?: return Result.failure(PveException("Not connected"))
         val session = snapshot.state
         if (!sessionStore.isCurrent(snapshot)) return Result.failure(PveException("Session changed"))
 
         try {
-            val api = clientFactory.apiForSession(snapshot)
+            val api = getApi(snapshot)
             return Result.success(block(api))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -115,7 +127,7 @@ class PveClient(
                     }
                     return try {
                         if (!sessionStore.isCurrent(snapshot)) return Result.failure(PveException("Session changed"))
-                        val newApi = clientFactory.apiForSession(snapshot)
+                        val newApi = getApi(snapshot)
                         // Invoke the SAME block lambda directly for the retry
                         Result.success(block(newApi))
                     } catch (retryE: Exception) {

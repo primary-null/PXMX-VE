@@ -5,12 +5,16 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import com.pxmx.app.data.api.ProxmoxApi
 import com.pxmx.app.data.model.BackupVolume
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.NodeStorageEntry
 import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.data.model.StorageDetail
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.session.SessionStore
@@ -332,6 +336,129 @@ class StorageRepository(
         }
     }
 
+    suspend fun uploadIso(
+        node: String,
+        storage: String,
+        uri: Uri?,
+        displayName: String,
+        onProgress: (String) -> Unit = {},
+    ): Result<String> {
+        val sanitizedFilename = try {
+            sanitizeIsoFilename(displayName)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            return Result.failure(e)
+        }
+
+        val snapshot = sessionStore.snapshot() ?: return Result.failure(PveException("No active session"))
+
+        return try {
+            pveClient.inSession(snapshot) {
+                val status = pveClient.apiCall(snapshot) { api ->
+                    api.storageStatus(node, storage).data
+                }.getOrNull()
+                val contentFromStatus = status?.content
+                val hasIsoInStatus = contentFromStatus?.split(",")?.any { it.trim().equals("iso", ignoreCase = true) } == true
+                val hasIso = if (hasIsoInStatus) {
+                    true
+                } else {
+                    val entries = pveClient.apiCall(snapshot) { api ->
+                        api.nodeStorage(node).data.orEmpty()
+                    }.getOrNull().orEmpty()
+                    val entry = entries.firstOrNull { it.storage == storage }
+                    entry?.content?.split(",")?.any { it.trim().equals("iso", ignoreCase = true) } == true
+                }
+
+                if (!hasIso) {
+                    throw PveException("Storage '$storage' on node '$node' does not allow ISO images")
+                }
+
+                val isDemo = snapshot.state.config.host.equals("demo", ignoreCase = true)
+
+                var fileSize = -1L
+                if (uri != null) {
+                    try {
+                        context.contentResolver?.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                            val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                            if (idx != -1 && cursor.moveToFirst()) {
+                                fileSize = cursor.getLong(idx)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                    }
+                    if (fileSize <= 0L) {
+                        try {
+                            context.contentResolver?.openFileDescriptor(uri, "r")?.use { pfd ->
+                                fileSize = pfd.statSize
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                        }
+                    }
+                }
+
+                var lastReportedPct = -1
+                val countingBody = CountingStreamRequestBody(
+                    contentType = "application/octet-stream".toMediaTypeOrNull(),
+                    contentLength = fileSize,
+                    openStream = {
+                        if (isDemo) {
+                            val stream = if (uri != null) {
+                                try {
+                                    context.contentResolver?.openInputStream(uri)
+                                } catch (e: Exception) {
+                                    if (e is CancellationException) throw e
+                                    null
+                                }
+                            } else null
+                            stream ?: java.io.ByteArrayInputStream(ByteArray(0))
+                        } else {
+                            if (uri == null) throw IOException("URI is null")
+                            val stream = try {
+                                context.contentResolver?.openInputStream(uri)
+                            } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                throw (e as? IOException) ?: IOException("Unable to open stream for $uri", e)
+                            }
+                            stream ?: throw IOException("Unable to open stream for $uri")
+                        }
+                    },
+                    onProgress = { bytesWritten, totalBytes ->
+                        if (totalBytes > 0L) {
+                            val pct = ((bytesWritten.toDouble() / totalBytes.toDouble()) * 100).toInt().coerceIn(0, 100)
+                            if (pct != lastReportedPct) {
+                                lastReportedPct = pct
+                                onProgress("Uploading $sanitizedFilename ($pct%)…")
+                            }
+                        } else {
+                            onProgress("Uploading $sanitizedFilename…")
+                        }
+                    },
+                )
+
+                val contentPart = "iso".toRequestBody("text/plain".toMediaTypeOrNull())
+                val filePart = MultipartBody.Part.createFormData("filename", sanitizedFilename, countingBody)
+
+                onProgress("Uploading $sanitizedFilename (0%)…")
+                val response = pveClient.apiCallForUpload(snapshot) { api ->
+                    api.uploadStorageContent(
+                        node = node,
+                        storage = storage,
+                        content = contentPart,
+                        filename = filePart,
+                    )
+                }.getOrThrow()
+
+                onProgress("Uploading $sanitizedFilename (100%)…")
+                response.data?.takeIf { it.isNotBlank() } ?: "$storage:iso/$sanitizedFilename"
+            }.let { Result.success(it) }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
     companion object {
         fun sanitizeBackupFilename(name: String): String {
             val trimmed = name.trim()
@@ -342,6 +469,47 @@ class StorageRepository(
                 throw PveException("Invalid backup filename '$name': contains disallowed characters (allowed: [A-Za-z0-9._-])")
             }
             return trimmed
+        }
+
+        fun sanitizeIsoFilename(name: String): String {
+            val trimmed = name.trim()
+            if (trimmed.isEmpty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..")) {
+                throw PveException("Invalid ISO filename '$name': contains path separators or traversal sequences")
+            }
+            if (!trimmed.endsWith(".iso", ignoreCase = true)) {
+                throw PveException("Invalid ISO filename '$name': missing required .iso extension")
+            }
+            val base = trimmed.substring(0, trimmed.length - 4)
+            if (base.isEmpty()) {
+                throw PveException("Invalid ISO filename '$name': filename base is empty")
+            }
+            if (!trimmed.matches(Regex("^[A-Za-z0-9._-]+$"))) {
+                throw PveException("Invalid ISO filename '$name': contains disallowed characters (allowed: [A-Za-z0-9._-])")
+            }
+            return trimmed
+        }
+    }
+}
+
+private class CountingStreamRequestBody(
+    private val contentType: okhttp3.MediaType?,
+    private val contentLength: Long,
+    private val openStream: () -> java.io.InputStream,
+    private val onProgress: (bytesWritten: Long, totalBytes: Long) -> Unit,
+) : okhttp3.RequestBody() {
+    override fun contentType(): okhttp3.MediaType? = contentType
+    override fun contentLength(): Long = contentLength
+
+    override fun writeTo(sink: okio.BufferedSink) {
+        openStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            var bytesWritten = 0L
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                sink.write(buffer, 0, bytesRead)
+                bytesWritten += bytesRead
+                onProgress(bytesWritten, contentLength)
+            }
         }
     }
 }

@@ -88,6 +88,7 @@ build from the command line:
 INTERNET, ACCESS_NETWORK_STATE, and VIBRATE require no runtime prompt.
 POST_NOTIFICATIONS is a runtime prompt on Android 13+, and
 POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates.
+ISO upload uses the system file picker for a single file (no all-files or READ_MEDIA permissions).
 
 | Permission | Why |
 | --- | --- |

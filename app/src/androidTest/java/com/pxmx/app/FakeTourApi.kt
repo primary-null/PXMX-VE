@@ -421,6 +421,12 @@ class FakeTourApi : ProxmoxApi {
     override suspend fun storageStatus(node: String, storage: String): PveResponse<StorageStatus> = PveResponse()
     override suspend fun createBackup(node: String, vmid: Long, storage: String, mode: String?, compress: String?, remove: Int?, notesTemplate: String?): PveResponse<String> = PveResponse()
     override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> = PveResponse()
+    override suspend fun uploadStorageContent(
+        node: String,
+        storage: String,
+        content: okhttp3.RequestBody,
+        filename: okhttp3.MultipartBody.Part,
+    ): PveResponse<String> = PveResponse()
     override suspend fun nodeUsb(node: String): PveResponse<List<HostUsbDevice>> = PveResponse()
     override suspend fun nodeNetwork(node: String): PveResponse<List<Map<String, Any>>> = PveResponse()
     override suspend fun aptUpdateList(node: String): PveResponse<List<Map<String, Any>>> = PveResponse()

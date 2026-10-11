@@ -1,6 +1,7 @@
 package com.pxmx.app.data.repo
 
 import android.content.Context
+import android.net.Uri
 import com.pxmx.app.data.api.ProxmoxApiProvider
 import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.data.model.ClusterResource
@@ -452,6 +453,14 @@ class ProxmoxRepository(
         onProgress: (String) -> Unit,
     ): Result<String> = storageRepo.backupToDevice(node, type, vmid, storage, onProgress)
 
+    suspend fun uploadIso(
+        node: String,
+        storage: String,
+        uri: Uri?,
+        displayName: String,
+        onProgress: (String) -> Unit = {},
+    ): Result<String> = storageRepo.uploadIso(node, storage, uri, displayName, onProgress)
+
     // -------------------------------------------------------------------------
     // Console Delegation
     // -------------------------------------------------------------------------
@@ -544,6 +553,9 @@ class ProxmoxRepository(
 
         fun sanitizeBackupFilename(name: String): String =
             StorageRepository.sanitizeBackupFilename(name)
+
+        fun sanitizeIsoFilename(name: String): String =
+            StorageRepository.sanitizeIsoFilename(name)
 
         fun redactSecrets(raw: String?): String? =
             PveClient.redactSecrets(raw)

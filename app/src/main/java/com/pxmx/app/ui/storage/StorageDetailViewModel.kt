@@ -1,5 +1,6 @@
 package com.pxmx.app.ui.storage
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -108,6 +109,34 @@ class StorageDetailViewModel(
                     if (e is CancellationException) throw e
                     _ui.update {
                         it.copy(busy = false, error = e.message ?: "Delete failed")
+                    }
+                },
+            )
+        }
+    }
+
+    fun uploadIso(uri: Uri?, displayName: String) {
+        val node = _ui.value.node
+        val storage = _ui.value.storage
+        _ui.update { it.copy(busy = true, message = "Uploading $displayName…", error = null) }
+        viewModelScope.launch {
+            storageRepo.uploadIso(
+                node = node,
+                storage = storage,
+                uri = uri,
+                displayName = displayName,
+                onProgress = { progressText ->
+                    _ui.update { it.copy(message = progressText) }
+                },
+            ).fold(
+                onSuccess = {
+                    _ui.update { it.copy(busy = false, message = "Uploaded $displayName") }
+                    refresh()
+                },
+                onFailure = { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update {
+                        it.copy(busy = false, error = e.message ?: "Upload failed")
                     }
                 },
             )

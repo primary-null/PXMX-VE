@@ -1,6 +1,7 @@
 package com.pxmx.app.ui.storage
 
 import android.content.ContextWrapper
+import android.net.Uri
 import com.pxmx.app.data.FakeSharedPreferences
 import com.pxmx.app.data.api.DemoApi
 import com.pxmx.app.data.api.ProbeApi
@@ -180,5 +181,76 @@ class StorageDetailViewModelTest {
         val vm = StorageDetailViewModel(repository, "gamma", "local-lvm")
         assertEquals("gamma", vm.ui.value.node)
         assertEquals("local-lvm", vm.ui.value.storage)
+    }
+
+    @Test
+    fun storageDetailViewModel_uploadIso_success_updatesContentAndMessage() = runBlocking {
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(host = "demo", port = 8006),
+                ticket = "demo-ticket",
+                csrf = "demo-csrf",
+            )
+        )
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val fakeUri = Uri.parse("content://fake/alpine-virt.iso")
+        vm.uploadIso(fakeUri, "alpine-virt.iso")
+
+        val state = vm.ui.value
+        assertFalse("Busy should clear", state.busy)
+        assertNotNull("Message should not be null", state.message)
+        assertTrue("Message should contain 'Uploaded'", state.message!!.contains("Uploaded"))
+        assertTrue("Content should include an iso volid", state.content.any { it.content == "iso" && it.volid?.contains("alpine-virt.iso") == true })
+        assertNull(state.error)
+
+        job.cancel()
+    }
+
+    @Test
+    fun storageDetailViewModel_uploadIso_invalidFilename_setsError() = runBlocking {
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(host = "demo", port = 8006),
+                ticket = "demo-ticket",
+                csrf = "demo-csrf",
+            )
+        )
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val fakeUri = Uri.parse("content://fake/nope.txt")
+        vm.uploadIso(fakeUri, "nope.txt")
+
+        val state = vm.ui.value
+        assertFalse("Busy should clear", state.busy)
+        assertNotNull("Error should be set", state.error)
+        assertTrue("Error should mention invalid extension or ISO filename", state.error!!.contains(".iso") || state.error!!.contains("Invalid ISO filename"))
+
+        job.cancel()
+    }
+
+    @Test
+    fun storageDetailViewModel_uploadIso_storageWithoutIso_setsError() = runBlocking {
+        sessionStore.setSession(
+            SessionState(
+                config = ServerConfig(host = "demo", port = 8006),
+                ticket = "demo-ticket",
+                csrf = "demo-csrf",
+            )
+        )
+        val vm = StorageDetailViewModel(repository.storageRepo, "alpha", "local-lvm")
+        val job = launch(testDispatcher) { vm.ui.collect() }
+
+        val fakeUri = Uri.parse("content://fake/alpine-virt.iso")
+        vm.uploadIso(fakeUri, "alpine-virt.iso")
+
+        val state = vm.ui.value
+        assertFalse("Busy should clear", state.busy)
+        assertNotNull("Error should be set", state.error)
+        assertTrue("Error should mention not allowing ISO", state.error!!.contains("does not allow ISO"))
+
+        job.cancel()
     }
 }

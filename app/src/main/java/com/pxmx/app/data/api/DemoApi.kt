@@ -17,7 +17,10 @@ import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -54,6 +57,7 @@ class DemoApi : ProxmoxApi {
     private val configOverride = ConcurrentHashMap<Long, MutableMap<String, Any>>()
     private val clonedConfigs = ConcurrentHashMap<Long, MutableMap<String, Any>>()
     private val deletedConfigKeys = ConcurrentHashMap<Long, MutableSet<String>>()
+    private val uploadedIsoItems = CopyOnWriteArrayList<StorageContentItem>()
 
     private fun now(): Long = System.currentTimeMillis()
 
@@ -645,7 +649,7 @@ class DemoApi : ProxmoxApi {
     }
 
     override suspend fun storageContent(node: String, storage: String, content: String?, vmid: Long?): PveResponse<List<StorageContentItem>> {
-        val items = when (storage) {
+        val canned = when (storage) {
             "local" -> listOf(
                 StorageContentItem(
                     volid = "$storage:backup/vzdump-qemu-100-2026_08_30-12_00_01.tar.zst",
@@ -672,6 +676,8 @@ class DemoApi : ProxmoxApi {
             )
             else -> emptyList()
         }
+        val dynamicItems = uploadedIsoItems.filter { it.volid?.startsWith("$storage:") == true }
+        val items = canned + dynamicItems
         val filtered = if (content != null) items.filter { it.content == content } else items
         return PveResponse(data = if (vmid != null) filtered.filter { it.vmid == vmid } else filtered)
     }
@@ -997,12 +1003,15 @@ class DemoApi : ProxmoxApi {
         val entry = nodeStorage(node).data.orEmpty().firstOrNull { it.storage == storage }
         return PveResponse(
             data = StorageStatus(
+                storage = entry?.storage ?: storage,
+                shared = entry?.shared,
                 total = entry?.total ?: 100_000_000_000L,
                 used = entry?.used ?: 50_000_000_000L,
                 avail = (entry?.total ?: 100_000_000_000L) - (entry?.used ?: 50_000_000_000L),
                 active = 1,
                 enabled = 1,
                 type = entry?.type ?: "dir",
+                content = entry?.content,
             )
         )
     }
@@ -1022,7 +1031,56 @@ class DemoApi : ProxmoxApi {
         )
         return PveResponse(data = "UPID:$node:00001238:00000000:66D1B004:vzdump:$vmid:root@pam:")
     }
-    override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> = PveResponse(data = "OK")
+    override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> {
+        uploadedIsoItems.removeIf { it.volid == volume }
+        return PveResponse(data = "OK")
+    }
+
+    override suspend fun uploadStorageContent(
+        node: String,
+        storage: String,
+        content: RequestBody,
+        filename: MultipartBody.Part,
+    ): PveResponse<String> {
+        val buffer = Buffer()
+        content.writeTo(buffer)
+        val contentStr = buffer.readUtf8().trim()
+        if (contentStr != "iso") {
+            val errorBody = "{\"message\":\"parameter 'content' must be 'iso'\"}"
+                .toResponseBody("application/json".toMediaType())
+            throw HttpException(Response.error<String>(400, errorBody))
+        }
+        val storages = nodeStorage(node).data.orEmpty()
+        val entry = storages.firstOrNull { it.storage == storage }
+        val hasIso = entry?.content?.split(",")?.any { it.trim().equals("iso", ignoreCase = true) } == true
+        if (!hasIso) {
+            val errorBody = "{\"message\":\"storage '$storage' does not support content type 'iso'\"}"
+                .toResponseBody("application/json".toMediaType())
+            throw HttpException(Response.error<String>(400, errorBody))
+        }
+        val header = filename.headers?.get("Content-Disposition")
+        val isoName = header?.let {
+            Regex("""filename="([^"]+)"""").find(it)?.groupValues?.get(1)
+                ?: Regex("""filename=([^;]+)""").find(it)?.groupValues?.get(1)?.trim()
+        } ?: "uploaded.iso"
+
+        val size = try {
+            val len = filename.body.contentLength()
+            if (len > 0) len else 1_500_000_000L
+        } catch (_: Exception) {
+            1_500_000_000L
+        }
+
+        val newItem = StorageContentItem(
+            volid = "$storage:iso/$isoName",
+            content = "iso",
+            size = size,
+            ctime = System.currentTimeMillis() / 1000,
+            path = "/var/lib/vz/template/iso/$isoName",
+        )
+        uploadedIsoItems.add(newItem)
+        return PveResponse(data = newItem.volid)
+    }
 
     override suspend fun nodeRrdData(node: String, timeframe: String): PveResponse<List<Map<String, Any>>> {
         val steps = if (timeframe == "day") 48 else 60

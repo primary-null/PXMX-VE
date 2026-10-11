@@ -15,6 +15,8 @@ interface ProxmoxApiProvider {
     fun apiFor(config: ServerConfig): ProxmoxApi
     /** Live HTTP implementations must bind interception to this exact generation. */
     fun apiForSession(session: com.pxmx.app.data.session.SessionSnapshot): ProxmoxApi = apiFor(session.state.config)
+    /** Long-timeout client for uploading large assets like ISOs. */
+    fun apiForUpload(session: com.pxmx.app.data.session.SessionSnapshot): ProxmoxApi = apiForSession(session)
     /**
      * Probe client: bypasses the cache, always authenticates with its own bound
      * config. Abstract on purpose: every HTTP provider must wire the same

@@ -224,6 +224,12 @@ class ProxmoxRepositoryTest {
         override suspend fun storageStatus(node: String, storage: String): PveResponse<StorageStatus> = PveResponse()
         override suspend fun createBackup(node: String, vmid: Long, storage: String, mode: String?, compress: String?, remove: Int?, notesTemplate: String?): PveResponse<String> = PveResponse()
         override suspend fun deleteStorageContent(node: String, storage: String, volume: String): PveResponse<String> = PveResponse()
+        override suspend fun uploadStorageContent(
+            node: String,
+            storage: String,
+            content: okhttp3.RequestBody,
+            filename: okhttp3.MultipartBody.Part,
+        ): PveResponse<String> = PveResponse()
         override suspend fun nodeUsb(node: String): PveResponse<List<HostUsbDevice>> = PveResponse()
         override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> = PveResponse()
         override suspend fun qemuVncProxy(node: String, vmid: Long, websocket: Int): PveResponse<ConsoleProxyData> = PveResponse()

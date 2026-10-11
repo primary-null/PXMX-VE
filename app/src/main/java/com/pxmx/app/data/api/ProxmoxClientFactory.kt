@@ -24,6 +24,12 @@ class ProxmoxClientFactory(
     @Volatile
     private var cachedApi: ProxmoxApi? = null
 
+    @Volatile
+    private var cachedUploadKey: String? = null
+
+    @Volatile
+    private var cachedUploadApi: ProxmoxApi? = null
+
 
     /** Single demo instance: keeps the simulation's state alive across requests. */
     private val demoApi: ProxmoxApi by lazy { DemoApi() }
@@ -52,6 +58,26 @@ class ProxmoxClientFactory(
     }
 
     @Synchronized
+    override fun apiForUpload(session: SessionSnapshot): ProxmoxApi {
+        val config = session.state.config
+        check(sessionStore.isCurrent(session)) { "Session changed" }
+        if (config.host.equals("demo", ignoreCase = true)) return demoApi
+        val pin = sessionStore.getCertPin(config.host).orEmpty()
+        val key = "${SessionIdentity.of(config)}|${session.generation}|${config.trustSelfSigned}|$pin|upload"
+        cachedUploadApi?.let { existing -> if (cachedUploadKey == key) return existing }
+        return build(
+            config,
+            preferBoundConfig = false,
+            boundSession = session,
+            readTimeoutSeconds = 1800,
+            writeTimeoutSeconds = 1800,
+        ).also {
+            cachedUploadKey = key
+            cachedUploadApi = it
+        }
+    }
+
+    @Synchronized
     override fun apiForProbe(config: ServerConfig): ProbeApi {
         if (config.host.equals("demo", ignoreCase = true)) return ProbeApi(demoApi)
         val slot = AtomicReference<ProbeAuth?>(null)
@@ -63,6 +89,8 @@ class ProxmoxClientFactory(
     override fun clear() {
         cachedKey = null
         cachedApi = null
+        cachedUploadKey = null
+        cachedUploadApi = null
     }
 
 
@@ -72,6 +100,8 @@ class ProxmoxClientFactory(
         probeAuthSlot: AtomicReference<ProbeAuth?>? = null,
         fingerprintSlot: AtomicReference<String?>? = null,
         boundSession: SessionSnapshot? = null,
+        readTimeoutSeconds: Long = 60,
+        writeTimeoutSeconds: Long = 60,
     ): ProxmoxApi {
         val trustManager = TofuTrustManager(
             host = config.host,
@@ -86,8 +116,8 @@ class ProxmoxClientFactory(
 
         val builder = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)
             .sslSocketFactory(sslSocketFactory, trustManager)
             .hostnameVerifier(hostnameVerifier)
             .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig, probeAuthSlot, boundSession))

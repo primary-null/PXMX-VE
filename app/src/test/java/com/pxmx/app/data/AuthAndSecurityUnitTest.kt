@@ -197,6 +197,43 @@ class AuthAndSecurityUnitTest {
     }
 
     @Test
+    fun sanitizeIsoFilename_acceptsSafeFilenames() {
+        listOf(
+            "alpine-virt.iso",
+            "debian-12.0.0-amd64-netinst.iso",
+            "archlinux-2024.01.01-x86_64.ISO",
+            "rocky-9.3.iso",
+        ).forEach { name ->
+            val result = ProxmoxRepository.sanitizeIsoFilename(name)
+            assertEquals(name, result)
+        }
+    }
+
+    @Test
+    fun sanitizeIsoFilename_rejectsUnsafeFilenames() {
+        val dangerous = listOf(
+            "../x.iso",
+            "a/b.iso",
+            "nope.txt",
+            ".iso",
+            "../../etc/passwd.iso",
+            "iso;rm -rf.iso",
+            "name with spaces.iso",
+            "bad\\slash.iso",
+            "",
+            "   ",
+        )
+        for (name in dangerous) {
+            try {
+                ProxmoxRepository.sanitizeIsoFilename(name)
+                fail("Expected PveException for dangerous filename: $name")
+            } catch (e: PveException) {
+                assertTrue(e.message?.contains("Invalid ISO filename") == true)
+            }
+        }
+    }
+
+    @Test
     fun redactSecrets_redactsTicketsTokensAndCookies() {
         val sample1 = "Error connecting: PVE:root@pam:4A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D:invalid"
         val clean1 = ProxmoxRepository.redactSecrets(sample1)

@@ -1,6 +1,10 @@
 package com.pxmx.app.ui.storage
 
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.data.model.StorageContentItem
 import com.pxmx.app.ui.components.MetricBar
+import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
 import com.pxmx.app.ui.components.TechIconBay
@@ -71,6 +77,26 @@ fun StorageDetailScreen(
     val pct = if (used != null && total != null && total > 0) {
         used.toDouble() / total.toDouble()
     } else null
+
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            var displayName = "image.iso"
+            try {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx != -1 && cursor.moveToFirst()) {
+                        cursor.getString(idx)?.let { displayName = it }
+                    }
+                }
+            } catch (_: Exception) {
+                displayName = uri.lastPathSegment?.substringAfterLast('/') ?: displayName
+            }
+            viewModel.uploadIso(uri, displayName)
+        }
+    }
 
     // Back handling: dismiss delete confirmation modal first if open, else navigate back
     BackHandler(enabled = state.confirmDelete != null) {
@@ -182,15 +208,54 @@ fun StorageDetailScreen(
                                 Spacer(Modifier.height(4.dp))
                                 TechMetaLine("Allow", it.replace(",", " · "))
                             }
+                            val allowsIso = st?.content?.split(',')
+                                ?.any { it.trim().equals("iso", ignoreCase = true) } == true
+                            if (allowsIso) {
+                                Spacer(Modifier.height(10.dp))
+                                TechActionPlate(
+                                    label = "UPLOAD ISO",
+                                    onClick = {
+                                        if (!state.busy) {
+                                            launcher.launch(
+                                                arrayOf("application/x-iso9660-image", "application/octet-stream")
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
                         }
                     }
                 }
 
+                if (state.busy) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                state.message ?: "Working…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                } else {
+                    state.message?.let {
+                        item { Text(it, color = MaterialTheme.colorScheme.primary) }
+                    }
+                }
                 state.error?.let {
                     item { Text(it, color = MaterialTheme.colorScheme.error) }
-                }
-                state.message?.let {
-                    item { Text(it, color = MaterialTheme.colorScheme.primary) }
                 }
 
                 item {
