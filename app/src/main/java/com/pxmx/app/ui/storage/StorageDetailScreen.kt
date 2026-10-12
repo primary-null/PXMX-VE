@@ -217,7 +217,11 @@ fun StorageDetailScreen(
                                     onClick = {
                                         if (!state.busy) {
                                             launcher.launch(
-                                                arrayOf("application/x-iso9660-image", "application/octet-stream")
+                                                arrayOf(
+                                                    "application/x-iso9660-image",
+                                                    "application/octet-stream",
+                                                    "*/*",
+                                                )
                                             )
                                         }
                                     },

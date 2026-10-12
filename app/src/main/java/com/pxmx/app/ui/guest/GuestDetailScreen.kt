@@ -101,7 +101,6 @@ import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ParsedGuestConfig
 import com.pxmx.app.data.model.SnapshotInfo
 import com.pxmx.app.ui.components.ExpandableSection
-import com.pxmx.app.ui.components.GuestIdentityBay
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.components.TechColors
@@ -213,9 +212,9 @@ fun GuestDetailScreen(
                         Text(
                             text = state.name,
                             style = MaterialTheme.typography.titleMedium,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = FontFamily.Default,
                             fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.15.sp,
+                            letterSpacing = 0.15.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -385,8 +384,6 @@ fun GuestDetailScreen(
                 HeroCard(
                     name = state.name,
                     status = st?.status,
-                    icon = iconStyle.icon,
-                    accent = iconStyle.accent,
                     kindLabel = iconStyle.label,
                     uptime = st?.uptime,
                     cpu = st?.cpu,
@@ -680,8 +677,6 @@ private fun WeakTab(
 private fun HeroCard(
     name: String,
     status: String?,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accent: Color,
     kindLabel: String,
     uptime: Long?,
     cpu: Double?,
@@ -696,7 +691,6 @@ private fun HeroCard(
     onAddTag: (String) -> Unit = {},
     onRemoveTag: (String) -> Unit = {},
 ) {
-    val callsign = GuestIcons.callsign(name, vmid)
     TechPlate(railColor = techRailColor(status, busy)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -704,27 +698,19 @@ private fun HeroCard(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 14.dp),
         ) {
-            GuestIdentityBay(
-                callsign = callsign,
-                kindIcon = icon,
-                accent = accent,
-                contentDescription = "$callsign, $kindLabel",
-                size = 48.dp,
-                pipSize = 12.dp,
-            )
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = FontFamily.Default,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.15.sp,
+                    letterSpacing = 0.15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val caption = if (vmid != null) "${kindLabel.uppercase()} · VMID $vmid" else kindLabel.uppercase()
                 Text(
-                    text = kindLabel.uppercase(),
+                    text = caption,
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.8.sp,

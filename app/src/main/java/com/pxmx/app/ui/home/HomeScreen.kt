@@ -102,7 +102,6 @@ import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
-import com.pxmx.app.ui.components.GuestIdentityBay
 import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
@@ -1139,17 +1138,7 @@ fun ResourceCard(
                         )
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                 ) {
-                    if (isGuest) {
-                        val callsign = GuestIcons.callsign(resource.displayName, resource.vmid)
-                        GuestIdentityBay(
-                            callsign = callsign,
-                            kindIcon = iconStyle.icon,
-                            accent = accent,
-                            contentDescription = "$callsign, ${iconStyle.label}",
-                            size = 44.dp,
-                            pipSize = 11.dp,
-                        )
-                    } else {
+                    if (!isGuest) {
                         TechIconBay(
                             icon = iconStyle.icon,
                             accent = accent,
@@ -1157,8 +1146,8 @@ fun ResourceCard(
                             size = 36.dp,
                             iconSize = 22.dp,
                         )
+                        Spacer(Modifier.width(12.dp))
                     }
-                    Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             lampForResource(resource, busy, thresholds)?.let { lamp ->
@@ -1173,9 +1162,9 @@ fun ResourceCard(
                                 text = if (isGuest) resource.displayName else resource.displayName.uppercase(),
                                 style = if (isGuest) MaterialTheme.typography.titleMedium
                                 else MaterialTheme.typography.titleSmall,
-                                fontFamily = if (isGuest) FontFamily.Monospace else FontFamily.Default,
+                                fontFamily = FontFamily.Default,
                                 fontWeight = if (isGuest) FontWeight.SemiBold else FontWeight.Bold,
-                                letterSpacing = if (isGuest) 1.15.sp else 0.6.sp,
+                                letterSpacing = if (isGuest) 0.15.sp else 0.6.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
