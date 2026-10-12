@@ -80,8 +80,11 @@ import com.pxmx.app.data.model.KnownCluster
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
-import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.PingPlateFill
+import com.pxmx.app.ui.components.ScanAddressBus
+import com.pxmx.app.ui.components.ScanSweepStrip
+import com.pxmx.app.ui.components.ScanViz
+import com.pxmx.app.ui.components.ScanVizMode
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
@@ -576,6 +579,16 @@ private fun ConnectionPaneContent(
                             style = MaterialTheme.typography.titleSmall,
                             color = scanHeaderColor,
                         )
+                        if (scan.isScanning && scan.totalCount > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${scan.scannedCount}/${scan.totalCount}",
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         if (scan.isDemoSim) {
                             Spacer(Modifier.width(8.dp))
                             Surface(
@@ -609,20 +622,16 @@ private fun ConnectionPaneContent(
                     }
                 }
 
-                if (scan.isScanning) {
+                val showScanViz = scan.isScanning ||
+                    scan.discoveredHosts.isNotEmpty() ||
+                    scan.pveDetectedHosts.isNotEmpty() ||
+                    scan.unverifiedHosts.isNotEmpty()
+                if (showScanViz) {
                     Spacer(Modifier.height(8.dp))
-                    val frac = if (scan.totalCount > 0) {
-                        (scan.scannedCount.toFloat() / scan.totalCount).coerceIn(0f, 1f)
-                    } else 0f
-                    MetricBar(
-                        label = "SCAN PROGRESS",
-                        valueText = "${scan.scannedCount}/${scan.totalCount}",
-                        progress = frac,
-                        barHeight = 7.dp,
-                        fillColor = TechColors.Amber,
-                        trackColor = TechColors.Deck,
-                        animationDurationMs = 200,
-                    )
+                    when (ScanViz.mode) {
+                        ScanVizMode.SWEEP_STRIP -> ScanSweepStrip(scanState = scan)
+                        ScanVizMode.ADDRESS_BUS -> ScanAddressBus(scanState = scan)
+                    }
                 }
 
                 scan.infoMessage?.let { msg ->

@@ -227,6 +227,14 @@ fun StorageDetailScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "Opens system file picker for a single ISO. " +
+                                        "PXMX does not request all-files access.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
@@ -263,7 +271,7 @@ fun StorageDetailScreen(
                 }
 
                 item {
-                    TechSectionLabel("Content", count = state.content.size)
+                    TechSectionLabel("Content on this datastore", count = state.content.size)
                     Spacer(Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         item {
@@ -293,7 +301,12 @@ fun StorageDetailScreen(
                 if (rows.isEmpty()) {
                     item {
                         Text(
-                            "No content in this view",
+                            text = if (state.content.isEmpty()) {
+                                "Nothing stored on this datastore. " +
+                                    "Use Upload ISO above to select an image from your device."
+                            } else {
+                                "No content matching '${state.contentFilter}' on this datastore."
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 24.dp),
                         )

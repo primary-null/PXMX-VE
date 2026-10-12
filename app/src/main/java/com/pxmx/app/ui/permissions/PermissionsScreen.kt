@@ -84,7 +84,9 @@ fun PermissionsScreen(
             item {
                 PermissionCard(
                     name = "FILES (SYSTEM PICKER)",
-                    reason = "ISO upload asks the system picker for a single file. PXMX does not request all-files access or media library permissions."
+                    reason = "ISO upload opens the Android system file picker for a single file. " +
+                        "Android will not show an all-files toggle in app settings because the picker " +
+                        "itself is the file manager—PXMX never requests all-files or shared storage access.",
                 )
             }
 
@@ -100,7 +102,13 @@ fun PermissionsScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "INTERNET, ACCESS_NETWORK_STATE, and VIBRATE are granted at install. POST_NOTIFICATIONS is a runtime prompt on Android 13+. POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates. ISO upload uses the system file picker for a single file (no all-files or READ_MEDIA permissions). No analytics, no extra SDK permissions.",
+                            text = "INTERNET, ACCESS_NETWORK_STATE, and VIBRATE are granted at install. " +
+                                "POST_NOTIFICATIONS is a runtime prompt on Android 13+. " +
+                                "POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates. " +
+                                "ISO upload uses the system file picker for a single file " +
+                                "(no all-files or READ_MEDIA permissions; the picker is the file manager, " +
+                                "so Android will not show an all-files toggle). " +
+                                "No analytics, no extra SDK permissions.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
