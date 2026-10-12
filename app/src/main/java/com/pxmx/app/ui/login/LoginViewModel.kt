@@ -650,7 +650,12 @@ class LoginViewModel(
         scanJob?.cancel()
         pingJobs.values.forEach { it.cancel() }
         pingJobs.clear()
-        _ui.update { it.copy(scanState = it.scanState.copy(isScanning = false)) }
+        _ui.update { state ->
+            val stopped = state.scanState.hostPings.mapValues { (_, ping) ->
+                if (ping.running) ping.copy(running = false) else ping
+            }
+            state.copy(scanState = state.scanState.copy(isScanning = false, hostPings = stopped))
+        }
     }
 
     fun clearScanResults() {

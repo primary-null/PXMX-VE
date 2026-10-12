@@ -499,6 +499,7 @@ private class CountingStreamRequestBody(
 ) : okhttp3.RequestBody() {
     override fun contentType(): okhttp3.MediaType? = contentType
     override fun contentLength(): Long = contentLength
+    override fun isOneShot(): Boolean = true
 
     override fun writeTo(sink: okio.BufferedSink) {
         openStream().use { input ->

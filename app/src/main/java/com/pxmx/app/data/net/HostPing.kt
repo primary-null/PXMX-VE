@@ -15,13 +15,16 @@ enum class PingBand {
 
 object HostPingMath {
     const val OUTRAGEOUS_MS = 200L
+    const val GOOD_MS = 40L
+    const val FAIR_MS = 80L
+    const val FILL_FLOOR = 0.05f
 
     fun fillFraction(latencyMs: Long): Float =
-        (latencyMs / OUTRAGEOUS_MS.toFloat()).coerceIn(0.05f, 1f)
+        (latencyMs / OUTRAGEOUS_MS.toFloat()).coerceIn(FILL_FLOOR, 1f)
 
     fun band(latencyMs: Long): PingBand = when {
-        latencyMs < 40L -> PingBand.GOOD
-        latencyMs < 80L -> PingBand.FAIR
+        latencyMs < GOOD_MS -> PingBand.GOOD
+        latencyMs < FAIR_MS -> PingBand.FAIR
         latencyMs < OUTRAGEOUS_MS -> PingBand.SLOW
         else -> PingBand.BAD
     }

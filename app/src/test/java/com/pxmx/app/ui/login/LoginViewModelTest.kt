@@ -518,4 +518,21 @@ class LoginViewModelTest {
         assertTrue(vm.ui.value.scanState.hostPings.isEmpty())
         assertTrue(vm.ui.value.scanState.isScanning)
     }
+
+    @Test
+    fun stopNetworkScan_clearsInFlightPingRunning() = runTest {
+        val vm = LoginViewModel(repository, sessionStore)
+        vm.update { it.copy(host = "demo") }
+        vm.startNetworkScan()
+        testScheduler.advanceUntilIdle()
+
+        vm.pingHost("192.0.2.10", 8006)
+        assertTrue(vm.ui.value.scanState.hostPings["192.0.2.10:8006"]?.running == true)
+
+        vm.stopNetworkScan()
+        val ping = vm.ui.value.scanState.hostPings["192.0.2.10:8006"]
+        assertNotNull(ping)
+        assertFalse("STOP SCAN must not leave the ping plate running", ping!!.running)
+        assertFalse(vm.ui.value.scanState.isScanning)
+    }
 }
