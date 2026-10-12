@@ -63,9 +63,26 @@ class GlowOverscrollTest {
     }
 
     @Test
+    fun geometryWidth_capsLargeContainers() {
+        val containerW = 1380f
+        val maxGeoPx = 440f // 160.dp at 2.75x
+        val geoW = GlowOverscrollMath.geometryWidth(containerW, maxGeoPx)
+        assertEquals(440f, geoW, 1e-3f)
+
+        // Ensure smaller container is uncapped
+        assertEquals(400f, GlowOverscrollMath.geometryWidth(400f, maxGeoPx), 1e-3f)
+
+        // Geometry uses capped geoW, not full containerW
+        val r = GlowOverscrollMath.r(geoW)
+        assertEquals(528f, r, 1e-3f)
+        val capH = GlowOverscrollMath.capH(geoW)
+        assertEquals(70.74f, capH, 0.02f)
+    }
+
+    @Test
     fun pullAlpha_saturationAndAccumulation() {
         assertEquals(0.08f, GlowOverscrollMath.pullAlpha(0f, 0.1f), 1e-3f)
-        assertEquals(0.15f, GlowOverscrollMath.pullAlpha(0f, 0.5f), 1e-3f)
+        assertEquals(0.25f, GlowOverscrollMath.pullAlpha(0f, 0.5f), 1e-3f)
 
         // Repeated pulls saturate and never decrease
         var alpha = 0f
@@ -75,9 +92,9 @@ class GlowOverscrollTest {
         val second = alpha
         assertTrue(second >= first)
         alpha = GlowOverscrollMath.pullAlpha(alpha, 0.5f)
-        assertEquals(0.15f, alpha, 1e-3f)
+        assertEquals(0.25f, alpha, 1e-3f)
         alpha = GlowOverscrollMath.pullAlpha(alpha, 0.1f)
-        assertEquals(0.15f, alpha, 1e-3f)
+        assertEquals(0.25f, alpha, 1e-3f)
     }
 
     @Test
@@ -85,19 +102,20 @@ class GlowOverscrollTest {
         // v=50 clamps to 100, scale finish ≈ 0.0325
         assertEquals(0.0325f, GlowOverscrollMath.absorbScaleFinish(50f), 1e-3f)
 
-        // v=1000: duration 20.15, scale 0.775, alpha 0.09
+        // v=1000: duration 20.15, scale 0.775, alpha 0.15 (GLOW_ALPHA_START floor)
         assertEquals(20.15f, GlowOverscrollMath.absorbDuration(1000f), 1e-3f)
         assertEquals(0.775f, GlowOverscrollMath.absorbScaleFinish(1000f), 1e-3f)
-        assertEquals(0.09f, GlowOverscrollMath.absorbAlphaFinish(1000f), 1e-3f)
+        assertEquals(0.15f, GlowOverscrollMath.absorbAlphaFinish(1000f), 1e-3f)
 
-        // v=2000: alpha 0.12
-        assertEquals(0.12f, GlowOverscrollMath.absorbAlphaFinish(2000f), 1e-3f)
+        // v=2000: alpha 0.15 (floored by GLOW_ALPHA_START)
+        assertEquals(0.15f, GlowOverscrollMath.absorbAlphaFinish(2000f), 1e-3f)
 
-        // v=2500: alpha 0.15 (cap)
+        // v=2500: alpha 0.15
         assertEquals(0.15f, GlowOverscrollMath.absorbAlphaFinish(2500f), 1e-3f)
 
-        // v=5000: scale 1.0
+        // v=5000: scale 1.0, alpha 0.25 (MAX_ALPHA cap)
         assertEquals(1.0f, GlowOverscrollMath.absorbScaleFinish(5000f), 1e-3f)
+        assertEquals(0.25f, GlowOverscrollMath.absorbAlphaFinish(5000f), 1e-3f)
 
         // v=20000 clamps to 10000: duration 200.15
         assertEquals(200.15f, GlowOverscrollMath.absorbDuration(20000f), 1e-3f)
@@ -179,7 +197,7 @@ class GlowOverscrollTest {
         assertEquals(GlowEdgeState.ABSORB, absorbPhysics.state)
         assertEquals(20.15f, absorbPhysics.duration, 1e-3f)
         assertEquals(0.775f, absorbPhysics.scaleFinish, 1e-3f)
-        assertEquals(0.09f, absorbPhysics.alphaFinish, 1e-3f)
+        assertEquals(0.15f, absorbPhysics.alphaFinish, 1e-3f)
 
         // onRelease from ABSORB is a no-op
         absorbPhysics.onRelease(3010L)

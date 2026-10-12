@@ -4,6 +4,9 @@ import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.OverscrollFactory
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -17,9 +20,11 @@ import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutAwareModifierNode
-import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.max
@@ -37,8 +42,9 @@ object GlowOverscrollMath {
     const val SIN: Float = 0.5f
     const val COS: Float = 0.8660254f
     const val RADIUS_FACTOR: Float = 0.6f
-    const val MAX_ALPHA: Float = 0.15f
-    const val GLOW_ALPHA_START: Float = 0.6f * MAX_ALPHA // 0.09f
+    const val MAX_GEOMETRY_WIDTH_DP: Float = 160f
+    const val MAX_ALPHA: Float = 0.25f
+    const val GLOW_ALPHA_START: Float = 0.6f * MAX_ALPHA // 0.15f
     const val PULL_DISTANCE_ALPHA_GLOW_FACTOR: Float = 0.8f
     const val VELOCITY_GLOW_FACTOR: Float = 6f
     const val PULL_TIME: Long = 167L
@@ -49,6 +55,9 @@ object GlowOverscrollMath {
     const val EPSILON: Float = 0.001f
     const val ACTIVE_EPSILON: Float = 0.001f
     const val PULL_GLOW_BEGIN: Float = 0f
+
+    fun geometryWidth(containerWidth: Float, maxGeometryPx: Float): Float =
+        min(containerWidth, maxGeometryPx)
 
     fun r(width: Float): Float = width * RADIUS_FACTOR / SIN
 
@@ -63,7 +72,8 @@ object GlowOverscrollMath {
 
     fun centerY(width: Float, height: Float): Float = boundsH(width, height) - r(width)
 
-    fun clamp(value: Float, minVal: Float = 0f, maxVal: Float = 1f): Float = value.coerceIn(minVal, maxVal)
+    fun clamp(value: Float, minVal: Float = 0f, maxVal: Float = 1f): Float =
+        value.coerceIn(minVal, maxVal)
 
     fun translateX(width: Float, displacement: Float): Float =
         width * (displacement.coerceIn(0f, 1f) - 0.5f) / 2f
@@ -397,6 +407,10 @@ private class GlowDrawModifierNode(
     val currentPointerX: Float
         get() = pointerX ?: if (containerWidth > 0f) containerWidth / 2f else 0f
 
+    val redrawSignal = mutableStateOf(Unit, neverEqualPolicy())
+
+    private var animationJob: Job? = null
+
     var clock: () -> Long = {
         try {
             android.os.SystemClock.uptimeMillis()
@@ -408,6 +422,19 @@ private class GlowDrawModifierNode(
     }
 
     fun now(): Long = clock()
+
+    fun startAnimationPump() {
+        if (!isAttached || animationJob?.isActive == true) return
+        if (topPhysics.isFinished && bottomPhysics.isFinished) return
+
+        animationJob = coroutineScope.launch {
+            while (isAttached && (!topPhysics.isFinished || !bottomPhysics.isFinished)) {
+                withFrameMillis { }
+                redrawSignal.value = Unit
+            }
+            animationJob = null
+        }
+    }
 
     init {
         delegate(
@@ -422,37 +449,53 @@ private class GlowDrawModifierNode(
                         if (change == null || !change.pressed) break
                         pointerX = change.position.x
                     }
+                    // Pointer up: release active glows and start the recede pump
+                    val now = now()
+                    topPhysics.onRelease(now)
+                    bottomPhysics.onRelease(now)
+                    requestRedraw()
                 }
             }
         )
     }
 
-    override fun onRemeasured(size: IntSize) {
-        containerWidth = size.width.toFloat()
-        containerHeight = size.height.toFloat()
-        topPhysics.setSize(containerWidth, containerHeight)
-        bottomPhysics.setSize(containerWidth, containerHeight)
-    }
-
-    fun requestRedraw() {
-        if (isAttached) {
-            invalidateDraw()
+    override fun onAttach() {
+        super.onAttach()
+        if (!topPhysics.isFinished || !bottomPhysics.isFinished) {
+            startAnimationPump()
         }
     }
 
+    override fun onDetach() {
+        super.onDetach()
+        animationJob?.cancel()
+        animationJob = null
+    }
+
+    override fun onRemeasured(size: IntSize) {
+        containerWidth = size.width.toFloat()
+        containerHeight = size.height.toFloat()
+    }
+
+    fun requestRedraw() {
+        redrawSignal.value = Unit
+        startAnimationPump()
+    }
+
     private fun ContentDrawScope.drawTopEdge(
-        w: Float,
+        geoW: Float,
         r: Float,
         boundsH: Float,
         baseGlowScale: Float,
+        centerX: Float,
     ) {
-        val translateX = GlowOverscrollMath.translateX(w, topPhysics.displacement)
-        clipRect(left = 0f, top = 0f, right = w, bottom = boundsH) {
+        val translateX = GlowOverscrollMath.translateX(geoW, topPhysics.displacement)
+        clipRect(left = 0f, top = 0f, right = size.width, bottom = boundsH) {
             withTransform({
                 scale(
                     scaleX = 1f,
                     scaleY = min(topPhysics.glowScaleY, 1f) * baseGlowScale,
-                    pivot = Offset(w / 2f, 0f),
+                    pivot = Offset(centerX, 0f),
                 )
                 translate(left = translateX, top = 0f)
             }) {
@@ -461,7 +504,7 @@ private class GlowDrawModifierNode(
                 drawCircle(
                     color = color.copy(alpha = topPhysics.glowAlpha),
                     radius = r,
-                    center = Offset(w / 2f, boundsH - r),
+                    center = Offset(centerX, boundsH - r),
                     blendMode = BlendMode.SrcOver,
                 )
             }
@@ -469,23 +512,23 @@ private class GlowDrawModifierNode(
     }
 
     private fun ContentDrawScope.drawBottomEdge(
-        w: Float,
-        h: Float,
+        geoW: Float,
         r: Float,
         boundsH: Float,
         baseGlowScale: Float,
+        centerX: Float,
     ) {
-        val translateX = GlowOverscrollMath.translateX(w, bottomPhysics.displacement)
+        val translateX = GlowOverscrollMath.translateX(geoW, bottomPhysics.displacement)
         withTransform({
-            translate(left = 0f, top = h)
+            translate(left = 0f, top = size.height)
             scale(scaleX = 1f, scaleY = -1f, pivot = Offset.Zero)
         }) {
-            clipRect(left = 0f, top = 0f, right = w, bottom = boundsH) {
+            clipRect(left = 0f, top = 0f, right = size.width, bottom = boundsH) {
                 withTransform({
                     scale(
                         scaleX = 1f,
                         scaleY = min(bottomPhysics.glowScaleY, 1f) * baseGlowScale,
-                        pivot = Offset(w / 2f, 0f),
+                        pivot = Offset(centerX, 0f),
                     )
                     translate(left = translateX, top = 0f)
                 }) {
@@ -494,7 +537,7 @@ private class GlowDrawModifierNode(
                     drawCircle(
                         color = color.copy(alpha = bottomPhysics.glowAlpha),
                         radius = r,
-                        center = Offset(w / 2f, boundsH - r),
+                        center = Offset(centerX, boundsH - r),
                         blendMode = BlendMode.SrcOver,
                     )
                 }
@@ -506,8 +549,8 @@ private class GlowDrawModifierNode(
         physics: GlowEdgePhysics,
         now: Long,
         drawEdge: () -> Unit,
-    ): Boolean {
-        if (physics.state == GlowEdgePhysics.State.IDLE) return false
+    ) {
+        if (physics.state == GlowEdgePhysics.State.IDLE) return
 
         physics.update(now)
         if (physics.glowAlpha > 0f && physics.glowScaleY > 0f) {
@@ -516,37 +559,43 @@ private class GlowDrawModifierNode(
         if (physics.state == GlowEdgePhysics.State.RECEDE && physics.glowScaleY == 0f) {
             physics.state = GlowEdgePhysics.State.IDLE
         }
-        return physics.state != GlowEdgePhysics.State.IDLE
     }
 
     override fun ContentDrawScope.draw() {
+        // Read redrawSignal so snapshot changes schedule recomposition/draw
+        @Suppress("UNUSED_VARIABLE")
+        val signal = redrawSignal.value
+
         drawContent()
 
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return
 
-        if (containerWidth != w || containerHeight != h) {
-            containerWidth = w
-            containerHeight = h
-            topPhysics.setSize(w, h)
-            bottomPhysics.setSize(w, h)
-        }
+        containerWidth = w
+        containerHeight = h
+
+        val maxGeoPx = GlowOverscrollMath.MAX_GEOMETRY_WIDTH_DP.dp.toPx()
+        val geoW = GlowOverscrollMath.geometryWidth(w, maxGeoPx)
+
+        topPhysics.setSize(geoW, h)
+        bottomPhysics.setSize(geoW, h)
 
         val now = now()
-        val r = GlowOverscrollMath.r(w)
-        val boundsH = GlowOverscrollMath.boundsH(w, h)
-        val baseGlowScale = GlowOverscrollMath.baseGlowScale(w, h)
+        val r = GlowOverscrollMath.r(geoW)
+        val boundsH = GlowOverscrollMath.boundsH(geoW, h)
+        val baseGlowScale = GlowOverscrollMath.baseGlowScale(geoW, h)
+        val centerX = currentPointerX.coerceIn(0f, w)
 
-        val topInvalidate = updateAndDrawEdge(topPhysics, now) {
-            drawTopEdge(w, r, boundsH, baseGlowScale)
+        updateAndDrawEdge(topPhysics, now) {
+            drawTopEdge(geoW, r, boundsH, baseGlowScale, centerX)
         }
-        val bottomInvalidate = updateAndDrawEdge(bottomPhysics, now) {
-            drawBottomEdge(w, h, r, boundsH, baseGlowScale)
+        updateAndDrawEdge(bottomPhysics, now) {
+            drawBottomEdge(geoW, r, boundsH, baseGlowScale, centerX)
         }
 
-        if (topInvalidate || bottomInvalidate) {
-            invalidateDraw()
+        if (!topPhysics.isFinished || !bottomPhysics.isFinished) {
+            startAnimationPump()
         }
     }
 }
