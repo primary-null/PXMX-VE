@@ -15,7 +15,7 @@ when a host needs hands-on attention.
 | --- | --- |
 | Sign in | Password, API token, or TOTP two-factor. With "Trust self-signed" on, the first connection pins the server's certificate; if it ever changes, the app refuses rather than silently re-accepts. |
 | Saved servers | One profile per server. Only the host and username are stored; passwords and tokens live in encrypted storage keyed by the Android Keystore. Hosts that belong to the same cluster group together after you sign in. |
-| Network discovery | Scan the local network for Proxmox hosts. Results come back as verified, needs your login, or unknown, and tapping one jumps straight into signing in. Ping a found host to see how long it takes as a fill on the row. |
+| Network discovery | Scan the local network for Proxmox hosts. Results come back as verified, needs your login, or unknown, and tapping one jumps straight into signing in. Ping a found host to see how long it takes as a fill on the row. Scan shows a sweep while discovering hosts. |
 | Server check | Test a saved server at any time: online state, version, and latency. |
 | All servers | One screen that probes every saved host and shows what is up. |
 | Open in browser | Jump from any screen to the matching page in the web UI. |
@@ -26,7 +26,7 @@ when a host needs hands-on attention.
 | --- | --- |
 | Home | Guests, nodes, and storage at a glance, with the newest cluster events pinned below. |
 | Nodes | Per-node status: CPU, memory, and disk fills, hour or day history, plus confirmed reboot or shutdown of the hypervisor. |
-| Storage | Usage fills across all your datastores. On a store that accepts ISO images, upload an ISO from the system file picker. |
+| Storage | Usage fills across all your datastores. On a store that accepts ISO images, upload an ISO from the system file picker. ISO upload uses the system picker as the file manager with no all-files grant. |
 | Guests | Power actions (start, stop, reboot, suspend, resume, reset), auto-start, hour or day history, guest firewall inspector on VM/container detail, guest network plates (live IPs, addressing, NIC firewall and link toggles), and a deploy-from-template dialog. Guest names sit next to a status lamp, in readable type. |
 | Backups | Start and delete backups from the guest menu. |
 | Updates | Refresh package lists and apply updates with a live, step-by-step progress view. On Proxmox VE 9, where the API no longer allows remote installs, the app walks you to the node shell command instead. |
@@ -40,7 +40,7 @@ when a host needs hands-on attention.
 | First-run tour | A short walkthrough of the main screens the first time the app opens. |
 | Demo mode | Explore the whole interface on canned sample data, clearly labeled, with no server and no network involved. |
 | Clean slate | A deliberate, held-down wipe that removes everything the app has stored, for when the phone changes hands. |
-| Look | Light and dark theme, following the system by default. The splash screen uses the PXMX mark. |
+| Look | Light and dark theme, following the system by default. The splash screen uses the PXMX mark. Lists glow orange when you reach the end. |
 
 ## Screenshots
 
