@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Storage
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,7 +53,6 @@ import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechDeck
-import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -167,13 +165,6 @@ fun StorageDetailScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 14.dp),
                         ) {
-                            TechIconBay(
-                                icon = Icons.Default.Storage,
-                                accent = MaterialTheme.colorScheme.primary,
-                                size = 48.dp,
-                                iconSize = 28.dp,
-                            )
-                            Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     state.storage.uppercase(),

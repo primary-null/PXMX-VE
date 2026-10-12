@@ -102,7 +102,6 @@ import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
-import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechStatusPlate
@@ -1051,7 +1050,6 @@ fun ResourceCard(
     }
     val isGuest = resource.isGuest
     val showQuick = isGuest && resource.template != 1
-    val accent = iconTint(resource, iconStyle.accent)
     val railColor by animateColorAsState(
         targetValue = when {
             busy -> TechColors.LinkGreen.copy(alpha = 0.55f)
@@ -1138,16 +1136,6 @@ fun ResourceCard(
                         )
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                 ) {
-                    if (!isGuest) {
-                        TechIconBay(
-                            icon = iconStyle.icon,
-                            accent = accent,
-                            contentDescription = iconStyle.label,
-                            size = 36.dp,
-                            iconSize = 22.dp,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             lampForResource(resource, busy, thresholds)?.let { lamp ->
@@ -1524,17 +1512,6 @@ private fun GuestQuickActions(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun iconTint(resource: ClusterResource, accent: Color): Color {
-    return when (resource.status?.lowercase()) {
-        "running", "online", "available" -> accent
-        "paused", "suspended", "frozen", "prelaunch" -> Color(0xFFFF9800)
-        "stopped", "offline", "disabled" -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-        "unknown" -> MaterialTheme.colorScheme.error
-        else -> accent.copy(alpha = 0.75f)
     }
 }
 

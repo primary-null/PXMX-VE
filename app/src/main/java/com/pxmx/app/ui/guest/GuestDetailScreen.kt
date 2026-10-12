@@ -36,20 +36,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.Cable
-import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.AlertDialog
@@ -433,7 +426,6 @@ fun GuestDetailScreen(
                 ExpandableSection(
                     title = GuestSection.HARDWARE.title,
                     subtitle = "${disks.size} disk(s) · CPU ${cfg?.vcpus ?: "—"} · ${formatMemoryMiB(cfg?.memory)}",
-                    icon = Icons.Default.Memory,
                     expanded = state.expanded == GuestSection.HARDWARE,
                     onToggle = { viewModel.toggleSection(GuestSection.HARDWARE) },
                 ) {
@@ -447,7 +439,6 @@ fun GuestDetailScreen(
                 ExpandableSection(
                     title = GuestSection.NETWORK.title,
                     subtitle = "${nets.size} NIC(s) · ${usbs.size} USB · ${cfg?.pcis?.size ?: 0} PCI",
-                    icon = Icons.Default.Cable,
                     expanded = state.expanded == GuestSection.NETWORK,
                     onToggle = { viewModel.toggleSection(GuestSection.NETWORK) },
                 ) {
@@ -480,7 +471,6 @@ fun GuestDetailScreen(
                 ExpandableSection(
                     title = GuestSection.FIREWALL.title,
                     subtitle = subtitle,
-                    icon = Icons.Default.Security,
                     expanded = state.expanded == GuestSection.FIREWALL,
                     onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
                 ) {
@@ -496,7 +486,6 @@ fun GuestDetailScreen(
                     title = GuestSection.OPTIONS.title,
                     subtitle = listOfNotNull(cfg?.ostype, cfg?.machine, cfg?.bios).joinToString(" · ")
                         .ifBlank { "Boot, OS, machine" },
-                    icon = Icons.Default.Settings,
                     expanded = state.expanded == GuestSection.OPTIONS,
                     onToggle = { viewModel.toggleSection(GuestSection.OPTIONS) },
                 ) {
@@ -509,7 +498,6 @@ fun GuestDetailScreen(
                 ExpandableSection(
                     title = GuestSection.SNAPSHOTS.title,
                     subtitle = if (snapCount == 0) "No snapshots" else "$snapCount snapshot(s)",
-                    icon = Icons.Default.Camera,
                     expanded = state.expanded == GuestSection.SNAPSHOTS,
                     onToggle = { viewModel.toggleSection(GuestSection.SNAPSHOTS) },
                     trailing = {
@@ -539,7 +527,6 @@ fun GuestDetailScreen(
                         state.backups.isEmpty() -> "No backups yet"
                         else -> "${state.backups.size} backup(s)"
                     },
-                    icon = Icons.Default.Backup,
                     expanded = state.expanded == GuestSection.BACKUPS,
                     onToggle = { viewModel.toggleSection(GuestSection.BACKUPS) },
                     trailing = {
@@ -564,7 +551,6 @@ fun GuestDetailScreen(
                 ExpandableSection(
                     title = GuestSection.RAW.title,
                     subtitle = "${cfg?.raw?.size ?: 0} keys",
-                    icon = Icons.Default.Code,
                     expanded = state.expanded == GuestSection.RAW,
                     onToggle = { viewModel.toggleSection(GuestSection.RAW) },
                 ) {

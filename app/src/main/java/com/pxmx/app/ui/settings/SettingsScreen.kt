@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Info
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -65,7 +64,6 @@ import com.pxmx.app.data.model.NotificationPrefs
 import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.ThemeMode
 import com.pxmx.app.ui.components.TechColors
-import com.pxmx.app.ui.components.TechIconBay
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -229,13 +227,6 @@ fun SettingsScreen(
                 TechPlate(railColor = TechColors.Edge) {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            TechIconBay(
-                                icon = Icons.Default.Info,
-                                accent = MaterialTheme.colorScheme.primary,
-                                size = 36.dp,
-                                iconSize = 20.dp,
-                            )
-                            Spacer(Modifier.width(10.dp))
                             Column {
                                 Text(
                                     "CONNECTED",
