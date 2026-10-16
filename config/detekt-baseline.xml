@@ -8,12 +8,15 @@
     <ID>ComplexCondition:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher.Companion$!ide2.isNullOrBlank() &amp;&amp; ide2 != "none" &amp;&amp; (ide2.contains(".iso") || ide2.contains(":iso/"))</ID>
     <ID>ComplexCondition:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher.Companion$!sata0.isNullOrBlank() &amp;&amp; sata0 != "none" &amp;&amp; (sata0.contains(".iso") || sata0.contains(":iso/"))</ID>
     <ID>ComplexCondition:ConsoleHelpers.kt$ConsoleMimeUtils$!name.equals("Content-Encoding", ignoreCase = true) &amp;&amp; !name.equals("Content-Length", ignoreCase = true) &amp;&amp; !name.equals("Transfer-Encoding", ignoreCase = true) &amp;&amp; !name.equals("Content-Type", ignoreCase = true)</ID>
+    <ID>ComplexCondition:ConsoleScreen.kt$(!isDisposed[0] || acceptLastStill[0]) &amp;&amp; !result.isNullOrBlank() &amp;&amp; result != "null"</ID>
     <ID>ComplexCondition:DexDashboardScreen.kt$res.node != null &amp;&amp; res.type != null &amp;&amp; res.vmid != null &amp;&amp; res.name != null</ID>
     <ID>ComplexCondition:Format.kt$disk == null || disk &lt;= 0L || maxdisk == null || maxdisk &lt;= 0L</ID>
     <ID>ComplexCondition:GuestConfigParser.kt$GuestConfigParser$head.contains('=') &amp;&amp; !head.contains(':') &amp;&amp; !head.contains('/') &amp;&amp; !head.startsWith("name=")</ID>
     <ID>ComplexCondition:GuestConfigParser.kt$GuestConfigParser$k in secretKeys || k.contains("password") || k.contains("secret") || k.contains("token")</ID>
+    <ID>ComplexCondition:GuestDetailScreen.kt$logState.lastS != s || logState.lastT != t || logState.lastE != e || logState.lastM != m || logState.lastC != c || logState.lastMax != constraints.maxWidth || logState.lastPath != path</ID>
     <ID>ComplexCondition:LoginScreen.kt$scan.isComplete &amp;&amp; scan.discoveredHosts.isEmpty() &amp;&amp; scan.unverifiedHosts.isEmpty() &amp;&amp; scan.pveDetectedHosts.isEmpty() &amp;&amp; scan.error == null</ID>
     <ID>ComplexCondition:LoginScreen.kt$scan.isScanning || scan.discoveredHosts.isNotEmpty() || scan.pveDetectedHosts.isNotEmpty() || scan.unverifiedHosts.isNotEmpty() || scan.error != null || scan.infoMessage != null || (scan.isComplete &amp;&amp; scan.discoveredHosts.isEmpty() &amp;&amp; scan.unverifiedHosts.isEmpty() &amp;&amp; scan.pveDetectedHosts.isEmpty())</ID>
+    <ID>ComplexCondition:OpsBoardStore.kt$OpsBoard$idx &lt; 0 || idx &gt;= clipOrder.size - 2 || clipId == "VITALS" || clipId == "RAW"</ID>
     <ID>ComplexCondition:SdnScreen.kt$state.loading &amp;&amp; state.zones.isEmpty() &amp;&amp; state.vnets.isEmpty() &amp;&amp; state.statuses.isEmpty() &amp;&amp; state.error == null</ID>
     <ID>ComplexCondition:SshCredentialPolicy.kt$SshCredentialPolicy$config.authMode != AuthMode.PASSWORD || session.ticket.isNullOrBlank() || session.username != "root@pam" || PveClient.normalizeUsername(config.username, config.realm) != "root@pam"</ID>
     <ID>ComplexCondition:StorageRepository.kt$StorageRepository.Companion$trimmed.isEmpty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..")</ID>
@@ -31,6 +34,9 @@
     <ID>CyclomaticComplexMethod:DexDashboardScreen.kt$@Composable fun DexDashboardScreen( viewModel: HomeViewModel, selectedDetail: DetailPaneSelection?, onSelectDetail: (DetailPaneSelection?) -&gt; Unit, onOpenSettings: () -&gt; Unit, onOpenLampSettings: () -&gt; Unit = {}, onOpenServers: () -&gt; Unit, onSwitchAccount: () -&gt; Unit, onOpenLogs: () -&gt; Unit, detailPaneContent: @Composable (DetailPaneSelection) -&gt; Unit, consolePaneContent: @Composable (DetailPaneSelection) -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:FirewallScreen.kt$@Composable private fun RuleCard(rule: FirewallRule)</ID>
     <ID>CyclomaticComplexMethod:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
+    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming", "LongMethod") private fun BezelHugRow( state: GuestDetailUiState, viewModel: GuestDetailViewModel, listState: LazyListState, keysInLazyColumn: List&lt;String&gt;, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
+    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable @Suppress("FunctionNaming") private fun WeakTab( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:GuestNetworkHelper.kt$GuestNetworkHelper$fun parseAgentInterfaces(data: JsonElement?): List&lt;GuestLiveInterface&gt;</ID>
     <ID>CyclomaticComplexMethod:GuestNetworkHelper.kt$GuestNetworkHelper$fun parseLxcInterfaces(data: JsonElement?): List&lt;GuestLiveInterface&gt;</ID>
@@ -57,6 +63,7 @@
     <ID>CyclomaticComplexMethod:NodeDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NodeDetailScreen( viewModel: NodeDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: (String?) -&gt; Unit, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:NodeRepository.kt$NodeRepository$suspend fun nodeSyslog( node: String, start: Int? = null, limit: Int? = 50, ): Result&lt;List&lt;ClusterLogEntry&gt;&gt;</ID>
     <ID>CyclomaticComplexMethod:NodeSshTarget.kt$NodeReportedAddress$fun contains(targetIp: String): Boolean</ID>
+    <ID>CyclomaticComplexMethod:OpsBoardStore.kt$fun computeAppliedClips(board: OpsBoard, isTourActive: Boolean = isTourActiveNow()): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:OptionsSection.kt$@Composable fun OptionsBody(cfg: ParsedGuestConfig?)</ID>
     <ID>CyclomaticComplexMethod:PveClient.kt$PveClient$fun mapError(e: Exception): Exception</ID>
     <ID>CyclomaticComplexMethod:PveClient.kt$PveClient$private suspend fun &lt;T&gt; executeCall( getApi: (SessionSnapshot) -&gt; ProxmoxApi, block: suspend (ProxmoxApi) -&gt; T, ): Result&lt;T&gt;</ID>
@@ -125,11 +132,10 @@
     <ID>FunctionNaming:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:FirewallSection.kt$@Composable fun FirewallBody( snapshot: FirewallSnapshot?, error: String? = null, )</ID>
     <ID>FunctionNaming:FirewallSection.kt$@Composable private fun RuleSummaryRow(rule: FirewallRule)</ID>
-    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun ActionLabel(action: GuestAction, loading: Boolean)</ID>
+    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun HeroCard( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun LinearBusy()</ID>
-    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun PowerCard( running: Boolean, status: String?, busy: Boolean, actionInProgress: String?, guestType: GuestType, onPower: (GuestAction) -&gt; Unit, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, onOpenPowerMenu: () -&gt; Unit = {}, )</ID>
-    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun WeakTab( label: String, selected: Boolean, onClick: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun TechActionIcon( icon: ImageVector, contentDescription: String?, onClick: () -&gt; Unit, modifier: Modifier = Modifier, enabled: Boolean = true, tint: Color = MaterialTheme.colorScheme.primary, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>FunctionNaming:HardwareSection.kt$@Composable fun HardwareBody(cfg: ParsedGuestConfig?)</ID>
     <ID>FunctionNaming:HardwareSection.kt$@Composable private fun MiniDisk(disk: ConfigDisk)</ID>
@@ -210,15 +216,14 @@
     <ID>FunctionNaming:TechHistoryGraph.kt$@Composable fun TechHistoryGraph( points: List&lt;RrdPoint&gt;, isGuest: Boolean, modifier: Modifier = Modifier, timeframe: HistoryTimeframe = HistoryTimeframe.HOUR, onTimeframe: ((HistoryTimeframe) -&gt; Unit)? = null, )</ID>
     <ID>FunctionNaming:TechHistoryGraph.kt$@Composable private fun HistoryCanvas( points: List&lt;RrdPoint&gt;, row: HistoryRowId, isGuest: Boolean, lineColor: Color, scrubIndex: Int?, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:TechHistoryGraph.kt$@Composable private fun HistorySparkRow( row: HistoryRowId, points: List&lt;RrdPoint&gt;, isGuest: Boolean, expanded: Boolean, scrubIndex: Int?, onSelect: () -&gt; Unit, onScrub: (Int?) -&gt; Unit, )</ID>
-    <ID>FunctionNaming:TechPlate.kt$@Composable fun GuestIdentityBay( callsign: String, kindIcon: ImageVector, accent: Color, modifier: Modifier = Modifier, contentDescription: String? = null, size: Dp = 44.dp, pipSize: Dp = 11.dp, )</ID>
-    <ID>FunctionNaming:TechPlate.kt$@Composable fun TechActionPlate( label: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier, emphasized: Boolean = false, icon: ImageVector? = null, )</ID>
+    <ID>FunctionNaming:TechPlate.kt$@Composable fun TechActionPlate( label: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier, emphasized: Boolean = false, enabled: Boolean = true, icon: ImageVector? = null, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechDeck( modifier: Modifier = Modifier, showAccentBar: Boolean = true, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechDropdownMenu( expanded: Boolean, onDismissRequest: () -&gt; Unit, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechIconBay( icon: ImageVector, accent: Color, contentDescription: String? = null, size: Dp = 44.dp, iconSize: Dp = 26.dp, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechMenuHeader(text: String)</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechMenuItem( label: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier, hint: String? = null, selected: Boolean = false, danger: Boolean = false, enabled: Boolean = true, leadingIcon: ImageVector? = null, trailing: @Composable (() -&gt; Unit)? = null, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechMetaLine(label: String, value: String)</ID>
-    <ID>FunctionNaming:TechPlate.kt$@Composable fun TechPlate( modifier: Modifier = Modifier, railColor: Color = TechColors.Amber, showRail: Boolean = true, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
+    <ID>FunctionNaming:TechPlate.kt$@Composable fun TechPlate( modifier: Modifier = Modifier, railColor: Color = TechColors.Amber, showRail: Boolean = true, fillMaxWidth: Boolean = true, testTag: String? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechSectionLabel( title: String, count: Int? = null, accent: Color = TechColors.Amber, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechStatusPlate(status: String?)</ID>
     <ID>FunctionNaming:Theme.kt$@Composable fun ProxmoxTheme( themeMode: ThemeMode = ThemeMode.OLED_DARK, content: @Composable () -&gt; Unit, )</ID>
@@ -245,6 +250,7 @@
     <ID>InstanceOfCheckForException:SshUpgradeExecutor.kt$SshUpgradeExecutor$e is PveException</ID>
     <ID>InstanceOfCheckForException:StorageRepository.kt$StorageRepository$e is CancellationException</ID>
     <ID>LargeClass:DemoApi.kt$DemoApi : ProxmoxApi</ID>
+    <ID>LargeClass:GuestDetailViewModel.kt$GuestDetailViewModel : ViewModel</ID>
     <ID>LargeClass:LoginViewModel.kt$LoginViewModel : ViewModel</ID>
     <ID>LargeClass:UpdatesViewModel.kt$UpdatesViewModel : ViewModel</ID>
     <ID>LongMethod:AdaptiveDialog.kt$@Composable fun AdaptiveAlertDialog( onDismissRequest: () -&gt; Unit, confirmButton: @Composable () -&gt; Unit, modifier: Modifier = Modifier, dismissButton: @Composable (() -&gt; Unit)? = null, icon: @Composable (() -&gt; Unit)? = null, title: @Composable (() -&gt; Unit)? = null, text: @Composable (() -&gt; Unit)? = null, shape: Shape = TechPlateShape, containerColor: Color = TechColors.Hull, iconContentColor: Color = LocalContentColor.current, titleContentColor: Color = MaterialTheme.colorScheme.onSurface, textContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant, tonalElevation: Dp = AlertDialogDefaults.TonalElevation, targetPane: DialogPane = LocalDialogPane.current, primaryPaneWidth: Dp = LocalPrimaryPaneWidth.current, )</ID>
@@ -265,8 +271,10 @@
     <ID>LongMethod:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:FirewallSection.kt$@Composable fun FirewallBody( snapshot: FirewallSnapshot?, error: String? = null, )</ID>
     <ID>LongMethod:FirewallViewModel.kt$FirewallViewModel$fun setFirewallEnabled(enable: Boolean): Job?</ID>
+    <ID>LongMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming") private fun ConsoleCard( running: Boolean, busy: Boolean, guestType: GuestType, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, still: ConsoleStill? = null, )</ID>
+    <ID>LongMethod:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@Composable private fun HeroCard( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
-    <ID>LongMethod:GuestDetailScreen.kt$@Composable private fun PowerCard( running: Boolean, status: String?, busy: Boolean, actionInProgress: String?, guestType: GuestType, onPower: (GuestAction) -&gt; Unit, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, onOpenPowerMenu: () -&gt; Unit = {}, )</ID>
+    <ID>LongMethod:GuestDetailScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable @Suppress("FunctionNaming") private fun GuestSectionPlate( title: String, subtitle: String? = null, expanded: Boolean = false, onToggle: () -&gt; Unit = {}, showPin: Boolean = false, isPinned: Boolean = false, onTogglePin: () -&gt; Unit = {}, testTag: String? = null, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable () -&gt; Unit, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>LongMethod:HomeScreen.kt$@Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), )</ID>
     <ID>LongMethod:HomeScreen.kt$@Composable private fun GuestQuickActions( resource: ClusterResource, busy: Boolean, onPowerToggle: (Boolean) -&gt; Unit, onGuestAction: (GuestAction) -&gt; Unit, onReboot: () -&gt; Unit, onOnbootToggle: (Boolean) -&gt; Unit, )</ID>
@@ -341,9 +349,15 @@
     <ID>LongParameterList:DeployDialog.kt$( templates: List&lt;ClusterResource&gt;, maxVmid: Long, deploying: Boolean, error: String? = null, onDismiss: () -&gt; Unit, onConfirm: (source: ClusterResource, newId: Long, name: String) -&gt; Unit, )</ID>
     <ID>LongParameterList:DexDashboardScreen.kt$( viewModel: HomeViewModel, selectedDetail: DetailPaneSelection?, onSelectDetail: (DetailPaneSelection?) -&gt; Unit, onOpenSettings: () -&gt; Unit, onOpenLampSettings: () -&gt; Unit = {}, onOpenServers: () -&gt; Unit, onSwitchAccount: () -&gt; Unit, onOpenLogs: () -&gt; Unit, detailPaneContent: @Composable (DetailPaneSelection) -&gt; Unit, consolePaneContent: @Composable (DetailPaneSelection) -&gt; Unit, )</ID>
     <ID>LongParameterList:ExpandableSection.kt$( title: String, subtitle: String? = null, icon: ImageVector? = null, expanded: Boolean, onToggle: () -&gt; Unit, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( icon: ImageVector, contentDescription: String?, onClick: () -&gt; Unit, modifier: Modifier = Modifier, enabled: Boolean = true, tint: Color = MaterialTheme.colorScheme.primary, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
-    <ID>LongParameterList:GuestDetailScreen.kt$( running: Boolean, status: String?, busy: Boolean, actionInProgress: String?, guestType: GuestType, onPower: (GuestAction) -&gt; Unit, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, onOpenPowerMenu: () -&gt; Unit = {}, )</ID>
-    <ID>LongParameterList:GuestDetailViewModel.kt$GuestDetailViewModel$( private val guestRepo: GuestRepository, private val storageRepo: StorageRepository, private val nodeRepo: NodeRepository, private val networkRepo: NetworkRepository, private val sessionStore: SessionStore, private val recentActionRegistry: RecentActionRegistry, private val context: Context, clusterLogCache: StateFlow&lt;List&lt;ClusterLogEntry&gt;&gt;, activeAptTask: StateFlow&lt;ActiveAptTask?&gt;, activeAptLogLine: StateFlow&lt;ClusterLogEntry?&gt;, isUpdatesScreenActive: StateFlow&lt;Boolean&gt;, node: String, guestType: GuestType, vmid: Long, name: String, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( running: Boolean, busy: Boolean, guestType: GuestType, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, still: ConsoleStill? = null, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( title: String, subtitle: String? = null, expanded: Boolean = false, onToggle: () -&gt; Unit = {}, showPin: Boolean = false, isPinned: Boolean = false, onTogglePin: () -&gt; Unit = {}, testTag: String? = null, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable () -&gt; Unit, )</ID>
+    <ID>LongParameterList:GuestDetailViewModel.kt$GuestDetailViewModel$( private val guestRepo: GuestRepository, private val storageRepo: StorageRepository, private val nodeRepo: NodeRepository, private val networkRepo: NetworkRepository, private val sessionStore: SessionStore, private val recentActionRegistry: RecentActionRegistry, private val context: Context, clusterLogCache: StateFlow&lt;List&lt;ClusterLogEntry&gt;&gt;, activeAptTask: StateFlow&lt;ActiveAptTask?&gt;, activeAptLogLine: StateFlow&lt;ClusterLogEntry?&gt;, isUpdatesScreenActive: StateFlow&lt;Boolean&gt;, val node: String, val guestType: GuestType, val vmid: Long, val name: String, private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context), )</ID>
+    <ID>LongParameterList:GuestDetailViewModel.kt$GuestDetailViewModel$( repository: ProxmoxRepository, node: String, guestType: GuestType, vmid: Long, name: String, context: Context = repository.appContext, opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context), )</ID>
+    <ID>LongParameterList:GuestDetailViewModel.kt$GuestDetailViewModel.Factory$( private val repository: ProxmoxRepository, private val node: String, private val guestType: GuestType, private val vmid: Long, private val name: String, private val context: Context = repository.appContext, private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context), )</ID>
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, guestType: GuestType, vmid: Long, name: String, description: String? = null, includeRam: Boolean = false, )</ID>
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, guestType: GuestType, vmid: Long, net: ConfigNet, toggleFirewall: Boolean = false, toggleLinkDown: Boolean = false, )</ID>
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, type: GuestType, vmid: Long, name: String, storage: String, ostemplate: String? = null, diskSizeG: Int = 32, )</ID>
@@ -386,9 +400,10 @@
     <ID>LongParameterList:TechHistoryGraph.kt$( points: List&lt;RrdPoint&gt;, row: HistoryRowId, isGuest: Boolean, lineColor: Color, scrubIndex: Int?, modifier: Modifier = Modifier, )</ID>
     <ID>LongParameterList:TechHistoryGraph.kt$( points: List&lt;RrdPoint&gt;, upColor: Color, downColor: Color, axisColor: Color, up: (RrdPoint) -&gt; Double?, down: (RrdPoint) -&gt; Double?, )</ID>
     <ID>LongParameterList:TechHistoryGraph.kt$( row: HistoryRowId, points: List&lt;RrdPoint&gt;, isGuest: Boolean, expanded: Boolean, scrubIndex: Int?, onSelect: () -&gt; Unit, onScrub: (Int?) -&gt; Unit, )</ID>
-    <ID>LongParameterList:TechPlate.kt$( callsign: String, kindIcon: ImageVector, accent: Color, modifier: Modifier = Modifier, contentDescription: String? = null, size: Dp = 44.dp, pipSize: Dp = 11.dp, )</ID>
     <ID>LongParameterList:TechPlate.kt$( icon: ImageVector, accent: Color, contentDescription: String? = null, size: Dp = 44.dp, iconSize: Dp = 26.dp, modifier: Modifier = Modifier, )</ID>
+    <ID>LongParameterList:TechPlate.kt$( label: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier, emphasized: Boolean = false, enabled: Boolean = true, icon: ImageVector? = null, )</ID>
     <ID>LongParameterList:TechPlate.kt$( label: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier, hint: String? = null, selected: Boolean = false, danger: Boolean = false, enabled: Boolean = true, leadingIcon: ImageVector? = null, trailing: @Composable (() -&gt; Unit)? = null, )</ID>
+    <ID>LongParameterList:TechPlate.kt$( modifier: Modifier = Modifier, railColor: Color = TechColors.Amber, showRail: Boolean = true, fillMaxWidth: Boolean = true, testTag: String? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>LongParameterList:UpdatesScreen.kt$( snap: NodeUpdateSnapshot, progress: NodeRefreshProgress?, nodeStatus: NodeStatus?, serverHost: String, pveVersion: String, isRemoteUpgradeRemoved: Boolean = false, sshAvailability: SshUpgradeAvailability = SshUpgradeAvailability.AVAILABLE, anyJobActive: Boolean, onRefreshApt: () -&gt; Unit, onInstallUpdates: () -&gt; Unit, onInstallViaSsh: () -&gt; Unit = {}, onOpenNodeShell: () -&gt; Unit = {}, onClick: () -&gt; Unit, onDismiss: () -&gt; Unit, )</ID>
     <ID>LoopWithTooManyJumpStatements:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$for</ID>
     <ID>LoopWithTooManyJumpStatements:GuestNetworkHelper.kt$GuestNetworkHelper$for</ID>
@@ -408,6 +423,9 @@
     <ID>MagicNumber:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$5</ID>
     <ID>MagicNumber:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$6</ID>
     <ID>MagicNumber:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher.Companion$33</ID>
+    <ID>MagicNumber:ConsoleHelpers.kt$ConsoleStillRejector$0xFF</ID>
+    <ID>MagicNumber:ConsoleHelpers.kt$ConsoleStillRejector$16</ID>
+    <ID>MagicNumber:ConsoleHelpers.kt$ConsoleStillRejector$8</ID>
     <ID>MagicNumber:ConsoleHttpBridge.kt$ConsoleHttpBridge$403</ID>
     <ID>MagicNumber:ConsoleHttpBridge.kt$ConsoleHttpBridge$429</ID>
     <ID>MagicNumber:ConsoleHttpBridge.kt$ConsoleHttpBridge$8</ID>
@@ -418,11 +436,16 @@
     <ID>MagicNumber:ConsoleHttpBridge.kt$ConsoleHttpBridge.&lt;no name provided&gt;$502</ID>
     <ID>MagicNumber:ConsoleScreen.kt$0.05f</ID>
     <ID>MagicNumber:ConsoleScreen.kt$200</ID>
+    <ID>MagicNumber:ConsoleScreen.kt$2500L</ID>
     <ID>MagicNumber:ConsoleScreen.kt$299</ID>
     <ID>MagicNumber:ConsoleScreen.kt$400</ID>
     <ID>MagicNumber:ConsoleScreen.kt$&lt;no name provided&gt;$100</ID>
     <ID>MagicNumber:ConsoleScreen.kt$&lt;no name provided&gt;$100f</ID>
     <ID>MagicNumber:ConsoleScreen.kt$&lt;no name provided&gt;$400</ID>
+    <ID>MagicNumber:ConsoleStillStore.kt$ConsoleStill$1000L</ID>
+    <ID>MagicNumber:ConsoleStillStore.kt$ConsoleStill$3600</ID>
+    <ID>MagicNumber:ConsoleStillStore.kt$ConsoleStill$60</ID>
+    <ID>MagicNumber:ConsoleStillStore.kt$ConsoleStill$86400</ID>
     <ID>MagicNumber:ConsoleTls.kt$20</ID>
     <ID>MagicNumber:ConsoleTls.kt$60</ID>
     <ID>MagicNumber:ConsoleTransport.kt$ConsoleTransport$200</ID>
@@ -573,14 +596,12 @@
     <ID>MagicNumber:Format.kt$7</ID>
     <ID>MagicNumber:Format.kt$86_400_000</ID>
     <ID>MagicNumber:Format.kt$86_400_000L</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$10</ID>
+    <ID>MagicNumber:GuestDetailScreen.kt$0.5f</ID>
     <ID>MagicNumber:GuestDetailScreen.kt$100</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$4</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$5</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$6</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$7</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$8</ID>
-    <ID>MagicNumber:GuestDetailScreen.kt$9</ID>
+    <ID>MagicNumber:GuestDetailScreen.kt$10f</ID>
+    <ID>MagicNumber:GuestDetailScreen.kt$16f</ID>
+    <ID>MagicNumber:GuestDetailScreen.kt$220</ID>
+    <ID>MagicNumber:GuestDetailViewModel.kt$GuestDetailViewModel$4</ID>
     <ID>MagicNumber:GuestDetailViewModel.kt$GuestDetailViewModel$5_000</ID>
     <ID>MagicNumber:GuestDetailViewModel.kt$GuestDetailViewModel$8_000L</ID>
     <ID>MagicNumber:GuestExtras.kt$HostUsbDevice$9</ID>
@@ -672,11 +693,6 @@
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$6</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$8_000L</ID>
     <ID>MagicNumber:HostPing.kt$HostPing$1_000_000L</ID>
-    <ID>MagicNumber:HostPing.kt$HostPingMath$0.08f</ID>
-    <ID>MagicNumber:HostPing.kt$HostPingMath$250L</ID>
-    <ID>MagicNumber:HostPing.kt$HostPingMath$800L</ID>
-    <ID>MagicNumber:HostPing.kt$HostPingMath$800f</ID>
-    <ID>MagicNumber:HostPing.kt$HostPingMath$80L</ID>
     <ID>MagicNumber:LocalNet.kt$LocalNet$0xFFFFFFFFL</ID>
     <ID>MagicNumber:LocalNet.kt$LocalNet$10</ID>
     <ID>MagicNumber:LocalNet.kt$LocalNet$127</ID>
@@ -745,6 +761,9 @@
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$128</ID>
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$32</ID>
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$8</ID>
+    <ID>MagicNumber:OpsBoardStore.kt$InMemoryOpsBoardStore$200</ID>
+    <ID>MagicNumber:OpsBoardStore.kt$OpsBoard$4</ID>
+    <ID>MagicNumber:OpsBoardStore.kt$RealOpsBoardStore$200</ID>
     <ID>MagicNumber:OpsModels.kt$8006</ID>
     <ID>MagicNumber:OptionsSection.kt$12</ID>
     <ID>MagicNumber:PingFillBar.kt$800</ID>
@@ -899,7 +918,6 @@
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$5</ID>
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$6</ID>
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$7</ID>
-    <ID>MatchingDeclarationName:ConsoleHelpers.kt$ConsoleMimeUtils</ID>
     <ID>MatchingDeclarationName:HistorySeries.kt$HistoryRowId</ID>
     <ID>MatchingDeclarationName:NavGraph.kt$Routes</ID>
     <ID>MatchingDeclarationName:NodeSshTarget.kt$NodeReportedAddress</ID>
@@ -936,6 +954,8 @@
     <ID>MaxLineLength:ConsoleHelpers.kt$ConsoleMimeUtils$path.endsWith(".html", ignoreCase = true) || path.endsWith(".htm", ignoreCase = true) -&gt; return "text/html"</ID>
     <ID>MaxLineLength:ConsoleHelpers.kt$ConsoleMimeUtils$path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -&gt; return "image/jpeg"</ID>
     <ID>MaxLineLength:ConsoleHelpersTest.kt$ConsoleHelpersTest$assertEquals("\"\\\"quotes\\\" and \\\\ backslash\"", ConsoleMimeUtils.escapeJsString("\"quotes\" and \\ backslash"))</ID>
+    <ID>MaxLineLength:ConsoleHelpersTest.kt$ConsoleHelpersTest$assertFalse("Varied terminal/desktop pixels must be accepted", ConsoleStillRejector.isUniformOrBlack(10, 10, variedPixels))</ID>
+    <ID>MaxLineLength:ConsoleHelpersTest.kt$ConsoleHelpersTest$assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes/pve1/vncwebsocket?port=5900&amp;vncticket=XYZ"))</ID>
     <ID>MaxLineLength:ConsoleHttpBridge.kt$ConsoleHttpBridge.&lt;no name provided&gt;$ConsoleHttpResponse(it.code, it.message, it.header("Content-Type").orEmpty(), it.body?.string().orEmpty())</ID>
     <ID>MaxLineLength:ConsoleHttpBridgeTest.kt$ConsoleHttpBridgeTest$LocalConsoleTlsServer("localhost", "HTTP/1.1 307 Temporary Redirect\r\nLocation: /api2/json/nodes/pve/qemu/100/status/stop\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")</ID>
     <ID>MaxLineLength:ConsoleHttpBridgeTest.kt$ConsoleHttpBridgeTest$assertNotNull(nodeShell.newConsoleApiCall("$base/api2/json/nodes/pve/vncshell", "POST", formType, "test-csrf", ""))</ID>
@@ -1052,13 +1072,33 @@
     <ID>MaxLineLength:FirewallScreen.kt$"Warning: Without an ACCEPT rule for 8006, this PUT can drop the API and block management traffic. Ensure management access rules are in place before enabling."</ID>
     <ID>MaxLineLength:FirewallScreen.kt$border = androidx.compose.foundation.BorderStroke(1.dp, TechColors.Amber.copy(alpha = 0.5f))</ID>
     <ID>MaxLineLength:FirewallSection.kt$color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$// QEMU running with active still: 16:10 box, dim still (alpha ~0.7), age caption, still tap = onOpenConsole</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$// QEMU running, no still yet: dim cut-corner 16:10 rectangle, caption NOVNC · NO FRAME YET, real OPEN CONSOLE plate inside</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("$label [$clip]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("Hero &amp; live metrics", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("PINNED EXTRA", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("Raw guest config", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("[LOCKED FIRST]", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text("[LOCKED LAST]", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text(if (board.includeConsole) "VISIBLE" else "HIDDEN", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = if (board.includeConsole) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text(if (board.includeHistory) "VISIBLE" else "HIDDEN", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = if (board.includeHistory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$Text(unpinned.joinToString(" · "), style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$android.graphics.BitmapFactory.decodeByteArray(still.jpegBytes, 0, still.jpegBytes.size, opts)</ID>
     <ID>MaxLineLength:GuestDetailScreen.kt$com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)</ID>
-    <ID>MaxLineLength:GuestDetailScreen.kt$if</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$icon = if (board.includeConsole) Icons.Default.Visibility else Icons.Default.VisibilityOff</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$icon = if (board.includeHistory) Icons.Default.Visibility else Icons.Default.VisibilityOff</ID>
     <ID>MaxLineLength:GuestDetailScreen.kt$imageVector = if (isEmbeddedInPane) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$text = "VITALS is locked first. RAW is locked last. Extra pinned sections sit above unpinned plates (max 4 pins)."</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$val editTextColor = if (state.isEditingBoard) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant</ID>
+    <ID>MaxLineLength:GuestDetailScreen.kt$val unpinned = listOf("HW", "NET", "FW", "SNAP", "BKP", "OPT").filter { it !in board.pinnedSections }</ID>
     <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$?.</ID>
     <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$_ui.update { it.copy(actionInProgress = null, error = e.message ?: "Failed to update firewall") }</ID>
     <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$backupStorages = if ("backup storages" in bundle.sectionErrors) it.backupStorages else bundle.backupStorages</ID>
+    <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context)</ID>
+    <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context)</ID>
     <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel$}</ID>
+    <ID>MaxLineLength:GuestDetailViewModel.kt$GuestDetailViewModel.Factory$private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context)</ID>
     <ID>MaxLineLength:GuestDetailViewModelTest.kt$GuestDetailViewModelTest.&lt;no name provided&gt;$override suspend</ID>
     <ID>MaxLineLength:GuestGlyphs.kt$GuestGlyphs$moveTo(10.5f, 8.5f)</ID>
     <ID>MaxLineLength:GuestGlyphs.kt$GuestGlyphs$moveTo(12f, 3f)</ID>
@@ -1157,8 +1197,6 @@
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$PveResponse&lt;Map&lt;String, Any&gt;&gt;(data = mapOf("name" to if (fail) "fresh" else "old", "memory" to if (fail) 2048 else 1024))</ID>
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$override suspend</ID>
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$return PveResponse(data = listOf(StorageContentItem(volid = "$storage:backup/${if (fail) "fresh" else "old"}", vmid = vmid)))</ID>
-    <ID>MaxLineLength:PermissionsScreen.kt$reason = "ISO upload asks the system picker for a single file. PXMX does not request all-files access or media library permissions."</ID>
-    <ID>MaxLineLength:PermissionsScreen.kt$text = "INTERNET, ACCESS_NETWORK_STATE, and VIBRATE are granted at install. POST_NOTIFICATIONS is a runtime prompt on Android 13+. POST_PROMOTED_NOTIFICATIONS is used for Android 16 Live Updates. ISO upload uses the system file picker for a single file (no all-files or READ_MEDIA permissions). No analytics, no extra SDK permissions."</ID>
     <ID>MaxLineLength:ProxmoxClientFactory.kt$ProxmoxClientFactory$return ProbeApi(build(config, preferBoundConfig = true, probeAuthSlot = slot, fingerprintSlot = fingerprint), slot, fingerprint)</ID>
     <ID>MaxLineLength:ProxmoxClientFactory.kt$ProxmoxClientFactory.Companion$private val QUERY_SECRET_REGEX = Regex("([?&amp;](?:vncticket|ticket|token|password)=)[^&amp;\\s]+", RegexOption.IGNORE_CASE)</ID>
     <ID>MaxLineLength:ProxmoxRepository.kt$ProxmoxRepository$reAuthHandler = { profileId, expected -&gt; authRepo.loginWithProfile(profileId, silent = true, renewalOf = expected) }</ID>
@@ -1284,6 +1322,7 @@
     <ID>ReturnCount:AuthRepository.kt$AuthRepository$suspend fun tryAutoConnect(): Result&lt;SessionState&gt;</ID>
     <ID>ReturnCount:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$fun onClusterTasks(tasks: List&lt;Map&lt;String, Any&gt;&gt;)</ID>
     <ID>ReturnCount:ConsoleHelpers.kt$ConsoleMimeUtils$fun coerceMimeType(url: String, contentTypeHeader: String?): String</ID>
+    <ID>ReturnCount:ConsoleHelpers.kt$ConsoleMimeUtils$fun parseDataUrlJpeg(rawResult: String?): ByteArray?</ID>
     <ID>ReturnCount:ConsoleHttpBridge.kt$ConsoleHttpBridge$@JavascriptInterface @Synchronized fun request(id: String, url: String, method: String, contentType: String, csrf: String, body: String)</ID>
     <ID>ReturnCount:ConsoleTransport.kt$ConsoleTransport$fun fetch(url: String, method: String, requestHeaders: Map&lt;String, String&gt;): ConsoleResource</ID>
     <ID>ReturnCount:ConsoleTransport.kt$ConsoleTransport$fun newConsoleApiCall(url: String, method: String, contentType: String, csrf: String, body: String): Call?</ID>
@@ -1293,6 +1332,7 @@
     <ID>ReturnCount:Format.kt$fun formatMemoryMiB(value: String?): String</ID>
     <ID>ReturnCount:Format.kt$fun formatRate(bytesPerSec: Double?): String</ID>
     <ID>ReturnCount:GuestConfigParser.kt$GuestConfigParser$private fun parseKv(value: String): Pair&lt;String, Map&lt;String, String&gt;&gt;</ID>
+    <ID>ReturnCount:GuestDetailViewModel.kt$GuestDetailViewModel$fun pinSection(section: GuestSection)</ID>
     <ID>ReturnCount:GuestIcons.kt$GuestIcons$fun callsign(displayName: String, vmid: Long? = null): String</ID>
     <ID>ReturnCount:GuestIcons.kt$GuestIcons$private fun qemuStyle(r: ClusterResource): GuestIconStyle</ID>
     <ID>ReturnCount:GuestNetworkHelper.kt$GuestNetworkHelper$fun parseAgentInterfaces(data: JsonElement?): List&lt;GuestLiveInterface&gt;</ID>
@@ -1317,6 +1357,9 @@
     <ID>ReturnCount:NodeSshTarget.kt$fun chooseNodeSshHost( corosyncIp: String?, isLocal: Boolean, sessionHost: String?, reportedAddresses: List&lt;NodeReportedAddress&gt; = emptyList(), ): String?</ID>
     <ID>ReturnCount:NodeSshTarget.kt$fun isIpAddress(s: String): Boolean</ID>
     <ID>ReturnCount:NodeSshTarget.kt$fun parseIpv4(ip: String): Long?</ID>
+    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun moveClipDown(clipId: String): OpsBoard</ID>
+    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun moveClipUp(clipId: String): OpsBoard</ID>
+    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun pinSection(section: GuestSection): OpsBoard</ID>
     <ID>ReturnCount:OpsModels.kt$FirewallRule$fun coversInbound8006(): Boolean</ID>
     <ID>ReturnCount:OpsModels.kt$private fun portMatchesOrCovers8006(ports: String): Boolean</ID>
     <ID>ReturnCount:ProxmoxClientFactory.kt$ProxmoxClientFactory$@Synchronized override fun apiForSession(session: SessionSnapshot): ProxmoxApi</ID>
@@ -1393,6 +1436,7 @@
     <ID>TooGenericExceptionThrown:SshUpgradeExecutor.kt$SshUpgradeExecutor.Companion$throw RuntimeException( "Host key changed — possible MITM attack detected!\nStored: $stored\nServer: $fingerprint" )</ID>
     <ID>TooManyFunctions:AuthRepository.kt$AuthRepository</ID>
     <ID>TooManyFunctions:DemoApi.kt$DemoApi : ProxmoxApi</ID>
+    <ID>TooManyFunctions:GuestDetailScreen.kt$com.pxmx.app.ui.guest.GuestDetailScreen.kt</ID>
     <ID>TooManyFunctions:GuestDetailViewModel.kt$GuestDetailViewModel : ViewModel</ID>
     <ID>TooManyFunctions:GuestRepository.kt$GuestRepository</ID>
     <ID>TooManyFunctions:HomeScreen.kt$com.pxmx.app.ui.home.HomeScreen.kt</ID>
@@ -1411,7 +1455,6 @@
     <ID>TooManyFunctions:VaultPreferences.kt$VaultPreferences : SharedPreferences</ID>
     <ID>TooManyFunctions:VaultPreferences.kt$VaultPreferences$VaultEditor : Editor</ID>
     <ID>UnusedParameter:AdaptiveLayout.kt$consoleIsNode: Boolean = false</ID>
-    <ID>UnusedParameter:GuestDetailScreen.kt$isTokenSession: Boolean = false</ID>
     <ID>UnusedParameter:StorageRepository.kt$StorageRepository$type: String</ID>
     <ID>UnusedParameter:UpdateRepository.kt$UpdateRepository.Companion$sessionUsername: String? = null</ID>
     <ID>UnusedPrivateMember:NetworkSection.kt$@Composable private fun MiniUsb(usb: ConfigUsb)</ID>

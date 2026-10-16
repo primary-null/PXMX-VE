@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -247,8 +249,11 @@ object OpsBoardSerializer : Serializer<OpsBoardPayload> {
             val text = input.readBytes().decodeToString()
             if (text.isBlank()) defaultValue
             else AppJson.decodeFromString(OpsBoardPayload.serializer(), text)
-        } catch (e: Throwable) {
-            if (e is CancellationException) throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: SerializationException) {
+            defaultValue
+        } catch (_: IOException) {
             defaultValue
         }
     }

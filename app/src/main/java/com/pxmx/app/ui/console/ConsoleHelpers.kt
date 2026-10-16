@@ -415,7 +415,7 @@ object ConsoleStillRejector {
      * Rejects uniform (solid color) or all-black pixel arrays.
      */
     fun isUniformOrBlack(width: Int, height: Int, samplePixels: IntArray): Boolean {
-        if (samplePixels.isEmpty()) return true
+        if (width <= 0 || height <= 0 || samplePixels.isEmpty()) return true
         val first = samplePixels[0]
         val fr = (first shr 16) and 0xFF
         val fg = (first shr 8) and 0xFF

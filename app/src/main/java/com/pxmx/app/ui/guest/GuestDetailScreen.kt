@@ -45,7 +45,6 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -1132,14 +1131,6 @@ private fun WeakTab(
     }
 }
 
-private fun editJoinShape(cutPx: Float, bleedPx: Float = 0f): GenericShape = GenericShape { size, _ ->
-    moveTo(cutPx - bleedPx, 0f)
-    lineTo(size.width, 0f)
-    lineTo(size.width, size.height)
-    lineTo(-bleedPx, size.height)
-    lineTo(cutPx - bleedPx, size.height - cutPx)
-    close()
-}
 
 private fun editJoinPath(size: Size, cutPx: Float, bleedPx: Float = 0f): Path = Path().apply {
     moveTo(cutPx - bleedPx, 0f)
