@@ -99,6 +99,12 @@ class StorageRepository(
         api.nodeStorage(node).data.orEmpty().mapNotNull { it.storage }
     }
 
+    suspend fun listBackupStorageNames(node: String): Result<List<String>> = pveClient.apiCall { api ->
+        api.nodeStorage(node).data.orEmpty()
+            .filter { isBackupStorage(it) }
+            .mapNotNull { it.storage }
+    }
+
     suspend fun listNodeStorageEntries(node: String): Result<List<NodeStorageEntry>> = pveClient.apiCall { api ->
         api.nodeStorage(node).data.orEmpty()
     }
@@ -133,8 +139,7 @@ class StorageRepository(
         val out = mutableListOf<BackupVolume>()
         for (st in storages) {
             val name = st.storage ?: continue
-            if (!(st.content ?: "").contains("backup")) continue
-            if (st.active != 1 || st.enabled == 0) continue
+            if (!isBackupStorage(st)) continue
             val items = api.storageContent(node, name, content = "backup", vmid = vmid).data.orEmpty()
             out += items
                 .filter { it.vmid == null || it.vmid == vmid || it.volid?.contains("-$vmid-") == true }
@@ -162,6 +167,32 @@ class StorageRepository(
         compress: String = "zstd",
         onLongTask: ((String) -> Unit)? = null,
     ): Result<String> = pveClient.apiCall { api ->
+        if (storage.isBlank()) {
+            throw PveException("Select a backup storage")
+        }
+        val entries = try {
+            api.nodeStorage(node).data.orEmpty()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        val entry = entries.firstOrNull { it.storage == storage }
+        val hasBackup = if (entry?.content != null) {
+            hasBackupContent(entry.content)
+        } else {
+            val status = try {
+                api.storageStatus(node, storage).data
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                null
+            }
+            status?.content?.let { hasBackupContent(it) } == true
+        }
+
+        if (!hasBackup) {
+            throw PveException("Storage '$storage' on node '$node' does not allow backups")
+        }
+
         val upid = api.createBackup(
             node = node,
             vmid = vmid,
@@ -198,7 +229,10 @@ class StorageRepository(
                         api.taskStatus(node, upid).data ?: throw PveException("No deletion task status")
                     }.getOrThrow()
                     if (!status.isRunning) {
-                        if (!status.isOk) throw PveException("Deletion task failed: ${status.exitstatus ?: "unknown exit status"}")
+                        if (!status.isOk) {
+                            val err = PveTaskLiveUpdate.humanizeExitStatus(status.exitstatus ?: "unknown exit status")
+                            throw PveException("Deletion task failed: $err")
+                        }
                         break
                     }
                     delay(1_000)
@@ -246,7 +280,10 @@ class StorageRepository(
                 checkSession()
                 val status = taskStatusProvider(node, upid).getOrThrow()
                 if (!status.isRunning) {
-                    if (!status.isOk) throw PveException("Backup task failed: ${status.exitstatus}")
+                    if (!status.isOk) {
+                        val err = PveTaskLiveUpdate.humanizeExitStatus(status.exitstatus)
+                        throw PveException("Backup task failed: $err")
+                    }
                     finished = true
                     break
                 }
@@ -460,6 +497,18 @@ class StorageRepository(
     }
 
     companion object {
+        fun hasBackupContent(content: String?): Boolean {
+            if (content.isNullOrBlank()) return false
+            return content.split(',').any { it.trim().equals("backup", ignoreCase = true) }
+        }
+
+        fun isBackupStorage(entry: NodeStorageEntry): Boolean {
+            if (entry.storage.isNullOrBlank()) return false
+            if (entry.active != 1) return false
+            if (entry.enabled == 0) return false
+            return hasBackupContent(entry.content)
+        }
+
         fun sanitizeBackupFilename(name: String): String {
             val trimmed = name.trim()
             if (trimmed.isEmpty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..")) {

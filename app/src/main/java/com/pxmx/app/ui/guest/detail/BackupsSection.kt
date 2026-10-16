@@ -1,12 +1,5 @@
 package com.pxmx.app.ui.guest.detail
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -90,20 +83,17 @@ fun BackupsBody(
     }
 }
 
+fun canConfirmBackup(storages: List<String>, selectedStorage: String): Boolean =
+    storages.isNotEmpty() && selectedStorage.isNotBlank() && storages.contains(selectedStorage)
+
 @Composable
 fun CreateBackupDialog(
     storages: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (storage: String, mode: String) -> Unit,
 ) {
-    val context = LocalContext.current
-    var storage by remember { mutableStateOf(storages.firstOrNull().orEmpty()) }
+    var storage by remember(storages) { mutableStateOf(storages.firstOrNull().orEmpty()) }
     var mode by remember { mutableStateOf("snapshot") }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { _ ->
-        onConfirm(storage, mode)
-    }
 
     AdaptiveAlertDialog(
         onDismissRequest = onDismiss,
@@ -111,14 +101,23 @@ fun CreateBackupDialog(
         text = {
             Column {
                 Text("Storage", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    storages.forEach { s ->
-                        FilterChip(
-                            selected = storage == s,
-                            onClick = { storage = s },
-                            label = { Text(s) },
-                            modifier = Modifier.padding(end = 6.dp),
-                        )
+                if (storages.isEmpty()) {
+                    Text(
+                        text = "No backup datastore available",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                } else {
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        storages.forEach { s ->
+                            FilterChip(
+                                selected = storage == s,
+                                onClick = { storage = s },
+                                label = { Text(s) },
+                                modifier = Modifier.padding(end = 6.dp),
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -137,22 +136,8 @@ fun CreateBackupDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.POST_NOTIFICATIONS,
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (!hasPermission) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            onConfirm(storage, mode)
-                        }
-                    } else {
-                        onConfirm(storage, mode)
-                    }
-                },
-                enabled = storage.isNotBlank(),
+                onClick = { onConfirm(storage, mode) },
+                enabled = canConfirmBackup(storages, storage),
             ) {
                 Text("Start")
             }

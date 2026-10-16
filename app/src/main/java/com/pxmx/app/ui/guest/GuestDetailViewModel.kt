@@ -26,6 +26,7 @@ import com.pxmx.app.data.repo.NetworkRepository
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.RecentActionRegistry
+import com.pxmx.app.data.repo.PveTaskLiveUpdate
 import com.pxmx.app.data.repo.StorageRepository
 import com.pxmx.app.data.repo.filterLatestLogForStrip
 import com.pxmx.app.data.session.SessionStore
@@ -715,7 +716,8 @@ class GuestDetailViewModel(
                                 val msg = if (task.isOk) {
                                     "$label completed"
                                 } else {
-                                    "$label: ${task.exitstatus ?: task.status}"
+                                    val err = PveTaskLiveUpdate.humanizeExitStatus(task.exitstatus ?: task.status)
+                                    "$label: $err"
                                 }
                                 _ui.update { it.copy(message = msg, actionInProgress = null) }
                                 refresh()

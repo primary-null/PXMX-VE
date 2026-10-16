@@ -98,7 +98,8 @@ open class ClusterTaskNotificationWatcher(
             if (type == "vzdump") {
                 if (prefs.backupFail && isVzdumpFailed(status) && (previous == null || !isVzdumpFailed(previous))) {
                     val title = if (id.isNotBlank()) "Backup failed ($id)" else "Backup failed"
-                    val body = if (node.isNotBlank()) "Node $node · $status" else status
+                    val humanized = PveTaskLiveUpdate.humanizeExitStatus(status)
+                    val body = if (node.isNotBlank()) "Node $node · $humanized" else humanized
                     notificationPoster(upid.hashCode(), title, body)
                 }
                 continue

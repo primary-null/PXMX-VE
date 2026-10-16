@@ -169,7 +169,7 @@ class PveTaskLiveUpdate(
                                     notificationPoster.cancel(notifId)
                                 }
                             } else {
-                                val errText = status.exitstatus ?: "Failed"
+                                val errText = humanizeExitStatus(status.exitstatus)
                                 notificationPoster.postCompleted(notifId, liveTask.title, errText)
                                 if (completionDismissDelayMs != null && completionDismissDelayMs > 0) {
                                     delay(completionDismissDelayMs)
@@ -203,6 +203,20 @@ class PveTaskLiveUpdate(
     companion object {
         const val CHANNEL_ID = "pve-tasks"
         const val MAX_IN_FLIGHT_WATCHES = 5
+
+        fun humanizeExitStatus(exitstatus: String?): String {
+            if (exitstatus.isNullOrBlank()) return "Failed"
+            val trimmed = exitstatus.trim()
+            if (trimmed == "OK") return "OK"
+            val lower = trimmed.lowercase()
+            if (lower.contains("wrong content type") ||
+                (lower.contains("can't use storage") && lower.contains("for backups")) ||
+                (lower.contains("cannot use storage") && lower.contains("for backups"))
+            ) {
+                return "That datastore does not hold backups. Pick one whose content includes backup."
+            }
+            return trimmed
+        }
 
         fun isDemo(host: String?): Boolean {
             if (host.isNullOrBlank()) return true

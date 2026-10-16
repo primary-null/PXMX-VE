@@ -301,4 +301,64 @@ class PveTaskLiveUpdateTest {
         val upid6 = "UPID:alpha:00000006:00000000:66D1B000:vzdump:106:root@pam:"
         assertNull(liveUpdate.watchTask(upid6)) // Capped at MAX_IN_FLIGHT_WATCHES
     }
+
+    @Test
+    fun humanizeExitStatus_ok_returnsOk() {
+        assertEquals("OK", PveTaskLiveUpdate.humanizeExitStatus("OK"))
+    }
+
+    @Test
+    fun humanizeExitStatus_nullOrBlank_returnsFailed() {
+        assertEquals("Failed", PveTaskLiveUpdate.humanizeExitStatus(null))
+        assertEquals("Failed", PveTaskLiveUpdate.humanizeExitStatus(""))
+        assertEquals("Failed", PveTaskLiveUpdate.humanizeExitStatus("   "))
+    }
+
+    @Test
+    fun humanizeExitStatus_wrongContentType_mapsToDatastoreCopy() {
+        val raw = "could not get storage information for 'vm-disks': can't use storage 'vm-disks' for backups - wrong content type"
+        val expected = "That datastore does not hold backups. Pick one whose content includes backup."
+        assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus(raw))
+        assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("can't use storage 'vm-disks' for backups - wrong content type"))
+        assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("wrong content type"))
+        assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("can't use storage 'local-lvm' for backups"))
+    }
+
+    @Test
+    fun humanizeExitStatus_unmatchedError_preservesError() {
+        assertEquals("command failed (exit code 2)", PveTaskLiveUpdate.humanizeExitStatus("command failed (exit code 2)"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testWatchTaskWrongContentTypeShowsHumanizedStatus() = runTest {
+        val fakePrefs = FakeSharedPreferences()
+        val sessionStore = SessionStore(injectedPrefs = fakePrefs)
+        val config = ServerConfig(host = "pve.example.com", username = "root")
+        sessionStore.setSession(SessionState(config, ticket = "fake-ticket", username = "root@pam"))
+
+        val poster = RecordingNotificationPoster()
+        val rawErr = "could not get storage information for 'vm-disks': can't use storage 'vm-disks' for backups - wrong content type"
+        val liveUpdate = PveTaskLiveUpdate(
+            context = ContextWrapper(null),
+            sessionStore = sessionStore,
+            taskStatusProvider = { _, _ ->
+                Result.success(TaskStatus(status = "stopped", exitstatus = rawErr))
+            },
+            scope = this,
+            notificationPoster = poster,
+            permissionChecker = { true },
+            sdkInt = 36,
+            completionDismissDelayMs = 100L,
+        )
+
+        val upid = "UPID:alpha:00001234:00000000:66D1B000:vzdump:100:root@pam:"
+
+        liveUpdate.watchTask(upid)
+        advanceTimeBy(2200L)
+        runCurrent()
+
+        val expected = "That datastore does not hold backups. Pick one whose content includes backup."
+        assertTrue(poster.calls.any { it.action == "postCompleted" && it.text == expected && it.title == "BACKUP 100" })
+    }
 }

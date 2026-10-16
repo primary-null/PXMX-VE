@@ -711,7 +711,7 @@ class HomeViewModel(
 
     /** Helper to get storage for a node (for the backup dialog). */
     suspend fun getNodeStorage(node: String): List<String> {
-        return storageRepo.listNodeStorageNames(node).getOrDefault(emptyList())
+        return storageRepo.listBackupStorageNames(node).getOrDefault(emptyList())
     }
 
     private fun runGuestAction(

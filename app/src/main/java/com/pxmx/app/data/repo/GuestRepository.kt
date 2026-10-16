@@ -205,10 +205,7 @@ class GuestRepository(
                 val parsed = GuestConfigParser.parse(rawConfig, hostUsbs)
                 val storages = section("backup storages", storageDef.await(), emptyList())
                 val availableBackupStorages = storages.filter {
-                    !it.storage.isNullOrBlank() &&
-                        (it.content ?: "").contains("backup") &&
-                        it.active == 1 &&
-                        it.enabled != 0
+                    StorageRepository.isBackupStorage(it)
                 }
                 val backups = if ("backup storages" in errors) {
                     errors["backups"] = "Storage discovery unavailable"

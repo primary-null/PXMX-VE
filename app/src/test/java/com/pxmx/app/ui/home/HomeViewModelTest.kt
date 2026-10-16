@@ -418,4 +418,38 @@ class HomeViewModelTest {
 
         job.cancel()
     }
+
+    @Test
+    fun homeViewModel_getNodeStorage_returnsOnlyBackupCapableStorages() = runBlocking {
+        val vm = createViewModel()
+        // Alpha: local (backup,iso,vztmpl), local-lvm (rootdir,images) -> only local
+        val alphaStorages = vm.getNodeStorage("alpha")
+        assertEquals(listOf("local"), alphaStorages)
+
+        // Beta: local (backup,iso), zfs-pool (rootdir,images) -> only local
+        val betaStorages = vm.getNodeStorage("beta")
+        assertEquals(listOf("local"), betaStorages)
+
+        // Gamma: local-lvm (rootdir,images), nfs-share (backup,iso,vztmpl) -> only nfs-share
+        val gammaStorages = vm.getNodeStorage("gamma")
+        assertEquals(listOf("nfs-share"), gammaStorages)
+    }
+
+    @Test
+    fun canConfirmBackup_validatesStorageListAndSelection() {
+        // Empty list disables confirm
+        assertFalse(com.pxmx.app.ui.guest.detail.canConfirmBackup(emptyList(), ""))
+        assertFalse(com.pxmx.app.ui.guest.detail.canConfirmBackup(emptyList(), "local"))
+
+        // Blank selection disables confirm
+        assertFalse(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local"), ""))
+        assertFalse(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local"), "   "))
+
+        // Non-contained selection disables confirm
+        assertFalse(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local"), "vm-disks"))
+
+        // Contained selection enables confirm
+        assertTrue(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local", "nfs-share"), "local"))
+        assertTrue(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local", "nfs-share"), "nfs-share"))
+    }
 }
