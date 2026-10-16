@@ -15,6 +15,7 @@ import org.junit.Before
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
+import kotlinx.serialization.json.JsonElement
 
 class ProxmoxRepositoryTest {
 
@@ -263,5 +264,16 @@ class ProxmoxRepositoryTest {
         override suspend fun qemuFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
         override suspend fun lxcFirewallOptions(node: String, vmid: Long): PveResponse<Map<String, Any>> = PveResponse()
         override suspend fun lxcFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun nodeRrdData(node: String, timeframe: String): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun guestRrdData(node: String, type: String, vmid: Long, timeframe: String): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun createQemu(node: String, vmid: Long, name: String, scsi0: String?, cores: Int?, memory: Long?): PveResponse<String> = PveResponse()
+        override suspend fun createLxc(node: String, vmid: Long, hostname: String, ostemplate: String?, rootfs: String?, cores: Int?, memory: Long?): PveResponse<String> = PveResponse()
+        override suspend fun createSdnZone(zone: String, type: String): PveResponse<Any?> = PveResponse()
+        override suspend fun deleteSdnZone(zone: String): PveResponse<Any?> = PveResponse()
+        override suspend fun createSdnVnet(vnet: String, zone: String, alias: String?): PveResponse<Any?> = PveResponse()
+        override suspend fun deleteSdnVnet(vnet: String): PveResponse<Any?> = PveResponse()
+        override suspend fun nodeSdnZones(node: String): PveResponse<List<Map<String, Any>>> = PveResponse()
+        override suspend fun qemuAgentNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse()
+        override suspend fun lxcNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse()
     }
 }

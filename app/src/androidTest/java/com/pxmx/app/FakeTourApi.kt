@@ -19,6 +19,8 @@ import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import java.util.concurrent.ConcurrentHashMap
@@ -452,5 +454,126 @@ class FakeTourApi : ProxmoxApi {
     override suspend fun lxcFirewallRules(node: String, vmid: Long): PveResponse<List<Map<String, Any>>> = PveResponse()
     override suspend fun qemuAgentNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse(data = buildJsonObject {})
     override suspend fun lxcNetworkInterfaces(node: String, vmid: Long): PveResponse<JsonElement> = PveResponse(data = buildJsonObject {})
+
+    override suspend fun nodeRrdData(node: String, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val steps = if (timeframe == "day") 48 else 60
+        val stepSec = if (timeframe == "day") 1_800L else 60L
+        val nowSec = System.currentTimeMillis() / 1000
+        val points = (0 until steps).map { i ->
+            val t = nowSec - (steps - 1 - i) * stepSec
+            val wobble = ((i % 7) - 3) * 0.02
+            mapOf<String, Any>(
+                "time" to t,
+                "cpu" to (0.16 + wobble).coerceIn(0.02, 0.95),
+                "iowait" to (0.03 + wobble * 0.4).coerceIn(0.0, 0.4),
+                "memused" to 8_000_000_000L + i * 40_000_000L,
+                "memtotal" to 32_000_000_000L,
+                "arcsize" to 4_294_967_296L + i * 8_000_000L,
+                "pressurecpusome" to (0.015 + wobble * 0.1).coerceIn(0.0, 0.2),
+                "pressurememorysome" to (0.008 + wobble * 0.05).coerceIn(0.0, 0.1),
+                "netin" to 1_500_000.0 + i * 12_000.0,
+                "netout" to 800_000.0 + i * 6_000.0,
+                "rootused" to 40_000_000_000L + i * 20_000_000L,
+                "roottotal" to 250_000_000_000L,
+            )
+        }
+        return PveResponse(data = points)
+    }
+
+    override suspend fun guestRrdData(node: String, type: String, vmid: Long, timeframe: String): PveResponse<List<Map<String, Any>>> {
+        val steps = if (timeframe == "day") 48 else 60
+        val stepSec = if (timeframe == "day") 1_800L else 60L
+        val nowSec = System.currentTimeMillis() / 1000
+        val points = (0 until steps).map { i ->
+            val t = nowSec - (steps - 1 - i) * stepSec
+            val wobble = ((i % 7) - 3) * 0.015
+            val memVal = 1_200_000_000L + i * 8_000_000L
+            val point = mutableMapOf<String, Any>(
+                "time" to t,
+                "cpu" to (0.12 + wobble).coerceIn(0.01, 0.90),
+                "mem" to memVal,
+                "maxmem" to 2_048_000_000L,
+                "memhost" to memVal + 150_000_000L,
+                "pressurecpusome" to (0.012 + wobble * 0.1).coerceIn(0.0, 0.2),
+                "pressurememorysome" to (0.005 + wobble * 0.05).coerceIn(0.0, 0.1),
+                "netin" to 500_000.0 + i * 4_000.0,
+                "netout" to 300_000.0 + i * 2_500.0,
+            )
+            if (vmid == 100L) {
+                if (i !in 24..28) {
+                    point["diskread"] = 80_000.0 + i * 1_200.0
+                    point["diskwrite"] = 40_000.0 + i * 800.0
+                }
+            } else if (vmid == 102L) {
+                point["diskread"] = 12_000.0
+                point["diskwrite"] = 4_000.0
+            }
+            point
+        }
+        return PveResponse(data = points)
+    }
+
+    override suspend fun createQemu(
+        node: String,
+        vmid: Long,
+        name: String,
+        scsi0: String?,
+        cores: Int?,
+        memory: Long?,
+    ): PveResponse<String> {
+        statusOverride[vmid] = "stopped"
+        val config = mutableMapOf<String, Any>(
+            "name" to name,
+            "ostype" to "l26",
+            "cores" to (cores ?: 2),
+            "memory" to (memory ?: 2048),
+            "node" to node,
+            "type" to "qemu",
+        )
+        if (!scsi0.isNullOrBlank()) {
+            config["scsi0"] = scsi0
+        }
+        clonedConfigs[vmid] = config
+        return PveResponse(data = "UPID:$node:00001239:00000000:66D1B005:qmcreate:$vmid:root@pam:")
+    }
+
+    override suspend fun createLxc(
+        node: String,
+        vmid: Long,
+        hostname: String,
+        ostemplate: String?,
+        rootfs: String?,
+        cores: Int?,
+        memory: Long?,
+    ): PveResponse<String> {
+        statusOverride[vmid] = "stopped"
+        val config = mutableMapOf<String, Any>(
+            "hostname" to hostname,
+            "name" to hostname,
+            "ostype" to "debian",
+            "cores" to (cores ?: 1),
+            "memory" to (memory ?: 1024),
+            "node" to node,
+            "type" to "lxc",
+        )
+        if (!ostemplate.isNullOrBlank()) {
+            config["ostemplate"] = ostemplate
+        }
+        if (!rootfs.isNullOrBlank()) {
+            config["rootfs"] = rootfs
+        }
+        clonedConfigs[vmid] = config
+        return PveResponse(data = "UPID:$node:00001239:00000000:66D1B005:pctcreate:$vmid:root@pam:")
+    }
+
+    override suspend fun createSdnZone(zone: String, type: String): PveResponse<Any?> = PveResponse(data = null)
+    override suspend fun deleteSdnZone(zone: String): PveResponse<Any?> = PveResponse(data = null)
+    override suspend fun createSdnVnet(vnet: String, zone: String, alias: String?): PveResponse<Any?> = PveResponse(data = null)
+    override suspend fun deleteSdnVnet(vnet: String): PveResponse<Any?> = PveResponse(data = null)
+    override suspend fun nodeSdnZones(node: String): PveResponse<List<Map<String, Any>>> = PveResponse(
+        data = listOf(
+            mapOf("zone" to "testzone", "status" to "available")
+        )
+    )
 }
 
