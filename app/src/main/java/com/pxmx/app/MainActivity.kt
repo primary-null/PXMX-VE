@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.ui.navigation.ProxmoxNavGraph
 import com.pxmx.app.ui.theme.ProxmoxTheme
@@ -17,6 +20,7 @@ import com.pxmx.app.ui.tour.TourOverlay
 import com.pxmx.app.ui.util.ToastHost
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         // Kill any white flash before first frame (theme is already black; reinforce).
         window.setBackgroundDrawableResource(android.R.color.black)
@@ -35,7 +39,9 @@ class MainActivity : ComponentActivity() {
             val themeMode by app.sessionStore.themeMode.collectAsStateWithLifecycle()
             ProxmoxTheme(themeMode = themeMode) {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics { testTagsAsResourceId = true },
                     color = androidx.compose.ui.graphics.Color.Black,
                 ) {
                     Box(Modifier.fillMaxSize()) {

@@ -27,8 +27,8 @@ enum class TourStep(
     PWR_BUTTON(
         stepNumber = 2,
         title = "POWER ACTIONS",
-        instruction = "Tap PWR to see the power menu.",
-        placement = TourPanelPlacement.TOP,
+        instruction = "Tap the ⋮ menu for power actions.",
+        placement = TourPanelPlacement.BOTTOM,
         usesNext = false,
     ),
     AUTO_BUTTON(

@@ -7,7 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,8 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pxmx.app.data.model.BackupVolume
+import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.util.formatBytes
 import com.pxmx.app.ui.util.formatEpoch
 
@@ -50,31 +52,39 @@ fun BackupsBody(
         return
     }
     val sorted = backups.sortedByDescending { it.ctime ?: 0L }
-    sorted.forEach { b ->
+    sorted.forEachIndexed { index, b ->
+        if (index > 0) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(TechColors.Divider),
+            )
+        }
         val storage = b.volid?.substringBefore(':') ?: "storage"
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        b.notes?.takeIf { it.isNotBlank() }
-                            ?: b.volid?.substringAfterLast('/')
-                            ?: "backup",
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        "$storage · ${formatEpoch(b.ctime)} · ${formatBytes(b.size)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = { onDelete(b) }, enabled = !busy) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
-                }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    b.notes?.takeIf { it.isNotBlank() }
+                        ?: b.volid?.substringAfterLast('/')
+                        ?: "backup",
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                )
+                Text(
+                    "$storage · ${formatEpoch(b.ctime)} · ${formatBytes(b.size)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = { onDelete(b) }, enabled = !busy) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete")
             }
         }
     }

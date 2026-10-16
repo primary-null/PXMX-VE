@@ -1,5 +1,7 @@
 package com.pxmx.app.ui.guest.detail
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,8 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Restore
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,9 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pxmx.app.data.model.SnapshotInfo
+import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.util.formatEpoch
 
 @Composable
@@ -42,42 +44,47 @@ fun SnapshotsBody(
         Text("No snapshots", color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
-    snapshots.forEach { snap ->
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    snapshots.forEachIndexed { index, snap ->
+        if (index > 0) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(TechColors.Divider),
+            )
+        }
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                Modifier.padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        snap.name ?: "?",
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (snap.isCurrent) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        buildString {
-                            if (snap.isCurrent) append("You are here")
-                            else append(formatEpoch(snap.snaptime))
-                            snap.description?.takeIf { it.isNotBlank() && it != "You are here!" }
-                                ?.let { append(" · ").append(it) }
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    snap.name ?: "?",
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                    color = if (snap.isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    buildString {
+                        if (snap.isCurrent) append("You are here")
+                        else append(formatEpoch(snap.snaptime))
+                        snap.description?.takeIf { it.isNotBlank() && it != "You are here!" }
+                            ?.let { append(" · ").append(it) }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!snap.isCurrent && snap.name != null) {
+                IconButton(onClick = { onRollback(snap.name!!) }, enabled = !busy) {
+                    Icon(Icons.Default.Restore, contentDescription = "Rollback")
                 }
-                if (!snap.isCurrent && snap.name != null) {
-                    IconButton(onClick = { onRollback(snap.name!!) }, enabled = !busy) {
-                        Icon(Icons.Default.Restore, contentDescription = "Rollback")
-                    }
-                    IconButton(onClick = { onDelete(snap.name!!) }, enabled = !busy) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete")
-                    }
+                IconButton(onClick = { onDelete(snap.name!!) }, enabled = !busy) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
             }
         }

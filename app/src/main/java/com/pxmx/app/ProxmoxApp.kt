@@ -13,10 +13,14 @@ open class ProxmoxApp : Application() {
         private set
     lateinit var repository: ProxmoxRepository
         private set
+    lateinit var opsBoardStore: com.pxmx.app.data.ops.OpsBoardStore
+        private set
+    lateinit var consoleStillStore: com.pxmx.app.data.console.ConsoleStillStore
+        private set
 
     /** Seam for instrumented tests: override to inject a fake repository. */
     protected open fun createRepository(store: SessionStore): ProxmoxRepository =
-        ProxmoxRepository(this, store, ProxmoxClientFactory(store))
+        ProxmoxRepository(this, store, ProxmoxClientFactory(store, this))
 
     override fun onCreate() {
         super.onCreate()
@@ -33,5 +37,14 @@ open class ProxmoxApp : Application() {
         }
         sessionStore = SessionStore(this)
         repository = createRepository(sessionStore)
+        opsBoardStore = com.pxmx.app.data.ops.OpsBoardStore.create(this)
+        consoleStillStore = com.pxmx.app.data.console.ConsoleStillStore.create(this)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (::consoleStillStore.isInitialized) {
+            consoleStillStore.onTrimMemory(level)
+        }
     }
 }

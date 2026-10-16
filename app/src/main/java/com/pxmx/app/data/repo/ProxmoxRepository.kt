@@ -159,6 +159,7 @@ class ProxmoxRepository(
             guestRepo.clearCache()
             nodeRepo.clearCache()
             taskNotificationWatcher.reset()
+            runCatching { (context.applicationContext as? com.pxmx.app.ProxmoxApp)?.consoleStillStore?.clear() }
         },
     )
 

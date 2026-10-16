@@ -5,6 +5,7 @@ import com.pxmx.app.data.model.GuestType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.URLDecoder
@@ -326,5 +327,57 @@ class ConsoleHelpersTest {
         assertTrue(script.contains("UI.clipboardPaste(text);"))
         assertTrue(script.contains(".xterm-helper-textarea"))
         assertTrue(script.contains("ta.dispatchEvent(new Event('input', { bubbles: true }));"))
+    }
+
+    @Test
+    fun testShouldSkipChucker() {
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes/pve1/qemu/100/vncproxy"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes/pve1/lxc/200/termproxy"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes/pve1/vncwebsocket?port=5900&vncticket=XYZ"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes/pve1/vncshell"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/access/ticket"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/auth?password=secret"))
+        assertTrue(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/vnc?ticket=abc"))
+
+        assertFalse(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/nodes"))
+        assertFalse(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/cluster/resources"))
+        assertFalse(com.pxmx.app.data.api.shouldSkipChucker("https://pve:8006/api2/json/version"))
+    }
+
+    @Test
+    fun testBuildStillCaptureScript() {
+        val script = ConsoleMimeUtils.buildStillCaptureScript()
+        assertTrue("Script must contain canvas query", script.contains("querySelector('#noVNC_container canvas')"))
+        assertTrue("Script must encode via toDataURL", script.contains("toDataURL('image/jpeg'"))
+        assertTrue("Script downscales edge to 480", script.contains("maxEdge = 480"))
+    }
+
+    @Test
+    fun testParseDataUrlJpeg() {
+        val rawBase64 = java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3, 4, 5))
+        val dataUrl = "\"data:image/jpeg;base64,$rawBase64\""
+        val bytes = ConsoleMimeUtils.parseDataUrlJpeg(dataUrl)
+        assertNotNull(bytes)
+        assertTrue(bytes!!.contentEquals(byteArrayOf(1, 2, 3, 4, 5)))
+
+        assertNull(ConsoleMimeUtils.parseDataUrlJpeg(null))
+        assertNull(ConsoleMimeUtils.parseDataUrlJpeg("null"))
+        assertNull(ConsoleMimeUtils.parseDataUrlJpeg("\"null\""))
+        assertNull(ConsoleMimeUtils.parseDataUrlJpeg("\"data:image/png;base64,$rawBase64\""))
+        assertNull(ConsoleMimeUtils.parseDataUrlJpeg("not a data url"))
+    }
+
+    @Test
+    fun testConsoleStillRejectorUniformOrBlack() {
+        val blackPixels = IntArray(100) { 0xFF000000.toInt() }
+        assertTrue("Black pixels must be rejected", ConsoleStillRejector.isUniformOrBlack(10, 10, blackPixels))
+
+        val whitePixels = IntArray(100) { 0xFFFFFFFF.toInt() }
+        assertTrue("Uniform white pixels must be rejected", ConsoleStillRejector.isUniformOrBlack(10, 10, whitePixels))
+
+        val variedPixels = IntArray(100) { i ->
+            if (i % 2 == 0) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        }
+        assertFalse("Varied terminal/desktop pixels must be accepted", ConsoleStillRejector.isUniformOrBlack(10, 10, variedPixels))
     }
 }

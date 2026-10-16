@@ -343,4 +343,96 @@ object ConsoleMimeUtils {
             })();
         """.trimIndent()
     }
+
+    /**
+     * Builds JavaScript to capture and downscale the active noVNC canvas.
+     * Downscales longest edge to ~480px, encodes as JPEG ~60%, and rejects
+     * uniform or all-black frames.
+     */
+    fun buildStillCaptureScript(): String {
+        return """
+            (function() {
+              try {
+                var c = document.querySelector('#noVNC_container canvas') || document.querySelector('canvas');
+                if (!c || c.width < 10 || c.height < 10) return null;
+                var maxEdge = 480;
+                var w = c.width;
+                var h = c.height;
+                var scale = Math.min(1.0, maxEdge / Math.max(w, h));
+                var dw = Math.round(w * scale);
+                var dh = Math.round(h * scale);
+                var off = document.createElement('canvas');
+                off.width = dw;
+                off.height = dh;
+                var ctx = off.getContext('2d');
+                if (!ctx) return null;
+                ctx.drawImage(c, 0, 0, dw, dh);
+                var imgData = ctx.getImageData(0, 0, dw, dh).data;
+                var total = dw * dh;
+                var step = Math.max(1, Math.floor(total / 100));
+                var firstR = imgData[0], firstG = imgData[1], firstB = imgData[2];
+                var isUniform = true;
+                var isAllBlack = true;
+                for (var i = 0; i < imgData.length; i += 4 * step) {
+                  var r = imgData[i], g = imgData[i + 1], b = imgData[i + 2];
+                  if (r > 16 || g > 16 || b > 16) isAllBlack = false;
+                  if (Math.abs(r - firstR) > 8 || Math.abs(g - firstG) > 8 || Math.abs(b - firstB) > 8) {
+                    isUniform = false;
+                  }
+                }
+                if (isAllBlack || isUniform) return null;
+                return off.toDataURL('image/jpeg', 0.60);
+              } catch(e) {
+                return null;
+              }
+            })();
+        """.trimIndent()
+    }
+
+    /**
+     * Decodes evaluateJavascript JSON-quoted data:image/jpeg;base64 string to ByteArray.
+     */
+    fun parseDataUrlJpeg(rawResult: String?): ByteArray? {
+        if (rawResult.isNullOrBlank() || rawResult == "null") return null
+        val unquoted = if (rawResult.startsWith("\"") && rawResult.endsWith("\"") && rawResult.length >= 2) {
+            rawResult.substring(1, rawResult.length - 1)
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+        } else rawResult
+        if (!unquoted.startsWith("data:image/jpeg;base64,")) return null
+        val base64 = unquoted.substringAfter("data:image/jpeg;base64,").trim()
+        if (base64.isBlank()) return null
+        return try {
+            java.util.Base64.getDecoder().decode(base64)
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+object ConsoleStillRejector {
+    /**
+     * Rejects uniform (solid color) or all-black pixel arrays.
+     */
+    fun isUniformOrBlack(width: Int, height: Int, samplePixels: IntArray): Boolean {
+        if (samplePixels.isEmpty()) return true
+        val first = samplePixels[0]
+        val fr = (first shr 16) and 0xFF
+        val fg = (first shr 8) and 0xFF
+        val fb = first and 0xFF
+
+        var isUniform = true
+        var isAllBlack = true
+
+        for (p in samplePixels) {
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            if (r > 16 || g > 16 || b > 16) isAllBlack = false
+            if (Math.abs(r - fr) > 8 || Math.abs(g - fg) > 8 || Math.abs(b - fb) > 8) {
+                isUniform = false
+            }
+        }
+        return isAllBlack || isUniform
+    }
 }

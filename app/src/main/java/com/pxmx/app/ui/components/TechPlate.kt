@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -154,19 +155,32 @@ fun TechActionPlate(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
+    enabled: Boolean = true,
     icon: ImageVector? = null,
 ) {
     val shape = CutCornerShape(bottomEnd = 10.dp)
+    val contentColor = when {
+        !enabled -> TechColors.Mute
+        emphasized -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val borderColor = when {
+        !enabled -> TechColors.Edge
+        emphasized -> MaterialTheme.colorScheme.primary
+        else -> TechColors.Edge
+    }
+    val backgroundColor = if (emphasized && enabled) TechColors.Deck else TechColors.Hull
     Box(
         modifier = modifier
+            .testTag("tech_action_" + label.lowercase())
             .clip(shape)
-            .background(if (emphasized) TechColors.Deck else TechColors.Hull)
+            .background(backgroundColor)
             .border(
                 1.dp,
-                if (emphasized) MaterialTheme.colorScheme.primary else TechColors.Edge,
+                borderColor,
                 shape,
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -175,8 +189,7 @@ fun TechActionPlate(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (emphasized) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
+                    tint = contentColor,
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(Modifier.width(6.dp))
@@ -187,8 +200,7 @@ fun TechActionPlate(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
-                color = if (emphasized) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface,
+                color = contentColor,
             )
         }
     }
@@ -199,18 +211,20 @@ fun TechPlate(
     modifier: Modifier = Modifier,
     railColor: Color = TechColors.Amber,
     showRail: Boolean = true,
+    fillMaxWidth: Boolean = true,
+    testTag: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val plateModifier = if (testTag != null) modifier.testTag(testTag) else modifier
+    val baseModifier = if (fillMaxWidth) plateModifier.fillMaxWidth() else plateModifier
     Box(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = baseModifier
             .clip(TechPlateShape)
             .background(TechColors.Hull)
             .border(1.dp, TechColors.Edge, TechPlateShape),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = (if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier)
                 .height(IntrinsicSize.Min),
         ) {
             if (showRail) {
@@ -222,9 +236,13 @@ fun TechPlate(
                 )
             }
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                modifier = if (fillMaxWidth) {
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                } else {
+                    Modifier
+                },
                 content = content,
             )
         }

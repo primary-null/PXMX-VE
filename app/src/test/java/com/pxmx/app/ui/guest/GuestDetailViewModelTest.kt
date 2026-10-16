@@ -89,19 +89,23 @@ class GuestDetailViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun initialState_defaultsToHardwareExpanded() {
+    fun initialState_defaultsToOpsExpanded() {
         val state = vm.ui.value
 
         assertEquals("pve1", state.node)
         assertEquals(GuestType.QEMU, state.guestType)
         assertEquals(100L, state.vmid)
         assertEquals("nova", state.name)
-        assertEquals(GuestSection.HARDWARE, state.expanded)
+        assertNull(state.expanded)
     }
 
     @Test
     fun toggleSection_whenAlreadyExpanded_collapsesToNull() {
-        // HARDWARE is expanded by default; clicking it collapses
+        // Start by selecting HARDWARE first
+        vm.selectSection(GuestSection.HARDWARE)
+        assertEquals(GuestSection.HARDWARE, vm.ui.value.expanded)
+
+        // Toggling HARDWARE collapses to null (OPS)
         vm.toggleSection(GuestSection.HARDWARE)
         assertNull(vm.ui.value.expanded)
 
@@ -365,6 +369,95 @@ class GuestDetailViewModelTest {
         assertTrue(eth0!!.addresses.any { it.ip == "192.168.1.100" })
         assertFalse(state.liveInterfaces.any { it.name == "lo" })
         assertFalse(state.liveInterfaces.flatMap { it.addresses }.any { it.ip == "127.0.0.1" })
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. OPS Board Phase 2 Pinning and Layout
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun pinSnapshots_movesSnapshotsBeforeNetworkInAppliedKeys() {
+        vm.pinSection(GuestSection.SNAPSHOTS)
+        val keys = vm.ui.value.appliedKeys
+        val snapIdx = keys.indexOf("snapshots")
+        val netIdx = keys.indexOf("network")
+        assertTrue("snapshots should be present", snapIdx >= 0)
+        assertTrue("network should be present", netIdx >= 0)
+        assertTrue("snapshots ($snapIdx) must appear before network ($netIdx)", snapIdx < netIdx)
+    }
+
+    @Test
+    fun toggleHistoryFalse_omitsHistoryGraphFromAppliedKeys() {
+        vm.toggleHistory(false)
+        val keys = vm.ui.value.appliedKeys
+        assertFalse(keys.contains("history-graph"))
+        assertTrue(keys.contains("console"))
+    }
+
+    @Test
+    fun togglePinSectionRaw_doesNotPinRaw() {
+        vm.togglePinSection(GuestSection.RAW)
+        assertFalse(vm.ui.value.board.isPinned(GuestSection.RAW))
+        assertFalse(vm.ui.value.board.pinnedSections.contains("RAW"))
+        val keys = vm.ui.value.appliedKeys
+        assertEquals("raw", keys.last())
+    }
+
+    @Test
+    fun pinFirstSection_setsExpectedPinHintMessage() {
+        vm.pinSection(GuestSection.SNAPSHOTS)
+        assertEquals("PINNED TO OPS · EDIT REORDERS THE DECK", vm.ui.value.message)
+    }
+
+    @Test
+    fun pinCapExceeded_setsPinCap4Message() {
+        vm.pinSection(GuestSection.SNAPSHOTS)
+        vm.pinSection(GuestSection.HARDWARE)
+        vm.pinSection(GuestSection.NETWORK)
+        vm.pinSection(GuestSection.FIREWALL)
+        assertEquals(4, vm.ui.value.board.pinnedSections.size)
+
+        vm.pinSection(GuestSection.BACKUPS)
+        assertEquals("PIN CAP 4", vm.ui.value.message)
+    }
+
+    @Test
+    fun targetedConsumeMessage_clearsExpectedStringAndPreservesNewMessage() {
+        vm.pinSection(GuestSection.SNAPSHOTS)
+        vm.pinSection(GuestSection.HARDWARE)
+        vm.pinSection(GuestSection.NETWORK)
+        vm.pinSection(GuestSection.FIREWALL)
+        assertEquals(4, vm.ui.value.board.pinnedSections.size)
+
+        vm.pinSection(GuestSection.BACKUPS)
+        assertEquals("PIN CAP 4", vm.ui.value.message)
+
+        vm.consumeMessage("PIN CAP 4")
+        assertNull(vm.ui.value.message)
+
+        vm.pinSection(GuestSection.BACKUPS)
+        assertEquals("PIN CAP 4", vm.ui.value.message)
+
+        vm.saveBoardAsProfileDefault()
+        assertEquals("Board saved as default for all guests", vm.ui.value.message)
+
+        vm.consumeMessage("PIN CAP 4")
+        assertEquals("Board saved as default for all guests", vm.ui.value.message)
+
+        vm.consumeMessage("Board saved as default for all guests")
+        assertNull(vm.ui.value.message)
+    }
+
+    @Test
+    fun targetedConsumeError_clearsExpectedErrorAndPreservesMismatch() {
+        vm.createSnapshot("", "", false)
+        assertEquals("Invalid snapshot name", vm.ui.value.error)
+
+        vm.consumeError("Something else")
+        assertEquals("Invalid snapshot name", vm.ui.value.error)
+
+        vm.consumeError("Invalid snapshot name")
+        assertNull(vm.ui.value.error)
     }
 }
 

@@ -16,15 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Usb
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +33,8 @@ import com.pxmx.app.data.model.FirewallSnapshot
 import com.pxmx.app.data.model.GuestLiveInterface
 import com.pxmx.app.data.model.HostUsbDevice
 import com.pxmx.app.data.model.ParsedGuestConfig
+import com.pxmx.app.ui.components.TechActionPlate
+import com.pxmx.app.ui.components.TechColors
 
 @Composable
 fun NetworkUsbBody(
@@ -119,29 +116,34 @@ fun NetworkUsbBody(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(4.dp))
-        leftoverLiveIfaces.forEach { iface ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                modifier = Modifier
+        leftoverLiveIfaces.forEachIndexed { index, iface ->
+            if (index > 0) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(TechColors.Divider),
+                )
+            }
+            Column(
+                Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .padding(vertical = 4.dp),
             ) {
-                Column(Modifier.padding(10.dp)) {
+                Text(
+                    listOfNotNull(iface.name, iface.mac).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                )
+                iface.addresses.forEach { addr ->
+                    val p = addr.prefix?.let { "/$it" } ?: ""
                     Text(
-                        listOfNotNull(iface.name, iface.mac).joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall,
+                        "${addr.ip}$p (${addr.type})",
+                        style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    iface.addresses.forEach { addr ->
-                        val p = addr.prefix?.let { "/$it" } ?: ""
-                        Text(
-                            "${addr.ip}$p (${addr.type})",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
                 }
             }
         }
@@ -221,168 +223,157 @@ private fun MiniNet(
     onToggleFirewall: (() -> Unit)?,
     onToggleLinkDown: (() -> Unit)?,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Cable,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Cable,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    listOfNotNull(net.key, net.model ?: if (isQemu) "virtio" else "veth").joinToString(" · "),
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (net.linkDown) {
                     Text(
-                        listOfNotNull(net.key, net.model ?: if (isQemu) "virtio" else "veth").joinToString(" · "),
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (net.linkDown) {
-                        Text(
-                            "DOWN",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    } else {
-                        Text(
-                            "UP",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    if (net.firewall) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "FW",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
-            net.mac?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    it,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            val bridgeVlan = buildString {
-                net.bridge?.let {
-                    append("bridge $it")
-                    net.tag?.let { t -> append(" · vlan $t") }
-                }
-            }
-            if (bridgeVlan.isNotEmpty()) {
-                Text(
-                    bridgeVlan,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            val extras = listOfNotNull(
-                net.rate?.let { "rate ${it}MB/s" },
-                net.mtu?.let { "mtu $it" },
-                net.queues?.let { "queues $it" },
-            ).joinToString(" · ")
-            if (extras.isNotEmpty()) {
-                Text(
-                    extras,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            val lxcIps = listOfNotNull(
-                net.lxcIp?.let { "ip $it" },
-                net.lxcGw?.let { "gw $it" },
-                net.lxcIp6?.let { "ip6 $it" },
-                net.lxcGw6?.let { "gw6 $it" },
-            ).joinToString(" · ")
-            if (lxcIps.isNotEmpty()) {
-                Text(
-                    lxcIps,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            cloudInitIp?.let {
-                Text(
-                    "ipconfig: $it",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            if (liveInterface != null && liveInterface.addresses.isNotEmpty()) {
-                liveInterface.addresses.forEach { addr ->
-                    val p = addr.prefix?.let { "/$it" } ?: ""
-                    Text(
-                        "live: ${addr.ip}$p (${addr.type})",
+                        "DOWN",
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else {
+                    Text(
+                        "UP",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (net.firewall) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "FW",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
+        }
 
-            if (onToggleFirewall != null || onToggleLinkDown != null) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (onToggleFirewall != null) {
-                        TextButton(
-                            onClick = onToggleFirewall,
-                            enabled = !busy,
-                        ) {
-                            Text(
-                                if (net.firewall) "Firewall: ON" else "Firewall: OFF",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                        }
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    if (onToggleLinkDown != null) {
-                        TextButton(
-                            onClick = onToggleLinkDown,
-                            enabled = !busy,
-                        ) {
-                            Text(
-                                if (net.linkDown) "Link: DOWN" else "Link: UP",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                        }
-                    }
+        net.mac?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                it,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        val bridgeVlan = buildString {
+            net.bridge?.let {
+                append("bridge $it")
+                net.tag?.let { t -> append(" · vlan $t") }
+            }
+        }
+        if (bridgeVlan.isNotEmpty()) {
+            Text(
+                bridgeVlan,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        val extras = listOfNotNull(
+            net.rate?.let { "rate ${it}MB/s" },
+            net.mtu?.let { "mtu $it" },
+            net.queues?.let { "queues $it" },
+        ).joinToString(" · ")
+        if (extras.isNotEmpty()) {
+            Text(
+                extras,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        val lxcIps = listOfNotNull(
+            net.lxcIp?.let { "ip $it" },
+            net.lxcGw?.let { "gw $it" },
+            net.lxcIp6?.let { "ip6 $it" },
+            net.lxcGw6?.let { "gw6 $it" },
+        ).joinToString(" · ")
+        if (lxcIps.isNotEmpty()) {
+            Text(
+                lxcIps,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        cloudInitIp?.let {
+            Text(
+                "ipconfig: $it",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        if (liveInterface != null && liveInterface.addresses.isNotEmpty()) {
+            liveInterface.addresses.forEach { addr ->
+                val p = addr.prefix?.let { "/$it" } ?: ""
+                Text(
+                    "live: ${addr.ip}$p (${addr.type})",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        if (onToggleFirewall != null || onToggleLinkDown != null) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onToggleFirewall != null) {
+                    TechActionPlate(
+                        label = if (net.firewall) "FW ON" else "FW OFF",
+                        onClick = onToggleFirewall,
+                        enabled = !busy,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                if (onToggleLinkDown != null) {
+                    TechActionPlate(
+                        label = if (net.linkDown) "LINK DOWN" else "LINK UP",
+                        onClick = onToggleLinkDown,
+                        enabled = !busy,
+                    )
                 }
             }
         }
@@ -417,32 +408,33 @@ private fun AttachedUsbRow(
     busy: Boolean,
     onDetach: () -> Unit,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Usb, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(usb.key, fontWeight = FontWeight.SemiBold)
-                Text(
-                    usb.resolvedName ?: usb.host ?: usb.raw,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    usb.raw + if (usb.usb3) " · usb3" else "",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            OutlinedButton(onClick = onDetach, enabled = !busy) {
-                Text("Detach")
-            }
+        Icon(Icons.Default.Usb, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(usb.key, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+            Text(
+                usb.resolvedName ?: usb.host ?: usb.raw,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                usb.raw + if (usb.usb3) " · usb3" else "",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+        TechActionPlate(
+            label = "DETACH",
+            onClick = onDetach,
+            enabled = !busy,
+        )
     }
 }
 
@@ -454,46 +446,48 @@ private fun HostUsbRow(
     onAttach: () -> Unit,
 ) {
     val dim = device.isHub
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-                alpha = if (dim) 0.55f else 1f,
-            ),
-        ),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp),
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    device.displayName,
-                    fontWeight = FontWeight.Medium,
-                    color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurface,
-                )
-                device.hostId?.let {
-                    Text(it, style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
-                }
-                Text(
-                    device.detailLine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(Modifier.weight(1f)) {
+            Text(
+                device.displayName,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Monospace,
+                color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface,
+            )
+            device.hostId?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
             }
-            when {
-                attached -> Text(
-                    "In use",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                device.isHub -> Text(
-                    "Hub",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                else -> Button(onClick = onAttach, enabled = !busy) { Text("Attach") }
-            }
+            Text(
+                device.detailLine,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        when {
+            attached -> Text(
+                "In use",
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            device.isHub -> Text(
+                "Hub",
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> TechActionPlate(
+                label = "ATTACH",
+                onClick = onAttach,
+                enabled = !busy,
+            )
         }
     }
 }

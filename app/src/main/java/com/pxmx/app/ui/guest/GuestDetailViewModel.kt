@@ -44,8 +44,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import com.pxmx.app.ProxmoxApp
+import com.pxmx.app.data.ops.OpsBoard
+import com.pxmx.app.data.ops.OpsBoardStore
+import com.pxmx.app.data.ops.computeAppliedClips
+import com.pxmx.app.data.ops.computeAppliedKeys
 
-/** Accordion sections on the guest detail screen. */
+/** Fact plates on the guest detail screen. */
 enum class GuestSection(val title: String) {
     HARDWARE("Hardware"),
     NETWORK("Network & USB"),
@@ -61,8 +66,13 @@ data class GuestDetailUiState(
     val guestType: GuestType,
     val vmid: Long,
     val name: String,
-    /** Null = all collapsed; otherwise that section is open (single-expand). */
-    val expanded: GuestSection? = GuestSection.HARDWARE,
+    /** Null = OPS scan (all fact plates collapsed); otherwise that fact plate is open. */
+    val expanded: GuestSection? = null,
+    val board: OpsBoard = OpsBoard.DEFAULT,
+    val isEditingBoard: Boolean = false,
+    val pinHintShown: Boolean = false,
+    val appliedClips: List<String> = computeAppliedClips(board),
+    val appliedKeys: List<String> = computeAppliedKeys(board),
     val status: GuestStatus? = null,
     val config: ParsedGuestConfig? = null,
     val firewall: FirewallSnapshot? = null,
@@ -98,10 +108,11 @@ class GuestDetailViewModel(
     activeAptTask: StateFlow<ActiveAptTask?>,
     activeAptLogLine: StateFlow<ClusterLogEntry?>,
     isUpdatesScreenActive: StateFlow<Boolean>,
-    node: String,
-    guestType: GuestType,
-    vmid: Long,
-    name: String,
+    val node: String,
+    val guestType: GuestType,
+    val vmid: Long,
+    val name: String,
+    private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context),
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
@@ -162,7 +173,195 @@ class GuestDetailViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            opsBoardStore.data.collect { payload ->
+                val profileId = currentProfileId()
+                val board = payload.resolveBoard(profileId, guestType.name.lowercase(), vmid)
+                _ui.update {
+                    it.copy(
+                        board = board,
+                        pinHintShown = payload.pinHintShown,
+                        appliedClips = computeAppliedClips(board),
+                        appliedKeys = computeAppliedKeys(board),
+                    )
+                }
+            }
+        }
         refresh()
+    }
+
+    fun currentProfileId(): String {
+        val host = sessionStore.session.value?.config?.host
+        if (host != null && host.equals("demo", ignoreCase = true)) {
+            return "demo"
+        }
+        return sessionStore.snapshot()?.profileId
+            ?: sessionStore.lastProfileId()
+            ?: "session"
+    }
+
+    fun toggleEditBoard() {
+        _ui.update { it.copy(isEditingBoard = !it.isEditingBoard) }
+    }
+
+    fun consumeMessage(expected: String) {
+        _ui.update { current ->
+            if (current.message == expected) current.copy(message = null) else current
+        }
+    }
+
+    fun consumeError(expected: String) {
+        _ui.update { current ->
+            if (current.error == expected) current.copy(error = null) else current
+        }
+    }
+
+    fun togglePinSection(section: GuestSection) {
+        if (section == GuestSection.RAW) return
+        val currentBoard = _ui.value.board
+        val wasPinned = currentBoard.isPinned(section)
+        if (!wasPinned && currentBoard.pinnedSections.size >= 4) {
+            _ui.update { it.copy(message = "PIN CAP 4") }
+            return
+        }
+        val newBoard = currentBoard.togglePin(section)
+        val profileId = currentProfileId()
+        val showHint = !wasPinned && !_ui.value.pinHintShown
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                pinHintShown = if (showHint) true else it.pinHintShown,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+                message = if (showHint) "PINNED TO OPS · EDIT REORDERS THE DECK" else it.message,
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+            if (showHint) {
+                opsBoardStore.setPinHintShown(true)
+            }
+        }
+    }
+
+    fun pinSection(section: GuestSection) {
+        if (section == GuestSection.RAW) return
+        val currentBoard = _ui.value.board
+        if (currentBoard.isPinned(section)) return
+        if (currentBoard.pinnedSections.size >= 4) {
+            _ui.update { it.copy(message = "PIN CAP 4") }
+            return
+        }
+        val newBoard = currentBoard.pinSection(section)
+        val profileId = currentProfileId()
+        val showHint = !_ui.value.pinHintShown
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                pinHintShown = if (showHint) true else it.pinHintShown,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+                message = if (showHint) "PINNED TO OPS · EDIT REORDERS THE DECK" else it.message,
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+            if (showHint) {
+                opsBoardStore.setPinHintShown(true)
+            }
+        }
+    }
+
+    fun unpinSection(section: GuestSection) {
+        if (section == GuestSection.RAW) return
+        val currentBoard = _ui.value.board
+        if (!currentBoard.isPinned(section)) return
+        val newBoard = currentBoard.unpinSection(section)
+        val profileId = currentProfileId()
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+        }
+    }
+
+    fun toggleConsole(include: Boolean) {
+        val currentBoard = _ui.value.board
+        val newBoard = currentBoard.toggleConsole(include)
+        val profileId = currentProfileId()
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+        }
+    }
+
+    fun toggleHistory(include: Boolean) {
+        val currentBoard = _ui.value.board
+        val newBoard = currentBoard.toggleHistory(include)
+        val profileId = currentProfileId()
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+        }
+    }
+
+    fun moveClipUp(clipId: String) {
+        val currentBoard = _ui.value.board
+        val newBoard = currentBoard.moveClipUp(clipId)
+        val profileId = currentProfileId()
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+        }
+    }
+
+    fun moveClipDown(clipId: String) {
+        val currentBoard = _ui.value.board
+        val newBoard = currentBoard.moveClipDown(clipId)
+        val profileId = currentProfileId()
+        _ui.update {
+            it.copy(
+                board = newBoard,
+                appliedClips = computeAppliedClips(newBoard),
+                appliedKeys = computeAppliedKeys(newBoard),
+            )
+        }
+        viewModelScope.launch {
+            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
+        }
+    }
+
+    fun saveBoardAsProfileDefault() {
+        val profileId = currentProfileId()
+        val currentBoard = _ui.value.board
+        viewModelScope.launch {
+            opsBoardStore.setProfileDefault(profileId, currentBoard)
+            opsBoardStore.clearGuestBoard(profileId, guestType, vmid)
+            _ui.update { it.copy(message = "Board saved as default for all guests") }
+        }
     }
 
     fun toggleSection(section: GuestSection) {
@@ -556,6 +755,7 @@ class GuestDetailViewModel(
         vmid: Long,
         name: String,
         context: Context = repository.appContext,
+        opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context),
     ) : this(
         guestRepo = repository.guestRepo,
         storageRepo = repository.storageRepo,
@@ -564,6 +764,7 @@ class GuestDetailViewModel(
         sessionStore = repository.sessionStore,
         recentActionRegistry = repository.recentActionRegistry,
         context = context,
+        opsBoardStore = opsBoardStore,
         clusterLogCache = repository.clusterLogCache,
         activeAptTask = repository.activeAptTask,
         activeAptLogLine = repository.activeAptLogLine,
@@ -581,6 +782,7 @@ class GuestDetailViewModel(
         private val vmid: Long,
         private val name: String,
         private val context: Context = repository.appContext,
+        private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -592,6 +794,7 @@ class GuestDetailViewModel(
                 sessionStore = repository.sessionStore,
                 recentActionRegistry = repository.recentActionRegistry,
                 context = context,
+                opsBoardStore = opsBoardStore,
                 clusterLogCache = repository.clusterLogCache,
                 activeAptTask = repository.activeAptTask,
                 activeAptLogLine = repository.activeAptLogLine,

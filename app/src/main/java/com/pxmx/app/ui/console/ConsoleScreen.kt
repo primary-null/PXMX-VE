@@ -76,9 +76,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.util.findActivity
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.pxmx.app.data.model.GuestType
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -173,6 +179,7 @@ fun ConsoleScreen(
     }
 
     val isDisposed = remember(session, transport) { booleanArrayOf(false) }
+    val acceptLastStill = remember(session, transport) { booleanArrayOf(false) }
 
     // Allocate one WebView instance per ConsoleScreen session to survive recompositions and layout switches.
     val webViewInstance = remember(session, transport) {
@@ -366,8 +373,77 @@ fun ConsoleScreen(
         }
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val app = context.applicationContext as? com.pxmx.app.ProxmoxApp
+    val stillStore = app?.consoleStillStore
+    val sessionStore = app?.sessionStore
+
+    val profileId = remember(session.cookieHostUrl) {
+        if (session.cookieHostUrl.contains("demo", ignoreCase = true) ||
+            sessionStore?.session?.value?.config?.host.equals("demo", ignoreCase = true)
+        ) {
+            "demo"
+        } else {
+            sessionStore?.snapshot()?.profileId
+                ?: sessionStore?.lastProfileId()
+                ?: "session"
+        }
+    }
+
+    val captureStill: () -> Unit = {
+        if (session.guestType == GuestType.QEMU && !isDisposed[0]) {
+            try {
+                webViewInstance.evaluateJavascript(ConsoleMimeUtils.buildStillCaptureScript()) { result ->
+                    if ((!isDisposed[0] || acceptLastStill[0]) && !result.isNullOrBlank() && result != "null") {
+                        val bytes = ConsoleMimeUtils.parseDataUrlJpeg(result)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val still = com.pxmx.app.data.console.ConsoleStill(
+                                jpegBytes = bytes,
+                                timestampEpochMs = System.currentTimeMillis(),
+                            )
+                            stillStore?.putStill(profileId, session.guestType, session.vmid, still)
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                // Ignore JS / WebView errors
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, session) {
+        if (session.guestType != GuestType.QEMU) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_PAUSE) {
+                    captureStill()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                acceptLastStill[0] = true
+                captureStill()
+            }
+        }
+    }
+
+    LaunchedEffect(session) {
+        if (session.guestType == GuestType.QEMU) {
+            while (isActive) {
+                delay(2500L)
+                captureStill()
+            }
+        }
+    }
+
     DisposableEffect(webViewInstance) {
         onDispose {
+            acceptLastStill[0] = true
+            captureStill()
             isDisposed[0] = true
             loadJobHolder[0]?.cancel()
             runCatching {

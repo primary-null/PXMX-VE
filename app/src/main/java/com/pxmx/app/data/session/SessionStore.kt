@@ -541,6 +541,8 @@ class SessionStore(
         prefs.edit().clear().commit()
 
         if (context != null) {
+            runCatching { com.pxmx.app.data.ops.OpsBoardStore.purge(context) }
+            runCatching { (context.applicationContext as? com.pxmx.app.ProxmoxApp)?.consoleStillStore?.clear() }
             // Clear and close the encrypted store BEFORE its key and files go away.
             runCatching { SecurePrefs.open(context).edit().clear().commit() }
             runCatching {

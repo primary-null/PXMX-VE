@@ -1,5 +1,7 @@
 package com.pxmx.app.data.api
 
+import android.content.Context
+import com.chuckerteam.chucker.api.ChuckerInterceptor
 import com.pxmx.app.BuildConfig
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.session.ProbeAuth
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class ProxmoxClientFactory(
     private val sessionStore: SessionStore,
+    private val appContext: Context? = null,
 ) : ProxmoxApiProvider {
     @Volatile
     private var cachedKey: String? = null
@@ -122,6 +125,20 @@ class ProxmoxClientFactory(
             .hostnameVerifier(hostnameVerifier)
             .addInterceptor(AuthInterceptor(sessionStore, config, preferBoundConfig, probeAuthSlot, boundSession))
 
+        if (appContext != null) {
+            val chucker = ChuckerInterceptor.Builder(appContext.applicationContext)
+                .redactHeaders("Cookie", "Authorization", "CSRFPreventionToken", "Set-Cookie")
+                .build()
+            builder.addInterceptor { chain ->
+                val url = chain.request().url.toString()
+                if (shouldSkipChucker(url)) {
+                    chain.proceed(chain.request())
+                } else {
+                    chucker.intercept(chain)
+                }
+            }
+        }
+
         // Never log in release — console paths can contain vncticket secrets.
         if (BuildConfig.DEBUG) {
             val defaultLogger = HttpLoggingInterceptor.Logger.DEFAULT
@@ -155,5 +172,18 @@ class ProxmoxClientFactory(
 
         fun sanitizeUrl(message: String): String =
             message.replace(QUERY_SECRET_REGEX, "$1[REDACTED]")
+
+        fun shouldSkipChucker(url: String): Boolean {
+            val u = url.lowercase()
+            return u.contains("access/ticket") ||
+                u.contains("vncticket") ||
+                u.contains("password") ||
+                u.contains("ticket=") ||
+                u.contains("vncproxy") ||
+                u.contains("termproxy") ||
+                u.contains("vncshell")
+        }
     }
 }
+
+fun shouldSkipChucker(url: String): Boolean = ProxmoxClientFactory.shouldSkipChucker(url)

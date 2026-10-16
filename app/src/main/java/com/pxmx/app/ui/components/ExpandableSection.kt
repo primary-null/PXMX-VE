@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,8 +53,10 @@ fun ExpandableSection(
         railColor = if (expanded) MaterialTheme.colorScheme.primary else TechColors.Edge,
         showRail = true,
     ) {
+        val slug = title.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
         Row(
             modifier = Modifier
+                .testTag("expandable_$slug")
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 11.dp, vertical = 11.dp), // ~6% tighter

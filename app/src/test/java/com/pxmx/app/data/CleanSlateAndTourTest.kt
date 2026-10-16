@@ -327,8 +327,8 @@ class CleanSlateAndTourTest {
         // Step 1: GUEST_CARD target is guest card in top/middle list -> panel at BOTTOM
         assertEquals(TourPanelPlacement.BOTTOM, TourStep.GUEST_CARD.placement)
 
-        // Step 2: PWR_BUTTON target is PowerCard / POWER row in lower half of GuestDetail -> panel at TOP
-        assertEquals(TourPanelPlacement.TOP, TourStep.PWR_BUTTON.placement)
+        // Step 2: PWR_BUTTON target is app-bar ⋮ menu at top of GuestDetail -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.PWR_BUTTON.placement)
 
         // Step 3: AUTO_BUTTON target is AUTO button in top/middle list -> panel at BOTTOM
         assertEquals(TourPanelPlacement.BOTTOM, TourStep.AUTO_BUTTON.placement)
@@ -375,5 +375,37 @@ class CleanSlateAndTourTest {
         // Reset must clear the active step back to null
         TourController.reset()
         assertNull(TourController.currentStep.value)
+    }
+
+    @Test
+    fun opsBoardStore_cleanSlate_purgeHandlesNullContextAndInMemStore() {
+        val store = com.pxmx.app.data.ops.OpsBoardStore.create(null)
+        assertTrue(store is com.pxmx.app.data.ops.InMemoryOpsBoardStore)
+        // purge with null context does not throw
+        com.pxmx.app.data.ops.OpsBoardStore.purge(null)
+
+        // Purge via sessionStore with null context does not throw
+        val fakePrefs = FakeSharedPreferences()
+        val sessionStore = SessionStore(injectedPrefs = fakePrefs)
+        sessionStore.purgeAll(context = null)
+    }
+
+    @Test
+    fun opsBoardStore_purgeFile_deletesFileInDir() {
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"), "pxmx_test_" + System.currentTimeMillis())
+        tempDir.mkdirs()
+        try {
+            val file = java.io.File(tempDir, com.pxmx.app.data.ops.OpsBoardStore.FILE_NAME)
+            file.writeText("{}")
+            assertTrue(file.exists())
+
+            val stubContext = object : android.content.ContextWrapper(null) {
+                override fun getFilesDir(): java.io.File = tempDir
+            }
+            com.pxmx.app.data.ops.OpsBoardStore.purge(stubContext)
+            assertFalse("Ops board file should be deleted on purge", file.exists())
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 }

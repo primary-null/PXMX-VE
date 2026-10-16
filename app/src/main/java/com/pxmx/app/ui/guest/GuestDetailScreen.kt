@@ -2,53 +2,88 @@ package com.pxmx.app.ui.guest
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import com.pxmx.app.data.util.TagUtils
 import com.pxmx.app.ui.components.AddTagButton
 import com.pxmx.app.ui.components.TagChip
 import com.pxmx.app.ui.components.TechHistoryGraph
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.PushPin
+import com.pxmx.app.data.ops.OpsBoard
+import com.pxmx.app.data.ops.clipIdToSection
+import com.pxmx.app.data.ops.guestDetailLazyKeys
+import com.pxmx.app.data.ops.itemKey
+import com.pxmx.app.data.ops.sectionToClipId
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -56,30 +91,52 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import com.pxmx.app.ProxmoxApp
+import com.pxmx.app.data.console.ConsoleStill
+import com.pxmx.app.data.console.ConsoleStillStore
+import com.pxmx.app.ui.components.TechActionPlate
+import com.pxmx.app.ui.util.Toasts
+import com.pxmx.app.ui.util.ToastKind
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,7 +149,6 @@ import com.pxmx.app.data.model.GuestAction
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ParsedGuestConfig
 import com.pxmx.app.data.model.SnapshotInfo
-import com.pxmx.app.ui.components.ExpandableSection
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.components.TechColors
@@ -102,6 +158,7 @@ import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
 import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
+import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechStatusPlate
 import com.pxmx.app.ui.components.techRailColor
 import com.pxmx.app.ui.guest.detail.*
@@ -113,6 +170,23 @@ import com.pxmx.app.ui.util.formatEpoch
 import com.pxmx.app.ui.util.formatMemoryMiB
 import com.pxmx.app.ui.util.formatPercent
 import com.pxmx.app.ui.util.formatUptime
+
+private data class BezelTab(
+    val label: String,
+    val fullLabel: String,
+    val slug: String,
+    val section: GuestSection,
+)
+
+private val BEZEL_TABS = listOf(
+    BezelTab(label = "HW", fullLabel = "HARDWARE", slug = "hw", section = GuestSection.HARDWARE),
+    BezelTab(label = "NET", fullLabel = "NETWORK", slug = "net", section = GuestSection.NETWORK),
+    BezelTab(label = "FW", fullLabel = "FIREWALL", slug = "fw", section = GuestSection.FIREWALL),
+    BezelTab(label = "SNAP", fullLabel = "SNAPSHOTS", slug = "snap", section = GuestSection.SNAPSHOTS),
+    BezelTab(label = "BKP", fullLabel = "BACKUPS", slug = "bkp", section = GuestSection.BACKUPS),
+    BezelTab(label = "OPT", fullLabel = "OPTIONS", slug = "opt", section = GuestSection.OPTIONS),
+    BezelTab(label = "RAW", fullLabel = "RAW", slug = "raw", section = GuestSection.RAW),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,6 +212,33 @@ fun GuestDetailScreen(
     }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(state.message) {
+        val msg = state.message
+        if (!msg.isNullOrBlank()) {
+            Toasts.show(context, msg, ToastKind.INFO)
+            viewModel.consumeMessage(msg)
+        }
+    }
+    LaunchedEffect(state.error) {
+        val err = state.error
+        if (!err.isNullOrBlank()) {
+            Toasts.show(context, err, ToastKind.ERROR)
+            viewModel.consumeError(err)
+        }
+    }
+
+    val stillStore = (context.applicationContext as? ProxmoxApp)?.consoleStillStore
+    val stillsFlow = remember(stillStore) {
+        stillStore?.stills ?: kotlinx.coroutines.flow.flowOf(emptyMap())
+    }
+    val stills by stillsFlow.collectAsStateWithLifecycle(emptyMap())
+    val profileId = remember(state) { viewModel.currentProfileId() }
+    val stillKey = remember(profileId, state.guestType, state.vmid) {
+        ConsoleStillStore.stillKey(profileId, state.guestType, state.vmid)
+    }
+    val currentStill = if (running) stills[stillKey] else null
 
     // Back handling ordering: modal dialogs/menus close first, then pop screen back to Home
     BackHandler(enabled = pendingDanger != null) {
@@ -161,8 +262,13 @@ fun GuestDetailScreen(
     BackHandler(enabled = state.confirmDeleteBackup != null) {
         viewModel.confirmDeleteBackup(null)
     }
+    BackHandler(enabled = state.isEditingBoard) {
+        viewModel.toggleEditBoard()
+    }
     BackHandler(
-        enabled = !powerMenu &&
+        enabled = pendingDanger == null &&
+            !powerMenu &&
+            !state.isEditingBoard &&
             !state.showCreateSnapshot &&
             !state.showCreateBackup &&
             state.confirmDeleteSnap == null &&
@@ -188,13 +294,15 @@ fun GuestDetailScreen(
 
     Scaffold(
         bottomBar = {
-            SystemLogStrip(
-                entry = latestLog,
-                onClick = {
-                    com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.LOG_STRIP)
-                    onOpenLogs()
-                },
-            )
+            if (!isEmbeddedInPane) {
+                SystemLogStrip(
+                    entry = latestLog,
+                    onClick = {
+                        com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.LOG_STRIP)
+                        onOpenLogs()
+                    },
+                )
+            }
         },
         topBar = {
             TopAppBar(
@@ -298,267 +406,254 @@ fun GuestDetailScreen(
             return@Scaffold
         }
 
-        LazyColumn(
-            state = listState,
+        val keysInLazyColumn = remember(state.isEditingBoard, state.appliedKeys) {
+            guestDetailLazyKeys(state.isEditingBoard, state.appliedKeys)
+        }
+
+        LaunchedEffect(state.expanded) {
+            val sec = state.expanded
+            if (sec != null) {
+                val target = keysInLazyColumn.indexOf(sec.itemKey())
+                if (target >= 0) {
+                    listState.animateScrollToItem(target)
+                }
+            }
+        }
+
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(15.dp), // ~6% tighter than 16
-            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            item(key = "snack") {
-                AnimatedVisibility(
-                    visible = state.message != null || state.error != null,
-                    enter = fadeIn() + slideInVertically(),
-                    exit = fadeOut(),
-                ) {
-                    val err = state.error
-                    val msg = state.message
-                    if (err != null) {
-                        Snackbar { Text(err) }
-                    } else if (msg != null) {
-                        Snackbar { Text(msg) }
-                    }
-                }
+            // 1. Sticky bezel row (NOT inside LazyColumn)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 15.dp, end = 15.dp, top = 8.dp, bottom = 6.dp),
+            ) {
+                BezelHugRow(
+                    state = state,
+                    viewModel = viewModel,
+                    listState = listState,
+                    keysInLazyColumn = keysInLazyColumn,
+                )
             }
 
-            // Section tabs — jump/expand; sized for touch, not tiny chips.
-            item(key = "tabs") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    WeakTab(
-                        label = "OPS",
-                        selected = state.expanded == null,
-                        onClick = {
-                            viewModel.selectSection(null)
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(0)
-                            }
-                        },
-                    )
-                    GuestSection.entries.forEach { section ->
-                        WeakTab(
-                            label = when (section) {
-                                GuestSection.HARDWARE -> "HW"
-                                GuestSection.NETWORK -> "NET"
-                                GuestSection.FIREWALL -> "FW"
-                                GuestSection.OPTIONS -> "OPT"
-                                GuestSection.SNAPSHOTS -> "SNAP"
-                                GuestSection.BACKUPS -> "BKP"
-                                GuestSection.RAW -> "RAW"
-                            },
-                            selected = state.expanded == section,
-                            onClick = {
-                                viewModel.selectSection(section)
-                                coroutineScope.launch {
-                                    val targetIndex = when (section) {
-                                        GuestSection.HARDWARE -> 4
-                                        GuestSection.NETWORK -> 5
-                                        GuestSection.FIREWALL -> 6
-                                        GuestSection.OPTIONS -> 7
-                                        GuestSection.SNAPSHOTS -> 8
-                                        GuestSection.BACKUPS -> 9
-                                        GuestSection.RAW -> 10
-                                    }
-                                    listState.animateScrollToItem(targetIndex)
-                                }
-                            },
+            // 2. Continuous OPS deck in LazyColumn
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 4.dp, bottom = 15.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                if (state.isEditingBoard) {
+                    item(key = "edit_board") {
+                        EditBoardCard(
+                            board = state.board,
+                            onMoveUp = { viewModel.moveClipUp(it) },
+                            onMoveDown = { viewModel.moveClipDown(it) },
+                            onTogglePin = { viewModel.togglePinSection(it) },
+                            onToggleConsole = { viewModel.toggleConsole(it) },
+                            onToggleHistory = { viewModel.toggleHistory(it) },
+                            onSaveAsDefault = { viewModel.saveBoardAsProfileDefault() },
+                            onClose = { viewModel.toggleEditBoard() },
                         )
                     }
                 }
-            }
 
-            item(key = "hero") {
-                HeroCard(
-                    name = state.name,
-                    status = st?.status,
-                    kindLabel = iconStyle.label,
-                    uptime = st?.uptime,
-                    cpu = st?.cpu,
-                    cpus = st?.cpus ?: cfg?.cores?.toIntOrNull(),
-                    mem = st?.mem,
-                    maxmem = st?.maxmem,
-                    disk = st?.disk,
-                    maxdisk = st?.maxdisk,
-                    tags = st?.tags ?: cfg?.tags,
-                    busy = busy,
-                    vmid = state.vmid,
-                    onAddTag = { viewModel.addTag(it) },
-                    onRemoveTag = { viewModel.removeTag(it) },
-                )
-            }
-
-            item(key = "history-graph") {
-                TechHistoryGraph(
-                    points = state.rrdData,
-                    isGuest = true,
-                    timeframe = state.rrdTimeframe,
-                    onTimeframe = { viewModel.setRrdTimeframe(it) },
-                )
-            }
-
-            item(key = "power") {
-                PowerCard(
-                    running = running,
-                    status = st?.status,
-                    busy = busy,
-                    actionInProgress = state.actionInProgress,
-                    guestType = state.guestType,
-                    onPower = {
-                        com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
-                        dispatchPower(it)
-                    },
-                    onOpenConsole = onOpenConsole,
-                    isTokenSession = state.isTokenSession,
-                    onOpenPowerMenu = {
-                        powerMenu = true
-                        com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.PWR_BUTTON)
-                    },
-                )
-            }
-
-            item(key = "hardware") {
-                val disks = cfg?.disks.orEmpty()
-                ExpandableSection(
-                    title = GuestSection.HARDWARE.title,
-                    subtitle = "${disks.size} disk(s) · CPU ${cfg?.vcpus ?: "—"} · ${formatMemoryMiB(cfg?.memory)}",
-                    expanded = state.expanded == GuestSection.HARDWARE,
-                    onToggle = { viewModel.toggleSection(GuestSection.HARDWARE) },
-                ) {
-                    HardwareBody(cfg)
-                }
-            }
-
-            item(key = "network") {
-                val nets = cfg?.nets.orEmpty()
-                val usbs = cfg?.usbs.orEmpty()
-                ExpandableSection(
-                    title = GuestSection.NETWORK.title,
-                    subtitle = "${nets.size} NIC(s) · ${usbs.size} USB · ${cfg?.pcis?.size ?: 0} PCI",
-                    expanded = state.expanded == GuestSection.NETWORK,
-                    onToggle = { viewModel.toggleSection(GuestSection.NETWORK) },
-                ) {
-                    NetworkUsbBody(
-                        cfg = cfg,
-                        hostUsbs = state.hostUsbs,
-                        liveInterfaces = state.liveInterfaces,
-                        firewall = state.firewall,
-                        isQemu = state.guestType == GuestType.QEMU,
-                        busy = busy,
-                        onDetach = { viewModel.detachUsb(it) },
-                        onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
-                        onRefreshUsb = { viewModel.refreshUsbOnly() },
-                        onToggleFirewall = viewModel::toggleNicFirewall,
-                        onToggleLinkDown = viewModel::toggleNicLinkDown,
-                    )
-                }
-            }
-
-
-            item(key = "firewall") {
-                val fw = state.firewall
-                val fwErr = state.firewallError
-                val subtitle = when {
-                    fwErr != null -> "Error: $fwErr"
-                    fw == null -> "—"
-                    !fw.enabled -> "Disabled · ${fw.rules.size} rule(s)"
-                    else -> "Enabled · ${fw.rules.size} rule(s)"
-                }
-                ExpandableSection(
-                    title = GuestSection.FIREWALL.title,
-                    subtitle = subtitle,
-                    expanded = state.expanded == GuestSection.FIREWALL,
-                    onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
-                ) {
-                    FirewallBody(
-                        snapshot = state.firewall,
-                        error = state.firewallError,
-                    )
-                }
-            }
-
-            item(key = "options") {
-                ExpandableSection(
-                    title = GuestSection.OPTIONS.title,
-                    subtitle = listOfNotNull(cfg?.ostype, cfg?.machine, cfg?.bios).joinToString(" · ")
-                        .ifBlank { "Boot, OS, machine" },
-                    expanded = state.expanded == GuestSection.OPTIONS,
-                    onToggle = { viewModel.toggleSection(GuestSection.OPTIONS) },
-                ) {
-                    OptionsBody(cfg)
-                }
-            }
-
-            item(key = "snapshots") {
-                val snapCount = state.snapshots.count { !it.isCurrent }
-                ExpandableSection(
-                    title = GuestSection.SNAPSHOTS.title,
-                    subtitle = if (snapCount == 0) "No snapshots" else "$snapCount snapshot(s)",
-                    expanded = state.expanded == GuestSection.SNAPSHOTS,
-                    onToggle = { viewModel.toggleSection(GuestSection.SNAPSHOTS) },
-                    trailing = {
-                        IconButton(
-                            onClick = { viewModel.openCreateSnapshot(true) },
-                            enabled = !busy,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Create snapshot")
+                state.appliedKeys.forEach { key ->
+                    when (key) {
+                        "hero" -> item(key = "hero") {
+                            HeroCard(
+                                name = state.name,
+                                status = st?.status,
+                                kindLabel = iconStyle.label,
+                                uptime = st?.uptime,
+                                cpu = st?.cpu,
+                                cpus = st?.cpus ?: cfg?.cores?.toIntOrNull(),
+                                mem = st?.mem,
+                                maxmem = st?.maxmem,
+                                disk = st?.disk,
+                                maxdisk = st?.maxdisk,
+                                tags = st?.tags ?: cfg?.tags,
+                                busy = busy,
+                                vmid = state.vmid,
+                                onAddTag = { viewModel.addTag(it) },
+                                onRemoveTag = { viewModel.removeTag(it) },
+                            )
                         }
-                    },
-                ) {
-                    SnapshotsBody(
-                        snapshots = state.snapshots,
-                        busy = busy,
-                        onDelete = { viewModel.confirmDeleteSnapshot(it) },
-                        onRollback = { viewModel.confirmRollback(it) },
-                    )
-                }
-            }
-
-            item(key = "backups") {
-                ExpandableSection(
-                    title = GuestSection.BACKUPS.title,
-                    subtitle = when {
-                        state.backupStorages.isEmpty() -> "No backup storage"
-                        state.backups.isEmpty() -> "No backups yet"
-                        else -> "${state.backups.size} backup(s)"
-                    },
-                    expanded = state.expanded == GuestSection.BACKUPS,
-                    onToggle = { viewModel.toggleSection(GuestSection.BACKUPS) },
-                    trailing = {
-                        IconButton(
-                            onClick = { viewModel.openCreateBackup(true) },
-                            enabled = !busy && state.backupStorages.isNotEmpty(),
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Backup now")
+                        "hardware" -> item(key = "hardware") {
+                            val disks = cfg?.disks?.size ?: 0
+                            val cores = cfg?.cores ?: "—"
+                            val mem = formatMemoryMiB(cfg?.memory)
+                            GuestSectionPlate(
+                                title = GuestSection.HARDWARE.title,
+                                subtitle = "${disks}d · ${cores}c · $mem",
+                                expanded = state.expanded == GuestSection.HARDWARE,
+                                onToggle = { viewModel.toggleSection(GuestSection.HARDWARE) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.HARDWARE),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.HARDWARE) },
+                            ) {
+                                HardwareBody(cfg)
+                            }
                         }
-                    },
-                ) {
-                    BackupsBody(
-                        backups = state.backups,
-                        busy = busy,
-                        onDelete = { viewModel.confirmDeleteBackup(it) },
-                    )
+                        "network" -> item(key = "network") {
+                            val nics = cfg?.nets?.size ?: 0
+                            val usbs = cfg?.usbs?.size ?: 0
+                            GuestSectionPlate(
+                                title = GuestSection.NETWORK.title,
+                                subtitle = "$nics nic · $usbs usb",
+                                expanded = state.expanded == GuestSection.NETWORK,
+                                onToggle = { viewModel.toggleSection(GuestSection.NETWORK) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.NETWORK),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.NETWORK) },
+                            ) {
+                                NetworkUsbBody(
+                                    cfg = cfg,
+                                    hostUsbs = state.hostUsbs,
+                                    liveInterfaces = state.liveInterfaces,
+                                    firewall = state.firewall,
+                                    isQemu = state.guestType == GuestType.QEMU,
+                                    busy = busy,
+                                    onDetach = { viewModel.detachUsb(it) },
+                                    onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
+                                    onRefreshUsb = { viewModel.refreshUsbOnly() },
+                                    onToggleFirewall = viewModel::toggleNicFirewall,
+                                    onToggleLinkDown = viewModel::toggleNicLinkDown,
+                                )
+                            }
+                        }
+                        "firewall" -> item(key = "firewall") {
+                            val fw = state.firewall
+                            val fwErr = state.firewallError
+                            val fwSubtitle = when {
+                                fwErr != null -> "err"
+                                fw == null -> "—"
+                                fw.enabled -> "on · ${fw.rules.size}"
+                                else -> "off · ${fw.rules.size}"
+                            }
+                            GuestSectionPlate(
+                                title = GuestSection.FIREWALL.title,
+                                subtitle = fwSubtitle,
+                                expanded = state.expanded == GuestSection.FIREWALL,
+                                onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.FIREWALL),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.FIREWALL) },
+                            ) {
+                                FirewallBody(
+                                    snapshot = state.firewall,
+                                    error = state.firewallError,
+                                )
+                            }
+                        }
+                        "snapshots" -> item(key = "snapshots") {
+                            val snapCount = state.snapshots.count { !it.isCurrent }
+                            GuestSectionPlate(
+                                title = GuestSection.SNAPSHOTS.title,
+                                subtitle = "$snapCount",
+                                expanded = state.expanded == GuestSection.SNAPSHOTS,
+                                onToggle = { viewModel.toggleSection(GuestSection.SNAPSHOTS) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.SNAPSHOTS),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.SNAPSHOTS) },
+                                trailing = {
+                                    IconButton(
+                                        onClick = { viewModel.openCreateSnapshot(true) },
+                                        enabled = !busy,
+                                        modifier = Modifier.size(32.dp),
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "Create snapshot")
+                                    }
+                                },
+                            ) {
+                                SnapshotsBody(
+                                    snapshots = state.snapshots,
+                                    busy = busy,
+                                    onDelete = { viewModel.confirmDeleteSnapshot(it) },
+                                    onRollback = { viewModel.confirmRollback(it) },
+                                )
+                            }
+                        }
+                        "backups" -> item(key = "backups") {
+                            val bkpSubtitle = if (state.backups.isEmpty()) "none" else "${state.backups.size}"
+                            GuestSectionPlate(
+                                title = GuestSection.BACKUPS.title,
+                                subtitle = bkpSubtitle,
+                                expanded = state.expanded == GuestSection.BACKUPS,
+                                onToggle = { viewModel.toggleSection(GuestSection.BACKUPS) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.BACKUPS),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.BACKUPS) },
+                                trailing = {
+                                    IconButton(
+                                        onClick = { viewModel.openCreateBackup(true) },
+                                        enabled = !busy && state.backupStorages.isNotEmpty(),
+                                        modifier = Modifier.size(32.dp),
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "Backup now")
+                                    }
+                                },
+                            ) {
+                                BackupsBody(
+                                    backups = state.backups,
+                                    busy = busy,
+                                    onDelete = { viewModel.confirmDeleteBackup(it) },
+                                )
+                            }
+                        }
+                        "options" -> item(key = "options") {
+                            val optSubtitle = cfg?.ostype?.takeIf { it.isNotBlank() } ?: "boot"
+                            GuestSectionPlate(
+                                title = GuestSection.OPTIONS.title,
+                                subtitle = optSubtitle,
+                                expanded = state.expanded == GuestSection.OPTIONS,
+                                onToggle = { viewModel.toggleSection(GuestSection.OPTIONS) },
+                                showPin = true,
+                                isPinned = state.board.isPinned(GuestSection.OPTIONS),
+                                onTogglePin = { viewModel.togglePinSection(GuestSection.OPTIONS) },
+                            ) {
+                                OptionsBody(cfg)
+                            }
+                        }
+                        "console" -> item(key = "console") {
+                            ConsoleCard(
+                                running = running,
+                                busy = busy,
+                                guestType = state.guestType,
+                                onOpenConsole = onOpenConsole,
+                                isTokenSession = state.isTokenSession,
+                                still = currentStill,
+                            )
+                        }
+                        "history-graph" -> item(key = "history-graph") {
+                            TechHistoryGraph(
+                                points = state.rrdData,
+                                isGuest = true,
+                                timeframe = state.rrdTimeframe,
+                                onTimeframe = { viewModel.setRrdTimeframe(it) },
+                            )
+                        }
+                        "raw" -> item(key = "raw") {
+                            GuestSectionPlate(
+                                title = GuestSection.RAW.title,
+                                subtitle = "${cfg?.raw?.size ?: 0} keys",
+                                expanded = state.expanded == GuestSection.RAW,
+                                onToggle = { viewModel.toggleSection(GuestSection.RAW) },
+                                showPin = false,
+                            ) {
+                                RawBody(cfg)
+                            }
+                        }
+                    }
                 }
-            }
 
-            item(key = "raw") {
-                ExpandableSection(
-                    title = GuestSection.RAW.title,
-                    subtitle = "${cfg?.raw?.size ?: 0} keys",
-                    expanded = state.expanded == GuestSection.RAW,
-                    onToggle = { viewModel.toggleSection(GuestSection.RAW) },
-                ) {
-                    RawBody(cfg)
-                }
+                item { Spacer(Modifier.height(24.dp)) }
             }
-
-            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 
@@ -633,29 +728,799 @@ private fun powerHint(action: GuestAction): String = when (action) {
     GuestAction.RESUME -> "continue"
 }
 
+private class MeasureLogState {
+    var lastS: Int = -1
+    var lastT: Int = -1
+    var lastE: Int = -1
+    var lastM: Int = -1
+    var lastC: Int = -1
+    var lastMax: Int = -1
+    var lastPath: String = ""
+}
+
+private enum class BezelSlot {
+    EDIT,
+    STAMPS_MEASURE,
+    HULL_HUG,
+    HULL_OVERFLOW,
+}
+
 @Composable
+@Suppress("FunctionNaming", "LongParameterList")
+private fun BezelStamps(
+    state: GuestDetailUiState,
+    viewModel: GuestDetailViewModel,
+    listState: LazyListState,
+    keysInLazyColumn: List<String>,
+    coroutineScope: CoroutineScope,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(end = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        WeakTab(
+            label = "OPS",
+            fullLabel = "OPS",
+            selected = state.expanded == null && !state.isEditingBoard,
+            onClick = {
+                viewModel.selectSection(null)
+                coroutineScope.launch {
+                    val heroIndex = keysInLazyColumn.indexOf("hero").coerceAtLeast(0)
+                    listState.animateScrollToItem(heroIndex)
+                }
+            },
+            modifier = Modifier.testTag("guest_bezel_ops"),
+            embedded = true,
+        )
+        BEZEL_TABS.forEach { tab ->
+            WeakTab(
+                label = tab.label,
+                fullLabel = tab.fullLabel,
+                selected = state.expanded == tab.section && !state.isEditingBoard,
+                onClick = {
+                    if (state.expanded == tab.section) {
+                        viewModel.selectSection(null)
+                        coroutineScope.launch {
+                            val heroIndex = keysInLazyColumn.indexOf("hero").coerceAtLeast(0)
+                            listState.animateScrollToItem(heroIndex)
+                        }
+                    } else {
+                        viewModel.selectSection(tab.section)
+                        coroutineScope.launch {
+                            val targetIndex = keysInLazyColumn.indexOf(tab.section.itemKey())
+                            if (targetIndex >= 0) {
+                                listState.animateScrollToItem(targetIndex)
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.testTag("guest_bezel_${tab.slug}"),
+                embedded = true,
+            )
+        }
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming", "LongParameterList")
+private fun BezelHull(
+    state: GuestDetailUiState,
+    viewModel: GuestDetailViewModel,
+    listState: LazyListState,
+    keysInLazyColumn: List<String>,
+    coroutineScope: CoroutineScope,
+    scrollState: ScrollState?,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(TechPlateShape)
+            .background(TechColors.Hull)
+            .border(1.dp, TechColors.Edge, TechPlateShape),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxHeight(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(TechColors.Edge),
+            )
+            Box(modifier = Modifier.fillMaxHeight().clipToBounds()) {
+                val rowModifier = if (scrollState != null) {
+                    Modifier.horizontalScroll(scrollState)
+                } else {
+                    Modifier
+                }
+                BezelStamps(
+                    state = state,
+                    viewModel = viewModel,
+                    listState = listState,
+                    keysInLazyColumn = keysInLazyColumn,
+                    coroutineScope = coroutineScope,
+                    modifier = rowModifier,
+                )
+
+                if (scrollState != null && scrollState.maxValue > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 28.dp)
+                            .width(20.dp)
+                            .fillMaxHeight()
+                            .zIndex(0.5f)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, TechColors.Hull),
+                                ),
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming")
+private fun BezelEditButton(
+    state: GuestDetailUiState,
+    viewModel: GuestDetailViewModel,
+    listState: LazyListState,
+    coroutineScope: CoroutineScope,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val cutPx = with(density) { 28.dp.toPx() }
+    val bleedPx = with(density) { 2.dp.toPx() }
+    val strokePx = with(density) { 1.dp.toPx() }
+    val editBorder = if (state.isEditingBoard) MaterialTheme.colorScheme.primary else TechColors.Edge
+    val editBg = if (state.isEditingBoard) TechColors.Deck else TechColors.Hull
+    val editTextColor = if (state.isEditingBoard) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Box(
+        modifier = modifier
+            .zIndex(1f)
+            .drawBehind {
+                val fillPath = editJoinPath(size, cutPx, bleedPx)
+                drawPath(fillPath, color = editBg)
+
+                val strokePath = editStrokePath(size, cutPx, strokePx)
+                drawPath(
+                    path = strokePath,
+                    color = editBorder,
+                    style = Stroke(
+                        width = strokePx,
+                        join = StrokeJoin.Miter,
+                    ),
+                )
+            }
+            .semantics {
+                role = Role.Tab
+                this.selected = state.isEditingBoard
+            }
+            .clickable {
+                viewModel.toggleEditBoard()
+                if (!state.isEditingBoard) {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(0)
+                    }
+                }
+            }
+            .padding(start = 28.dp + 14.dp, end = 14.dp, top = 7.dp, bottom = 7.dp)
+            .defaultMinSize(minHeight = 48.dp)
+            .testTag("guest_bezel_edit"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "EDIT",
+            style = MaterialTheme.typography.titleSmall,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.0.sp,
+            color = editTextColor,
+        )
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming", "LongMethod")
+private fun BezelHugRow(
+    state: GuestDetailUiState,
+    viewModel: GuestDetailViewModel,
+    listState: LazyListState,
+    keysInLazyColumn: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val logState = remember { MeasureLogState() }
+
+    SubcomposeLayout(modifier = modifier) { constraints ->
+        val m = 28.dp.roundToPx()
+        val railPx = 5.dp.roundToPx()
+
+        // 1. Subcompose EDIT (wrap constraints minWidth = 0, maxWidth = Infinity)
+        val editMeasurables = subcompose(BezelSlot.EDIT) {
+            BezelEditButton(
+                state = state,
+                viewModel = viewModel,
+                listState = listState,
+                coroutineScope = coroutineScope,
+            )
+        }
+
+        // 2. Subcompose ONLY the stamp Row (no rail, no clip, no Hull background)
+        val stampMeasurables = subcompose(BezelSlot.STAMPS_MEASURE) {
+            BezelStamps(
+                state = state,
+                viewModel = viewModel,
+                listState = listState,
+                keysInLazyColumn = keysInLazyColumn,
+                coroutineScope = coroutineScope,
+            )
+        }
+        val unconstrainedConstraints = Constraints(
+            minWidth = 0,
+            maxWidth = Constraints.Infinity,
+            minHeight = 0,
+            maxHeight = constraints.maxHeight,
+        )
+        val stampPlaceables = stampMeasurables.map { it.measure(unconstrainedConstraints) }
+        val t = stampPlaceables.maxOfOrNull { it.width } ?: 0
+        val stampH = stampPlaceables.maxOfOrNull { it.height } ?: 0
+
+        // 3. S = T + 5.dp.roundToPx()
+        val s = t + railPx
+
+        // Measure EDIT with wrap width (maxWidth = Infinity) and height matching stamps natural height
+        val targetHeight = if (stampH > 0) stampH else 0
+        val editConstraints = Constraints(
+            minWidth = 0,
+            maxWidth = Constraints.Infinity,
+            minHeight = targetHeight,
+            maxHeight = if (stampH > 0) stampH else constraints.maxHeight,
+        )
+        val editPlaceables = editMeasurables.map { it.measure(editConstraints) }
+        val e = editPlaceables.maxOfOrNull { it.width } ?: 0
+        val editH = editPlaceables.maxOfOrNull { it.height } ?: 0
+
+        val h = maxOf(stampH, editH).coerceIn(constraints.minHeight, constraints.maxHeight)
+
+        // Remaining cap C = (constraints.maxWidth - E + M).coerceAtLeast(0)
+        val c = (constraints.maxWidth - e + m).coerceAtLeast(0)
+
+        val path = if (s <= c) "hug" else "overflow"
+        if (logState.lastS != s || logState.lastT != t || logState.lastE != e ||
+            logState.lastM != m || logState.lastC != c || logState.lastMax != constraints.maxWidth ||
+            logState.lastPath != path
+        ) {
+            logState.lastS = s
+            logState.lastT = t
+            logState.lastE = e
+            logState.lastM = m
+            logState.lastC = c
+            logState.lastMax = constraints.maxWidth
+            logState.lastPath = path
+            android.util.Log.d("pxmx-bezel", "S=$s T=$t E=$e M=$m C=$c max=${constraints.maxWidth} path=$path")
+        }
+
+        // 4. Hug when S <= C
+        if (s <= c) {
+            val hullMeasurables = subcompose(BezelSlot.HULL_HUG) {
+                BezelHull(
+                    state = state,
+                    viewModel = viewModel,
+                    listState = listState,
+                    keysInLazyColumn = keysInLazyColumn,
+                    coroutineScope = coroutineScope,
+                    scrollState = null,
+                )
+            }
+            val tightConstraints = Constraints(
+                minWidth = s,
+                maxWidth = s,
+                minHeight = h,
+                maxHeight = h,
+            )
+            val hullPlaceables = hullMeasurables.map { it.measure(tightConstraints) }
+            val totalWidth = (s + e - m).coerceAtMost(constraints.maxWidth)
+            layout(width = totalWidth, height = h) {
+                hullPlaceables.forEach { it.placeRelative(0, 0) }
+                editPlaceables.forEach { it.placeRelative(s - m, 0) }
+            }
+        } else {
+            // 5. Overflow when S > C
+            val hullMeasurables = subcompose(BezelSlot.HULL_OVERFLOW) {
+                BezelHull(
+                    state = state,
+                    viewModel = viewModel,
+                    listState = listState,
+                    keysInLazyColumn = keysInLazyColumn,
+                    coroutineScope = coroutineScope,
+                    scrollState = scrollState,
+                )
+            }
+            val tightConstraints = Constraints(
+                minWidth = c,
+                maxWidth = c,
+                minHeight = h,
+                maxHeight = h,
+            )
+            val hullPlaceables = hullMeasurables.map { it.measure(tightConstraints) }
+            val totalWidth = (c + e - m).coerceAtMost(constraints.maxWidth)
+            layout(width = totalWidth, height = h) {
+                hullPlaceables.forEach { it.placeRelative(0, 0) }
+                editPlaceables.forEach { it.placeRelative(c - m, 0) }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+@Suppress("FunctionNaming")
 private fun WeakTab(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    fullLabel: String = label,
+    embedded: Boolean = false,
 ) {
-    val shape = CutCornerShape(bottomEnd = 10.dp)
-    val border = if (selected) MaterialTheme.colorScheme.primary else TechColors.Edge
-    val bg = if (selected) TechColors.Deck else TechColors.Hull
-    Text(
-        text = label,
-        style = MaterialTheme.typography.titleSmall,
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.2.sp,
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(selected) {
+        if (selected) {
+            bringIntoViewRequester.bringIntoView()
+            delay(220)
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+    val shape = CutCornerShape(bottomEnd = if (selected) 16.dp else 10.dp)
+    val border = when {
+        selected -> MaterialTheme.colorScheme.primary
+        embedded -> TechColors.Divider
+        else -> TechColors.Edge
+    }
+    val bg = when {
+        selected -> TechColors.Deck
+        embedded -> Color.Black
+        else -> TechColors.Hull
+    }
+    val textColor = when {
+        selected -> MaterialTheme.colorScheme.primary
+        embedded -> TechColors.Mute
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val textToDisplay = if (selected) fullLabel else label
+    val letterSpacing = if (selected) 0.4.sp else 1.0.sp
+    val horizontalPadding = if (selected) 12.dp else 10.dp
+
+    Box(
+        modifier = modifier
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .animateContentSize(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing))
             .clip(shape)
             .border(1.dp, border, shape)
             .background(bg, shape)
+            .semantics {
+                role = Role.Tab
+                this.selected = selected
+                contentDescription = fullLabel
+            }
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
+            .padding(horizontal = horizontalPadding, vertical = 7.dp)
+            .defaultMinSize(minHeight = 48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = textToDisplay,
+            style = MaterialTheme.typography.titleSmall,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = letterSpacing,
+            color = textColor,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+private fun editJoinShape(cutPx: Float, bleedPx: Float = 0f): GenericShape = GenericShape { size, _ ->
+    moveTo(cutPx - bleedPx, 0f)
+    lineTo(size.width, 0f)
+    lineTo(size.width, size.height)
+    lineTo(-bleedPx, size.height)
+    lineTo(cutPx - bleedPx, size.height - cutPx)
+    close()
+}
+
+private fun editJoinPath(size: Size, cutPx: Float, bleedPx: Float = 0f): Path = Path().apply {
+    moveTo(cutPx - bleedPx, 0f)
+    lineTo(size.width, 0f)
+    lineTo(size.width, size.height)
+    lineTo(-bleedPx, size.height)
+    lineTo(cutPx - bleedPx, size.height - cutPx)
+    close()
+}
+
+private fun editStrokePath(size: Size, cutPx: Float, strokePx: Float): Path = Path().apply {
+    val halfStroke = strokePx / 2f
+    moveTo(cutPx - halfStroke, halfStroke)
+    lineTo(size.width - halfStroke, halfStroke)
+    lineTo(size.width - halfStroke, size.height - halfStroke)
+    lineTo(halfStroke, size.height - halfStroke)
+    lineTo(cutPx - halfStroke, size.height - cutPx + halfStroke)
+    close()
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+@Suppress("FunctionNaming")
+private fun GuestSectionPlate(
+    title: String,
+    subtitle: String? = null,
+    expanded: Boolean = false,
+    onToggle: () -> Unit = {},
+    showPin: Boolean = false,
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {},
+    testTag: String? = null,
+    trailing: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val railColor = if (expanded) MaterialTheme.colorScheme.primary else TechColors.Edge
+    TechPlate(
+        railColor = railColor,
+        showRail = true,
+        testTag = testTag,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 11.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .combinedClickable(
+                        onClick = onToggle,
+                        onLongClick = if (showPin) onTogglePin else null,
+                    ),
+            ) {
+                Text(
+                    text = title.uppercase(),
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.6.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (showPin) {
+                IconButton(
+                    onClick = onTogglePin,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                        contentDescription = if (isPinned) "Unpin from OPS" else "Pin to OPS",
+                        tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            trailing?.invoke()
+        }
+        if (expanded) {
+            TechDeck(showAccentBar = true) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun TechActionIcon(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tint: Color = MaterialTheme.colorScheme.primary,
+) {
+    val shape = CutCornerShape(bottomEnd = 6.dp)
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(shape)
+            .background(TechColors.Hull)
+            .border(1.dp, if (enabled) TechColors.Edge else TechColors.Divider, shape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint else TechColors.Mute,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun EditBoardCard(
+    board: OpsBoard,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit,
+    onTogglePin: (GuestSection) -> Unit,
+    onToggleConsole: (Boolean) -> Unit,
+    onToggleHistory: (Boolean) -> Unit,
+    onSaveAsDefault: () -> Unit,
+    onClose: () -> Unit,
+) {
+    TechPlate(
+        railColor = MaterialTheme.colorScheme.primary,
+        showRail = true,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "OPS BOARD",
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "PIN SECTIONS · REORDER DECK",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.6.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TechActionPlate(
+                label = "DONE",
+                onClick = onClose,
+            )
+        }
+        TechDeck(showAccentBar = true) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "VITALS is locked first. RAW is locked last. Extra pinned sections sit above unpinned plates (max 4 pins).",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TechColors.Divider))
+
+                board.clipOrder.forEachIndexed { index, clip ->
+                    val canMoveUp = index > 1 && clip != "VITALS" && clip != "RAW"
+                    val canMoveDown = index < board.clipOrder.size - 2 && clip != "VITALS" && clip != "RAW"
+                    when (clip) {
+                        "VITALS" -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("VITALS", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    Text("Hero & live metrics", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text("[LOCKED FIRST]", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        "FACTS" -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("FACTS", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    val unpinned = listOf("HW", "NET", "FW", "SNAP", "BKP", "OPT").filter { it !in board.pinnedSections }
+                                    Text(unpinned.joinToString(" · "), style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowUpward,
+                                    contentDescription = "Move up",
+                                    enabled = canMoveUp,
+                                    onClick = { onMoveUp("FACTS") },
+                                )
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowDownward,
+                                    contentDescription = "Move down",
+                                    enabled = canMoveDown,
+                                    onClick = { onMoveDown("FACTS") },
+                                )
+                            }
+                        }
+                        "CONSOLE" -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("CONSOLE", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    Text(if (board.includeConsole) "VISIBLE" else "HIDDEN", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = if (board.includeConsole) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowUpward,
+                                    contentDescription = "Move up",
+                                    enabled = canMoveUp && board.includeConsole,
+                                    onClick = { onMoveUp("CONSOLE") },
+                                )
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowDownward,
+                                    contentDescription = "Move down",
+                                    enabled = canMoveDown && board.includeConsole,
+                                    onClick = { onMoveDown("CONSOLE") },
+                                )
+                                TechActionIcon(
+                                    icon = if (board.includeConsole) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (board.includeConsole) "Hide console" else "Show console",
+                                    onClick = { onToggleConsole(!board.includeConsole) },
+                                )
+                            }
+                        }
+                        "HISTORY" -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("HISTORY", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    Text(if (board.includeHistory) "VISIBLE" else "HIDDEN", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = if (board.includeHistory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowUpward,
+                                    contentDescription = "Move up",
+                                    enabled = canMoveUp && board.includeHistory,
+                                    onClick = { onMoveUp("HISTORY") },
+                                )
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowDownward,
+                                    contentDescription = "Move down",
+                                    enabled = canMoveDown && board.includeHistory,
+                                    onClick = { onMoveDown("HISTORY") },
+                                )
+                                TechActionIcon(
+                                    icon = if (board.includeHistory) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (board.includeHistory) "Hide history" else "Show history",
+                                    onClick = { onToggleHistory(!board.includeHistory) },
+                                )
+                            }
+                        }
+                        "RAW" -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("RAW", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    Text("Raw guest config", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text("[LOCKED LAST]", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        else -> {
+                            val sec = clipIdToSection(clip)
+                            val label = sec?.title ?: clip
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("$label [$clip]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    Text("PINNED EXTRA", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
+                                }
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowUpward,
+                                    contentDescription = "Move up",
+                                    enabled = canMoveUp,
+                                    onClick = { onMoveUp(clip) },
+                                )
+                                TechActionIcon(
+                                    icon = Icons.Default.ArrowDownward,
+                                    contentDescription = "Move down",
+                                    enabled = canMoveDown,
+                                    onClick = { onMoveDown(clip) },
+                                )
+                                TechActionIcon(
+                                    icon = Icons.Filled.PushPin,
+                                    contentDescription = "Unpin from OPS",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    onClick = { sec?.let { onTogglePin(it) } },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val unpinnedSections = listOf(
+                    GuestSection.HARDWARE,
+                    GuestSection.NETWORK,
+                    GuestSection.FIREWALL,
+                    GuestSection.SNAPSHOTS,
+                    GuestSection.BACKUPS,
+                    GuestSection.OPTIONS,
+                ).filter { !board.isPinned(it) }
+
+                if (unpinnedSections.isNotEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(TechColors.Divider))
+                    Text(
+                        text = "ADD PINNED SECTION (${board.pinnedSections.size}/4)",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        unpinnedSections.forEach { sec ->
+                            WeakTab(
+                                label = sectionToClipId(sec),
+                                selected = false,
+                                onClick = { onTogglePin(sec) },
+                            )
+                        }
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TechColors.Divider))
+                TechActionPlate(
+                    label = "USE AS DEFAULT FOR ALL GUESTS",
+                    onClick = onSaveAsDefault,
+                    modifier = Modifier.fillMaxWidth(),
+                    emphasized = true,
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -781,18 +1646,15 @@ private fun LinearBusy() {
 }
 
 @Composable
-private fun PowerCard(
+@Suppress("FunctionNaming")
+private fun ConsoleCard(
     running: Boolean,
-    status: String?,
     busy: Boolean,
-    actionInProgress: String?,
     guestType: GuestType,
-    onPower: (GuestAction) -> Unit,
     onOpenConsole: () -> Unit,
     isTokenSession: Boolean = false,
-    onOpenPowerMenu: () -> Unit = {},
+    still: ConsoleStill? = null,
 ) {
-    val actions = availableActions(guestType, running, status)
     TechPlate(
         railColor = if (running) TechColors.Amber else TechColors.Edge,
     ) {
@@ -810,148 +1672,196 @@ private fun PowerCard(
                     letterSpacing = 1.2.sp,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                if (isTokenSession) {
+                    Text(
+                        text = "[API TOKEN]",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = TechColors.Amber,
+                    )
+                }
             }
-            Spacer(Modifier.height(6.dp))
-            Button(
-                onClick = onOpenConsole,
-                enabled = running && !busy,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(2.dp),
-            ) {
-                Icon(Icons.Default.Computer, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.height(8.dp))
+
+            when {
+                !running -> {
+                    // Guest stopped: disabled plate, never show stale frame
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(CutCornerShape(bottomEnd = 10.dp))
+                            .background(TechColors.Deck)
+                            .border(1.dp, TechColors.Divider, CutCornerShape(bottomEnd = 10.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Computer,
+                                contentDescription = null,
+                                tint = TechColors.Mute,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "CONSOLE (START GUEST FIRST)",
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.6.sp,
+                                color = TechColors.Mute,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (guestType == GuestType.QEMU) "NOVNC · GUEST OFFLINE" else "TERMINAL · GUEST OFFLINE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.6.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                guestType != GuestType.QEMU -> {
+                    // LXC / Node: no still ever, live only
+                    TechActionPlate(
+                        label = "OPEN CONSOLE",
+                        icon = Icons.Default.Computer,
+                        onClick = onOpenConsole,
+                        modifier = Modifier.fillMaxWidth(),
+                        emphasized = true,
+                    )
+                    Text(
+                        text = "TERMINAL · LIVE ONLY",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.6.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                still != null -> {
+                    // QEMU running with active still: 16:10 box, dim still (alpha ~0.7), age caption, still tap = onOpenConsole
+                    val bitmap = remember(still.jpegBytes) {
+                        try {
+                            val opts = android.graphics.BitmapFactory.Options().apply {
+                                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                            }
+                            android.graphics.BitmapFactory.decodeByteArray(still.jpegBytes, 0, still.jpegBytes.size, opts)
+                        } catch (_: Throwable) {
+                            null
+                        }
+                    }
+                    val frameShape = CutCornerShape(bottomEnd = 16.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 10f)
+                            .clip(frameShape)
+                            .background(Color.Black)
+                            .border(1.dp, TechColors.Edge, frameShape)
+                            .clickable(enabled = !busy, onClick = onOpenConsole),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Console frame ${still.ageFormatted()}",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer(alpha = 0.7f),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .clip(CutCornerShape(bottomEnd = 4.dp))
+                                .background(TechColors.Hull)
+                                .border(1.dp, TechColors.Edge, CutCornerShape(bottomEnd = 4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                text = still.ageFormatted(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TechColors.Amber,
+                            )
+                        }
+                        TechActionPlate(
+                            label = "OPEN CONSOLE",
+                            icon = Icons.Default.Computer,
+                            onClick = onOpenConsole,
+                            emphasized = true,
+                        )
+                    }
+                    Text(
+                        text = "NOVNC · LIVE FROM SERVER",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.6.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                else -> {
+                    // QEMU running, no still yet: dim cut-corner 16:10 rectangle, caption NOVNC · NO FRAME YET, real OPEN CONSOLE plate inside
+                    val frameShape = CutCornerShape(bottomEnd = 16.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 10f)
+                            .clip(frameShape)
+                            .background(TechColors.Deck)
+                            .border(1.dp, TechColors.Edge, frameShape)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                text = "NOVNC · NO FRAME YET",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.8.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            TechActionPlate(
+                                label = "OPEN CONSOLE",
+                                icon = Icons.Default.Computer,
+                                onClick = onOpenConsole,
+                                emphasized = true,
+                            )
+                        }
+                    }
+                    Text(
+                        text = "NOVNC · LIVE FROM SERVER",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.6.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+
+            if (isTokenSession) {
                 Text(
-                    text = if (!running) "CONSOLE (START GUEST FIRST)" else "OPEN CONSOLE",
+                    text = "API TOKEN SESSION · TICKET MAY BE REQUIRED BY PVE",
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.6.sp,
+                    color = TechColors.Amber,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            Text(
-                text = if (guestType == GuestType.QEMU) {
-                    "NOVNC · LIVE FROM SERVER"
-                } else {
-                    "XTERM.JS · LIVE FROM SERVER"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 0.6.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-
-        TechDeck(showAccentBar = true) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenPowerMenu() }
-                    .padding(vertical = 4.dp),
-            ) {
-                Icon(
-                    Icons.Default.PowerSettingsNew,
-                    contentDescription = "Power",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "POWER",
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.2.sp,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (GuestAction.START in actions) {
-                    Button(
-                        onClick = { onPower(GuestAction.START) },
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(2.dp),
-                    ) {
-                        ActionLabel(GuestAction.START, actionInProgress == "power:start")
-                    }
-                }
-                if (GuestAction.SHUTDOWN in actions) {
-                    Button(
-                        onClick = { onPower(GuestAction.SHUTDOWN) },
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(2.dp),
-                    ) {
-                        ActionLabel(GuestAction.SHUTDOWN, actionInProgress == "power:shutdown")
-                    }
-                }
-                if (GuestAction.REBOOT in actions) {
-                    OutlinedButton(
-                        onClick = { onPower(GuestAction.REBOOT) },
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(2.dp),
-                    ) {
-                        ActionLabel(GuestAction.REBOOT, actionInProgress == "power:reboot")
-                    }
-                }
-            }
-            if (actions.any { it in listOf(GuestAction.STOP, GuestAction.RESET, GuestAction.SUSPEND, GuestAction.RESUME) }) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (GuestAction.STOP in actions) {
-                        OutlinedButton(
-                            onClick = { onPower(GuestAction.STOP) },
-                            enabled = !busy,
-                            shape = RoundedCornerShape(2.dp),
-                        ) { ActionLabel(GuestAction.STOP, actionInProgress == "power:stop") }
-                    }
-                    if (GuestAction.RESET in actions) {
-                        OutlinedButton(
-                            onClick = { onPower(GuestAction.RESET) },
-                            enabled = !busy,
-                            shape = RoundedCornerShape(2.dp),
-                        ) { ActionLabel(GuestAction.RESET, actionInProgress == "power:reset") }
-                    }
-                    if (GuestAction.SUSPEND in actions) {
-                        OutlinedButton(
-                            onClick = { onPower(GuestAction.SUSPEND) },
-                            enabled = !busy,
-                            shape = RoundedCornerShape(2.dp),
-                        ) { ActionLabel(GuestAction.SUSPEND, actionInProgress == "power:suspend") }
-                    }
-                    if (GuestAction.RESUME in actions) {
-                        OutlinedButton(
-                            onClick = { onPower(GuestAction.RESUME) },
-                            enabled = !busy,
-                            shape = RoundedCornerShape(2.dp),
-                        ) { ActionLabel(GuestAction.RESUME, actionInProgress == "power:resume") }
-                    }
-                }
-            }
-            Text(
-                "MORE ACTIONS · ⋮ MENU",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 0.6.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clickable { onOpenPowerMenu() },
-            )
         }
     }
-}
-
-@Composable
-private fun ActionLabel(action: GuestAction, loading: Boolean) {
-    if (loading) {
-        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-        Spacer(Modifier.width(6.dp))
-    }
-    Text(action.label)
 }
