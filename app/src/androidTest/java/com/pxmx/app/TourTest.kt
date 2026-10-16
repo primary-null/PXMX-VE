@@ -68,6 +68,16 @@ class TourTest {
         composeTestRule.waitForIdle()
     }
 
+    private fun openOverflowMenu() {
+        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
+    }
+
+    private fun waitForText(text: String, timeoutMillis: Long = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis) {
+            composeTestRule.onAllNodesWithText(text, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     @Test
     fun splashShowsThenLoginForm() {
         waitForLoginScreen()
@@ -186,17 +196,18 @@ class TourTest {
         composeTestRule.onAllNodesWithText("AUTO").onFirst().assertIsDisplayed()
 
         // Long press PWR to open power menu
-        composeTestRule.onAllNodesWithText("PWR").onFirst().performTouchInput {
+        composeTestRule.onAllNodesWithContentDescription("Power").onFirst().performTouchInput {
             longClick()
         }
 
-        // Verify power dropdown options
-        composeTestRule.onNodeWithText("Shutdown").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Reboot").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Stop").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Reset").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Suspend").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Auto-start").assertIsDisplayed()
+        // TechMenuItem renders labels in uppercase.
+        waitForText("Shutdown")
+        composeTestRule.onNodeWithText("Shutdown", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Reboot", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Stop", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Reset", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Suspend", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Auto-start", ignoreCase = true).assertIsDisplayed()
     }
 
     @Test
@@ -213,12 +224,12 @@ class TourTest {
         composeTestRule.onAllNodesWithText("nova").onFirst().assertIsDisplayed()
         composeTestRule.onNodeWithText("RUNNING").assertIsDisplayed()
 
-        // Detail sections
-        composeTestRule.onNodeWithText("HW").assertIsDisplayed()
-        composeTestRule.onNodeWithText("NET").assertIsDisplayed()
-        composeTestRule.onNodeWithText("OPT").assertIsDisplayed()
-        composeTestRule.onNodeWithText("SNAP").assertIsDisplayed()
-        composeTestRule.onNodeWithText("BKP").assertIsDisplayed()
+        // Bezel stamps (OPS deck also repeats HW/NET clips as text)
+        composeTestRule.onNodeWithTag("guest_bezel_hw").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("guest_bezel_net").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("guest_bezel_opt").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("guest_bezel_snap").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("guest_bezel_bkp").assertIsDisplayed()
 
         // Power actions (check presence after opening Actions menu)
         composeTestRule.onNodeWithContentDescription("Actions").performClick()
@@ -259,16 +270,14 @@ class TourTest {
         performFakeLogin()
         dismissTour()
 
-        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("Deploy from template").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Deploy from template").performClick()
+        openOverflowMenu()
+        waitForText("Deploy from template")
+        composeTestRule.onNodeWithText("Deploy from template", ignoreCase = true).performClick()
 
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("Deploy", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("Deploy").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Deploy", ignoreCase = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("Cancel").performClick()
     }
 
@@ -277,11 +286,9 @@ class TourTest {
         performFakeLogin()
         dismissTour()
 
-        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("All servers").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("All servers").performClick()
+        openOverflowMenu()
+        waitForText("All servers")
+        composeTestRule.onNodeWithText("All servers", ignoreCase = true).performClick()
 
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("Servers").fetchSemanticsNodes().isNotEmpty()
@@ -405,11 +412,9 @@ class TourTest {
         performFakeLogin()
         dismissTour()
 
-        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("Switch account").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Switch account").performClick()
+        openOverflowMenu()
+        waitForText("Switch account")
+        composeTestRule.onNodeWithText("Switch account", ignoreCase = true).performClick()
 
         // Back to login form
         waitForLoginScreen()
