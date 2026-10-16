@@ -44,7 +44,7 @@ a{color:inherit;text-decoration:none}
 .badges{margin-top:14px}
 .badges .badge{display:inline-block;font-size:.72rem;letter-spacing:.1em;border:1px solid var(--edge);border-radius:2px;padding:3px 10px;margin:0 6px 6px 0;color:var(--dim);background:var(--well)}
 .apphead .desc{margin-top:18px;color:var(--dim);font-size:13px;max-width:760px}
-.apphead .btns{display:flex;gap:10px;margin-top:22px}
+.apphead .btns{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
 .btn{display:inline-block;padding:8px 18px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;border-radius:2px;border:1px solid transparent;cursor:pointer}
 .btn.primary{background:var(--amber);color:#1A1000;font-weight:700;border-color:var(--amber)}
 .btn.ghost{border-color:var(--edge);color:var(--fg)}
@@ -65,7 +65,7 @@ a{color:inherit;text-decoration:none}
 .scene.flip{grid-template-columns:1fr minmax(280px,420px)}
 .scene.flip .frame{order:2}
 .scene.land{grid-template-columns:1fr}
-.scene.land .frame{max-width:860px}
+.scene.land .frame{max-width:1100px}
 .duo-body{max-width:880px;margin:26px auto 0;text-align:left}
 .body .lead{font-size:13px;color:var(--dim);max-width:560px}
 .body .spots{margin-top:18px;list-style:none}
@@ -89,12 +89,12 @@ footer{padding:44px 0 100px}
 
 <nav class="jumpnav" id="jumpnav">
   <a href="#home" class="on">Home</a>
-  <a href="#console">Console</a>
+  <a href="#board">Board</a>
   <a href="#deploy">Deploy</a>
   <a href="#tasks">Tasks</a>
   <a href="#looks">Appearance</a>
   <a href="#storage">Storage</a>
-  <a href="#servers">Servers</a>
+  <a href="#scan">Scan</a>
   <a href="#demo">Demo</a>
   <a href="#features">What it does</a>
 </nav>
@@ -109,43 +109,58 @@ footer{padding:44px 0 100px}
       <span class="badge">GPL-3.0</span>
       <span class="badge">ANDROID 8+</span>
       <span class="badge">NO CLOUD</span>
+      <span class="badge">DEMO MODE</span>
     </p>
-    <p class="desc">What you're looking at below is the app itself. Pick an option in the bar above and the page jumps to it.</p>
+    <p class="desc">What you're looking at below is the app itself, in demo mode. Pick an option in the bar above and the page jumps to it.</p>
     <div class="btns">
       <span class="btn primary" id="jumpscenes">Jump to scenes &darr;</span>
-      <a class="btn ghost" href="app-guide.html">User guide</a>
+      <a class="btn ghost" href="https://github.com/primary-null/PXMX-VE">GitHub</a>
+      <a class="btn ghost" href="https://github.com/primary-null/PXMX-VE/releases">Releases</a>
     </div>
   </div>
 
-  <!-- 01 HOME + GUEST DETAIL -->
-  <div class="sect" id="home"><span class="num">01</span><span class="label">Cluster home &amp; guest detail</span><span class="bar"></span></div>
+  <!-- 01 FOLD TWO-PANE + PHONE HOME -->
+  <div class="sect" id="home"><span class="num">01</span><span class="label">Cluster home</span><span class="bar"></span></div>
+  <div class="scene land">
+    <div class="frame cut"><img src="screenshots/00-fold-home.png" alt="PXMX two-pane home: guest list and OPS board"></div>
+    <div class="body">
+      <div class="lead">On a foldable, the guest list and the selected guest stay on screen together. Phone-sized layouts use the same cards, one pane at a time.</div>
+      <ul class="spots">
+        <li>SERVER lamps sit above the tabs, one per node</li>
+        <li>Guest names sit next to a status lamp, in readable type</li>
+        <li>PWR, RST, AUTO, and BACKUP stay on the card</li>
+        <li>The latest cluster line stays pinned at the bottom</li>
+      </ul>
+    </div>
+  </div>
+
   <div class="duo">
     <div>
-      <div class="frame cut"><img src="screenshots/01-home-all.png" alt="PXMX cluster home, ALL tab"></div>
+      <div class="frame cut"><img src="screenshots/01-home.png" alt="PXMX cluster home, GUESTS tab, demo mode"></div>
     </div>
     <div>
-      <div class="frame cut"><img src="screenshots/02-guest-detail.png" alt="PXMX guest detail, OPS tab"></div>
+      <div class="frame cut"><img src="screenshots/02-guest-detail.png" alt="PXMX guest OPS board"></div>
     </div>
   </div>
   <div class="body duo-body">
-    <div class="lead">Cluster home lays out every guest, node, and storage pool on one screen. Tap any guest card and you get its detail page.</div>
+    <div class="lead">Phone home is the operator deck. Tap a guest and the OPS board opens.</div>
     <ul class="spots">
-      <li>Guest cards show CPU, memory, disk, and uptime</li>
-      <li>Tabs switch between guests, nodes, and storage; the latest log line stays pinned at the bottom</li>
-      <li>Detail page: start, stop, reboot, suspend; auto-start on boot</li>
-      <li>Console, hardware, and network tabs</li>
+      <li>Tabs switch between guests, nodes, and storage</li>
+      <li>Search matches name, node, VMID, or tag</li>
+      <li>DEMO stays on the title while the sample cluster is loaded</li>
     </ul>
   </div>
 
-  <!-- 02 CONSOLE -->
-  <div class="sect" id="console"><span class="num">02</span><span class="label">Guest console</span><span class="bar"></span></div>
-  <div class="scene land">
-    <div class="frame cut"><img src="screenshots/03-guest-console.png" alt="PXMX guest console, fullscreen terminal"></div>
+  <!-- 02 GUEST BOARD -->
+  <div class="sect" id="board"><span class="num">02</span><span class="label">Guest board</span><span class="bar"></span></div>
+  <div class="scene">
+    <div class="frame cut"><img src="screenshots/04-guest-detail.png" alt="PXMX guest detail OPS with mill-cut bezel"></div>
     <div class="body">
-      <div class="lead">Fullscreen console, straight from the guest detail page. Turn the phone sideways and the terminal takes the whole screen.</div>
+      <div class="lead">OPS is the home plate. A mill-cut bezel jumps to hardware, network, firewall, snapshots, backups, options, and raw config. EDIT stays pinned on the right.</div>
       <ul class="spots">
-        <li>Works for VMs and containers</li>
-        <li>Session menu: resize, reconnect, disconnect</li>
+        <li>Selected stamps expand to the full word</li>
+        <li>Power lives in the overflow menu; the list card keeps PWR and RST</li>
+        <li>Console opens from the header, in the app</li>
       </ul>
     </div>
   </div>
@@ -160,7 +175,6 @@ footer{padding:44px 0 100px}
         <li>Template picker across the whole cluster</li>
         <li>Suggested VMID and name, edit in place</li>
         <li>New VM lands on the cluster ready to start</li>
-        <li>Errors stay visible in the dialog</li>
       </ul>
     </div>
   </div>
@@ -172,15 +186,16 @@ footer{padding:44px 0 100px}
       <div class="frame cut"><img src="screenshots/05-tasks.png" alt="PXMX cluster task log"></div>
     </div>
     <div>
-      <div class="frame cut"><img src="screenshots/07-updates.png" alt="PXMX package upgrade in progress"></div>
+      <div class="frame cut"><img src="screenshots/07-updates.png" alt="PXMX package updates"></div>
     </div>
   </div>
   <div class="body duo-body">
-    <div class="lead">Two views of work on the cluster: the task log, and a package upgrade mid-run.</div>
+    <div class="lead">Two views of work on the cluster: the task log, and package updates waiting on a node.</div>
     <ul class="spots">
-      <li>Backups and updates finish with OK statuses</li>
+      <li>Backups and starts finish with OK statuses</li>
       <li>Each task shows its user and start time</li>
       <li>Updates walk through fetch, install, and cleanup with live progress</li>
+      <li>On Proxmox VE 9, remote install is walked to the node shell when the API requires it</li>
     </ul>
   </div>
 
@@ -189,11 +204,11 @@ footer{padding:44px 0 100px}
   <div class="scene flip">
     <div class="frame cut"><img src="screenshots/06-appearance.png" alt="PXMX appearance settings with theme modes"></div>
     <div class="body">
-      <div class="lead">OLED dark is the default. Light and follow-system are built in, and theme and accent color are set per profile.</div>
+      <div class="lead">OLED Dark is the default. Light and follow-system are built in. The setting is for the app, not per server.</div>
       <ul class="spots">
-        <li>Three theme modes: OLED dark, light, follow system</li>
-        <li>OLED dark turns unlit pixels fully off</li>
-        <li>Accent color picker</li>
+        <li>Three modes: OLED Dark, Light, System</li>
+        <li>OLED Dark turns unlit pixels fully off</li>
+        <li>Lists glow orange when you reach the end</li>
       </ul>
     </div>
   </div>
@@ -212,50 +227,51 @@ footer{padding:44px 0 100px}
     <div class="lead">Usage as fills: green, amber, red at a glance. Storage per pool, memory per node.</div>
     <ul class="spots">
       <li>Each pool shows used and total, with a fill to match</li>
-      <li>On a store that accepts ISO images, upload an ISO from the system file picker</li>
-      <li>Node cards show memory, CPU, and what's running on them</li>
-      <li>Tapping a row opens the detail page</li>
+      <li>On a store that accepts ISO images, upload from the system file picker</li>
+      <li>Node cards show memory, CPU, and uptime</li>
+      <li>Settings is the list footer, not buried in MENU</li>
     </ul>
   </div>
 
-  <!-- 07 ALL SERVERS -->
-  <div class="sect" id="servers"><span class="num">07</span><span class="label">All servers</span><span class="bar"></span></div>
-  <div class="scene">
-    <div class="frame cut"><img src="screenshots/10-all-servers.png" alt="PXMX all servers screen, hosts probed at once"></div>
+  <!-- 07 SCAN -->
+  <div class="sect" id="scan"><span class="num">07</span><span class="label">Network discovery</span><span class="bar"></span></div>
+  <div class="scene flip">
+    <div class="frame cut"><img src="screenshots/12-scan.png" alt="PXMX login scan with demo simulation"></div>
     <div class="body">
-      <div class="lead">Every saved host probed at once: online state, version, what's running.</div>
+      <div class="lead">Scan the local network from login. A sweep runs while it works. Verified hosts prefill the form on tap. Ping is a separate fill on the row.</div>
       <ul class="spots">
-        <li>Hosts light up green or drop off the list</li>
-        <li>Real version string per host, not a guess</li>
-        <li>Something else answering on the port stays separate and labeled</li>
+        <li>Verified, unknown, and needs-login stay distinct</li>
+        <li>Demo scan is marked DEMO SIMULATION and uses documentation-range addresses</li>
+        <li>Scan never auto-pings</li>
       </ul>
     </div>
   </div>
 
   <!-- 08 DEMO -->
   <div class="sect" id="demo"><span class="num">08</span><span class="label">No server handy</span><span class="bar"></span></div>
-  <div class="scene flip">
-    <div class="frame cut"><img src="screenshots/11-login.png" alt="PXMX login screen with demo entry"></div>
+  <div class="scene">
+    <div class="frame cut"><img src="screenshots/11-login.png" alt="PXMX login screen"></div>
     <div class="body">
-      <div class="lead">The login screen has a demo entry. Tap it and the app opens with a sample cluster loaded, no connection needed.</div>
-      <div class="aside"><b>Demo mode</b> — for people who just want to look at the app without connecting it to anything. Everything in it behaves like a real cluster, nothing is saved, and your own server stays behind the profile menu.</div>
+      <div class="lead">First run opens this login screen. Five taps on the PXMX title load a sample cluster. Nothing is saved against your real servers while demo is active.</div>
+      <div class="aside"><b>Demo mode</b> — for people who just want to look at the app without connecting it to anything. The sample cluster is labeled DEMO. A demo scan is labeled DEMO SIMULATION. Your own profiles stay stored and come back when you leave demo.</div>
     </div>
   </div>
 
   <!-- 09 WHAT IT DOES -->
   <div class="sect" id="features"><span class="num">09</span><span class="label">What it does</span><span class="bar"></span></div>
   <div class="grid">
-    <div class="item"><b>Login</b><span>Password, API token, or 2FA. Self-signed certs are opt-in. Saved profiles keep the host and username, never the secret. Hosts from the same cluster group together. Ping a discovered host to see latency as a fill. Scan shows a sweep while discovering hosts.</span></div>
-    <div class="item"><b>Cluster</b><span>Guests, nodes, and storage on one screen. Guest names sit next to a status lamp.</span></div>
+    <div class="item"><b>Login</b><span>Password, API token, or 2FA. Self-signed certs are opt-in and pinned. Saved profiles keep the host and username, never the secret. Hosts from the same cluster group together.</span></div>
+    <div class="item"><b>Scan</b><span>Local-network discovery with a sweep. Tap a verified host to prefill. Ping is a fill on the row, never automatic.</span></div>
+    <div class="item"><b>Cluster</b><span>Guests, nodes, and storage on one screen. SERVER lamps for each node. Guest names sit next to a status lamp.</span></div>
     <div class="item"><b>Power</b><span>Start, stop, reboot, shut down. Tap or long-press. Suspend, resume, reset, and auto-start on boot included.</span></div>
+    <div class="item"><b>Board</b><span>OPS plus a mill-cut bezel for hardware, network, firewall, snapshots, backups, options, and raw.</span></div>
     <div class="item"><b>Deploy</b><span>Clone from a template in one dialog. Errors show right there.</span></div>
     <div class="item"><b>Backup</b><span>To the server, or straight to your phone.</span></div>
-    <div class="item"><b>ISO</b><span>Upload an ISO from the system file picker onto a store that allows it. ISO upload uses the system picker as the file manager with no all-files grant.</span></div>
-    <div class="item"><b>Console</b><span>Full screen, in the app.</span></div>
-    <div class="item"><b>Monitoring</b><span>CPU, memory, disk, uptime: live, per guest.</span></div>
-    <div class="item"><b>Servers</b><span>Every saved host probed at once: online state, version, what's running.</span></div>
-    <div class="item"><b>Logs</b><span>Latest cluster line pinned to the bottom of every screen. Tap for the full log.</span></div>
-    <div class="item"><b>Themes</b><span>OLED dark, light, and follow-system. Accent color per profile. Lists glow orange when you reach the end.</span></div>
+    <div class="item"><b>ISO</b><span>Upload from the system file picker onto a store that allows it. No all-files grant.</span></div>
+    <div class="item"><b>Console</b><span>noVNC for guests, xterm.js for the node shell, TLS through the app pin.</span></div>
+    <div class="item"><b>Updates</b><span>Refresh lists and install with live progress. Proxmox VE 9 walks you to the node shell when remote install is blocked.</span></div>
+    <div class="item"><b>Logs</b><span>Latest cluster line pinned to the bottom of home. Tap for the full log.</span></div>
+    <div class="item"><b>Themes</b><span>OLED Dark, Light, and System. Lists glow orange at the end of a list.</span></div>
   </div>
 
   <footer>
@@ -268,9 +284,8 @@ footer{padding:44px 0 100px}
 </div>
 
 <script>
-// jump nav: smooth scroll + active section highlight
 const links = document.querySelectorAll('.jumpnav a');
-const secs = ['home','console','deploy','tasks','looks','storage','servers','demo','features'];
+const secs = ['home','board','deploy','tasks','looks','storage','scan','demo','features'];
 document.getElementById('jumpscenes').addEventListener('click', () => {
   document.getElementById('home').scrollIntoView({behavior:'smooth'});
 });
