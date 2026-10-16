@@ -21,6 +21,7 @@ class TourTest {
         app.sessionStore.listProfiles().forEach { app.sessionStore.deleteProfile(it.id) }
         app.sessionStore.setAutoConnect(false)
         app.sessionStore.clearPreviousSession()
+        app.sessionStore.resetTour()
         TourController.reset()
     }
 
@@ -46,6 +47,25 @@ class TourTest {
         composeTestRule.waitUntil(10_000) {
             composeTestRule.onAllNodesWithText("GUESTS").fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    private fun dismissTour() {
+        if (composeTestRule.onAllNodesWithText("SKIP").fetchSemanticsNodes().isEmpty()) {
+            try {
+                composeTestRule.waitUntil(1000) {
+                    composeTestRule.onAllNodesWithText("SKIP").fetchSemanticsNodes().isNotEmpty()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                return
+            }
+        }
+        composeTestRule.onNodeWithText("SKIP").performClick()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("QUICK TOUR", substring = true).fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitForIdle()
     }
 
     @Test
@@ -158,6 +178,7 @@ class TourTest {
     @Test
     fun guestCard_showsPowerRow_andLongPressOpensMenu() {
         performFakeLogin()
+        dismissTour()
 
         // Quick action row elements
         composeTestRule.onAllNodesWithText("PWR").onFirst().assertIsDisplayed()
@@ -175,20 +196,21 @@ class TourTest {
         composeTestRule.onNodeWithText("Stop").assertIsDisplayed()
         composeTestRule.onNodeWithText("Reset").assertIsDisplayed()
         composeTestRule.onNodeWithText("Suspend").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Auto-start on boot").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Auto-start").assertIsDisplayed()
     }
 
     @Test
     fun runningGuestDetail_showsSectionsAndActions() {
         performFakeLogin()
+        dismissTour()
 
-        composeTestRule.onNodeWithText("nova").performClick()
+        composeTestRule.onNode(hasText("nova") and !hasSetTextAction()).performClick()
 
         // Detail screen header & state
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("RUNNING").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("nova").onFirst().assertIsDisplayed()
         composeTestRule.onNodeWithText("RUNNING").assertIsDisplayed()
 
         // Detail sections
@@ -198,7 +220,11 @@ class TourTest {
         composeTestRule.onNodeWithText("SNAP").assertIsDisplayed()
         composeTestRule.onNodeWithText("BKP").assertIsDisplayed()
 
-        // Power actions (check presence)
+        // Power actions (check presence after opening Actions menu)
+        composeTestRule.onNodeWithContentDescription("Actions").performClick()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("Shutdown", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithText("Shutdown", ignoreCase = true).assertExists()
         composeTestRule.onNodeWithText("Reboot", ignoreCase = true).assertExists()
         composeTestRule.onNodeWithText("Stop", ignoreCase = true).assertExists()
@@ -207,18 +233,23 @@ class TourTest {
     @Test
     fun stoppedGuest_offersStart() {
         performFakeLogin()
+        dismissTour()
 
         composeTestRule.onNodeWithText("Search name · node · vmid · tag").performTextInput("meteor")
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("meteor").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("meteor").performClick()
+        composeTestRule.onNode(hasText("meteor") and !hasSetTextAction()).performClick()
 
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("STOPPED").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("meteor").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("meteor").onFirst().assertIsDisplayed()
         composeTestRule.onNodeWithText("STOPPED").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Actions").performClick()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("Start", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithText("Start", ignoreCase = true).assertExists()
         composeTestRule.onNodeWithText("Shutdown", ignoreCase = true).assertDoesNotExist()
     }
@@ -226,8 +257,9 @@ class TourTest {
     @Test
     fun menu_deployFromTemplate_opensDialog() {
         performFakeLogin()
+        dismissTour()
 
-        composeTestRule.onNodeWithText("MENU").performClick()
+        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("Deploy from template").fetchSemanticsNodes().isNotEmpty()
         }
@@ -243,8 +275,9 @@ class TourTest {
     @Test
     fun menu_allServers_showsOverview() {
         performFakeLogin()
+        dismissTour()
 
-        composeTestRule.onNodeWithText("MENU").performClick()
+        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("All servers").fetchSemanticsNodes().isNotEmpty()
         }
@@ -287,8 +320,13 @@ class TourTest {
     @Test
     fun guestConsole_inDemoMode_showsGracefulError() {
         performFakeLogin()
+        dismissTour()
 
-        composeTestRule.onNodeWithText("nova").performClick()
+        composeTestRule.onNode(hasText("nova") and !hasSetTextAction()).performClick()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("RUNNING").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodes(hasScrollToIndexAction()).onFirst().performScrollToNode(hasText("OPEN CONSOLE"))
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("OPEN CONSOLE").fetchSemanticsNodes().isNotEmpty()
         }
@@ -303,7 +341,11 @@ class TourTest {
         composeTestRule.onNodeWithText("BACK").performClick()
 
         // Back on detail
-        composeTestRule.onNodeWithText("nova").assertIsDisplayed()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("nova").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("nova").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodes(hasScrollToIndexAction()).onFirst().performScrollToNode(hasText("OPEN CONSOLE"))
         composeTestRule.onNodeWithText("OPEN CONSOLE").assertIsDisplayed()
     }
 
@@ -343,13 +385,7 @@ class TourTest {
     @Test
     fun tasksScreen_listsTasks() {
         performFakeLogin()
-
-        // First-run tour bubble overlaps the home screen; dismiss it before navigating.
-        composeTestRule.onNodeWithText("SKIP").performClick()
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("QUICK TOUR", substring = true).fetchSemanticsNodes().isEmpty()
-        }
-        composeTestRule.waitForIdle()
+        dismissTour()
 
         // Injected taps on the top bar can be swallowed by a window layer in
         // instrumented runs; invoke the plate's own click action directly.
@@ -367,8 +403,9 @@ class TourTest {
     @Test
     fun logoutReturnsToLogin() {
         performFakeLogin()
+        dismissTour()
 
-        composeTestRule.onNodeWithText("MENU").performClick()
+        composeTestRule.onNodeWithTag("tech_action_menu").performSemanticsAction(SemanticsActions.OnClick)
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("Switch account").fetchSemanticsNodes().isNotEmpty()
         }

@@ -16,6 +16,7 @@ import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
 import kotlinx.serialization.json.JsonElement
+import java.util.concurrent.atomic.AtomicReference
 
 class ProxmoxRepositoryTest {
 
@@ -153,7 +154,8 @@ class ProxmoxRepositoryTest {
     private class FakeApiProvider(private val api: ProxmoxApi) : ProxmoxApiProvider {
         var fingerprintToReturn: String? = null
         override fun apiFor(config: ServerConfig): ProxmoxApi = api
-        override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(api)
+        override fun apiForProbe(config: ServerConfig): ProbeApi =
+            ProbeApi(api, capturedFingerprint = AtomicReference(fingerprintToReturn))
         override fun clear() {}
         override fun getCapturedFingerprint(host: String): String? = fingerprintToReturn
     }
