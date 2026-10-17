@@ -54,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -324,7 +325,8 @@ private fun TaskCard(
     val chip = task.chip
     val detail = task.detail
     val railColor = taskStatusColor(chip)
-    val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
+    val locale = LocalLocale.current.platformLocale
+    val fmt = SimpleDateFormat("MM-dd HH:mm:ss", locale)
     val selectedBorder = Modifier.border(1.dp, TechColors.LinkGreen.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
 
     TechPlate(
@@ -393,7 +395,8 @@ private fun TaskDetailPane(
     val isRunning = chip == "RUNNING"
     val statusColor = taskStatusColor(chip)
 
-    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    val locale = LocalLocale.current.platformLocale
+    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", locale)
     val durationText = remember(task.startTime, task.endTime) {
         val end = task.endTime ?: (System.currentTimeMillis() / 1000L)
         val diffSec = (end - task.startTime).coerceAtLeast(0L)

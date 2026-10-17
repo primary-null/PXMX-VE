@@ -44,10 +44,14 @@ class PlatformNotificationPoster(private val context: Context) : TaskNotificatio
                 .setContentTitle(title)
                 .setContentText(text)
                 .setOngoing(true)
-                .setRequestPromotedOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setColorized(false)
                 .setStyle(progressStyle)
+
+            if (Build.VERSION.SDK_INT >= 36 &&
+                Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                builder.setRequestPromotedOngoing(true)
+            }
 
             nm.notify(id, builder.build())
         } else {
