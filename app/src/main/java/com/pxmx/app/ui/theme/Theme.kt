@@ -1,5 +1,6 @@
 package com.pxmx.app.ui.theme
 
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -109,6 +110,11 @@ fun ProxmoxTheme(
             val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !useDark
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !useDark
+            if (useDark) {
+                window.setBackgroundDrawableResource(android.R.color.black)
+            } else {
+                window.setBackgroundDrawable(ColorDrawable(0xFFF6F6F6.toInt()))
+            }
         }
     }
 

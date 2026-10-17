@@ -339,13 +339,10 @@ class GuestDetailViewModel(
         return true
     }
 
-    fun moveClipUp(clipId: String) {
-        reorderVisibleClip(clipId, -1)
-    }
+    fun moveClipUp(clipId: String): Boolean = reorderVisibleClip(clipId, -1)
 
-    fun moveClipDown(clipId: String) {
-        reorderVisibleClip(clipId, 1)
-    }
+    fun moveClipDown(clipId: String): Boolean = reorderVisibleClip(clipId, 1)
+
 
     fun saveBoardAsProfileDefault() {
         val profileId = currentProfileId()

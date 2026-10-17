@@ -132,11 +132,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.sin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -148,19 +145,24 @@ import com.pxmx.app.data.model.WatchIds
 import com.pxmx.app.ui.permissions.RequestPostNotificationsOnUse
 import com.pxmx.app.ui.watch.WatchEye
 import com.pxmx.app.ui.watch.rememberWatchToggle
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import android.os.SystemClock
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameMillis
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -453,6 +455,24 @@ fun GuestDetailScreen(
             return@Scaffold
         }
 
+        val reduceMotion = rememberReduceMotion()
+        val haptic = LocalHapticFeedback.current
+        val wiggleElapsedMs = remember(state.isEditingBoard, reduceMotion) {
+            mutableLongStateOf(0L)
+        }
+        LaunchedEffect(state.isEditingBoard, reduceMotion) {
+            if (!state.isEditingBoard || reduceMotion) {
+                wiggleElapsedMs.longValue = 0L
+                return@LaunchedEffect
+            }
+            val start = withFrameMillis { it }
+            while (true) {
+                withFrameMillis { frameTime ->
+                    wiggleElapsedMs.longValue = frameTime - start
+                }
+            }
+        }
+
         val keysInLazyColumn = remember(state.isEditingBoard, state.appliedKeys) {
             guestDetailLazyKeys(state.isEditingBoard, state.appliedKeys)
         }
@@ -507,11 +527,13 @@ fun GuestDetailScreen(
                             onToggleHistory = { viewModel.toggleHistory(it) },
                             onSaveAsDefault = { viewModel.saveBoardAsProfileDefault() },
                             onClose = { viewModel.toggleEditBoard() },
+                            elapsedMs = { wiggleElapsedMs.longValue },
+                            reduceMotion = reduceMotion,
                         )
                     }
                 }
 
-                state.appliedKeys.forEach { key ->
+                state.appliedKeys.forEachIndexed { index, key ->
                     when (key) {
                         "hero" -> item(key = "hero") {
                             HeroCard(
@@ -533,158 +555,246 @@ fun GuestDetailScreen(
                             )
                         }
                         "hardware" -> item(key = "hardware") {
-                            val disks = cfg?.disks?.size ?: 0
-                            val cores = cfg?.cores ?: "—"
-                            val mem = formatMemoryMiB(cfg?.memory)
-                            GuestSectionPlate(
-                                title = GuestSection.HARDWARE.title,
-                                subtitle = "${disks}d · ${cores}c · $mem",
-                                expanded = state.expanded == GuestSection.HARDWARE,
-                                onToggle = { viewModel.toggleSection(GuestSection.HARDWARE) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.HARDWARE),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.HARDWARE) },
+                            MovableDeckItem(
+                                key = "hardware",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                HardwareBody(cfg)
+                                val disks = cfg?.disks?.size ?: 0
+                                val cores = cfg?.cores ?: "—"
+                                val mem = formatMemoryMiB(cfg?.memory)
+                                GuestSectionPlate(
+                                    title = GuestSection.HARDWARE.title,
+                                    subtitle = "${disks}d · ${cores}c · $mem",
+                                    expanded = state.expanded == GuestSection.HARDWARE,
+                                    onToggle = { viewModel.toggleSection(GuestSection.HARDWARE) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.HARDWARE),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.HARDWARE) },
+                                ) {
+                                    HardwareBody(cfg)
+                                }
                             }
                         }
                         "network" -> item(key = "network") {
-                            val nics = cfg?.nets?.size ?: 0
-                            val usbs = cfg?.usbs?.size ?: 0
-                            GuestSectionPlate(
-                                title = GuestSection.NETWORK.title,
-                                subtitle = "$nics nic · $usbs usb",
-                                expanded = state.expanded == GuestSection.NETWORK,
-                                onToggle = { viewModel.toggleSection(GuestSection.NETWORK) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.NETWORK),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.NETWORK) },
+                            MovableDeckItem(
+                                key = "network",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                NetworkUsbBody(
-                                    cfg = cfg,
-                                    hostUsbs = state.hostUsbs,
-                                    liveInterfaces = state.liveInterfaces,
-                                    firewall = state.firewall,
-                                    isQemu = state.guestType == GuestType.QEMU,
-                                    busy = busy,
-                                    onDetach = { viewModel.detachUsb(it) },
-                                    onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
-                                    onRefreshUsb = { viewModel.refreshUsbOnly() },
-                                    onToggleFirewall = viewModel::toggleNicFirewall,
-                                    onToggleLinkDown = viewModel::toggleNicLinkDown,
-                                )
+                                val nics = cfg?.nets?.size ?: 0
+                                val usbs = cfg?.usbs?.size ?: 0
+                                GuestSectionPlate(
+                                    title = GuestSection.NETWORK.title,
+                                    subtitle = "$nics nic · $usbs usb",
+                                    expanded = state.expanded == GuestSection.NETWORK,
+                                    onToggle = { viewModel.toggleSection(GuestSection.NETWORK) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.NETWORK),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.NETWORK) },
+                                ) {
+                                    NetworkUsbBody(
+                                        cfg = cfg,
+                                        hostUsbs = state.hostUsbs,
+                                        liveInterfaces = state.liveInterfaces,
+                                        firewall = state.firewall,
+                                        isQemu = state.guestType == GuestType.QEMU,
+                                        busy = busy,
+                                        onDetach = { viewModel.detachUsb(it) },
+                                        onAttach = { id, usb3 -> viewModel.attachUsb(id, usb3) },
+                                        onRefreshUsb = { viewModel.refreshUsbOnly() },
+                                        onToggleFirewall = viewModel::toggleNicFirewall,
+                                        onToggleLinkDown = viewModel::toggleNicLinkDown,
+                                    )
+                                }
                             }
                         }
                         "firewall" -> item(key = "firewall") {
-                            val fw = state.firewall
-                            val fwErr = state.firewallError
-                            val fwSubtitle = when {
-                                fwErr != null -> "err"
-                                fw == null -> "—"
-                                fw.enabled -> "on · ${fw.rules.size}"
-                                else -> "off · ${fw.rules.size}"
-                            }
-                            GuestSectionPlate(
-                                title = GuestSection.FIREWALL.title,
-                                subtitle = fwSubtitle,
-                                expanded = state.expanded == GuestSection.FIREWALL,
-                                onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.FIREWALL),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.FIREWALL) },
+                            MovableDeckItem(
+                                key = "firewall",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                FirewallBody(
-                                    snapshot = state.firewall,
-                                    error = state.firewallError,
-                                )
+                                val fw = state.firewall
+                                val fwErr = state.firewallError
+                                val fwSubtitle = when {
+                                    fwErr != null -> "err"
+                                    fw == null -> "—"
+                                    fw.enabled -> "on · ${fw.rules.size}"
+                                    else -> "off · ${fw.rules.size}"
+                                }
+                                GuestSectionPlate(
+                                    title = GuestSection.FIREWALL.title,
+                                    subtitle = fwSubtitle,
+                                    expanded = state.expanded == GuestSection.FIREWALL,
+                                    onToggle = { viewModel.toggleSection(GuestSection.FIREWALL) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.FIREWALL),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.FIREWALL) },
+                                ) {
+                                    FirewallBody(
+                                        snapshot = state.firewall,
+                                        error = state.firewallError,
+                                    )
+                                }
                             }
                         }
                         "snapshots" -> item(key = "snapshots") {
-                            val snapCount = state.snapshots.count { !it.isCurrent }
-                            GuestSectionPlate(
-                                title = GuestSection.SNAPSHOTS.title,
-                                subtitle = "$snapCount",
-                                expanded = state.expanded == GuestSection.SNAPSHOTS,
-                                onToggle = { viewModel.toggleSection(GuestSection.SNAPSHOTS) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.SNAPSHOTS),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.SNAPSHOTS) },
-                                trailing = {
-                                    IconButton(
-                                        onClick = { viewModel.openCreateSnapshot(true) },
-                                        enabled = !busy,
-                                        modifier = Modifier.size(32.dp),
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Create snapshot")
-                                    }
-                                },
+                            MovableDeckItem(
+                                key = "snapshots",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                SnapshotsBody(
-                                    snapshots = state.snapshots,
-                                    busy = busy,
-                                    onDelete = { viewModel.confirmDeleteSnapshot(it) },
-                                    onRollback = { viewModel.confirmRollback(it) },
-                                )
+                                val snapCount = state.snapshots.count { !it.isCurrent }
+                                GuestSectionPlate(
+                                    title = GuestSection.SNAPSHOTS.title,
+                                    subtitle = "$snapCount",
+                                    expanded = state.expanded == GuestSection.SNAPSHOTS,
+                                    onToggle = { viewModel.toggleSection(GuestSection.SNAPSHOTS) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.SNAPSHOTS),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.SNAPSHOTS) },
+                                    trailing = {
+                                        IconButton(
+                                            onClick = { viewModel.openCreateSnapshot(true) },
+                                            enabled = !busy,
+                                            modifier = Modifier.size(32.dp),
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = "Create snapshot")
+                                        }
+                                    },
+                                ) {
+                                    SnapshotsBody(
+                                        snapshots = state.snapshots,
+                                        busy = busy,
+                                        onDelete = { viewModel.confirmDeleteSnapshot(it) },
+                                        onRollback = { viewModel.confirmRollback(it) },
+                                    )
+                                }
                             }
                         }
                         "backups" -> item(key = "backups") {
-                            val bkpSubtitle = if (state.backups.isEmpty()) "none" else "${state.backups.size}"
-                            GuestSectionPlate(
-                                title = GuestSection.BACKUPS.title,
-                                subtitle = bkpSubtitle,
-                                expanded = state.expanded == GuestSection.BACKUPS,
-                                onToggle = { viewModel.toggleSection(GuestSection.BACKUPS) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.BACKUPS),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.BACKUPS) },
-                                trailing = {
-                                    IconButton(
-                                        onClick = { viewModel.openCreateBackup(true) },
-                                        enabled = !busy && state.backupStorages.isNotEmpty(),
-                                        modifier = Modifier.size(32.dp),
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Backup now")
-                                    }
-                                },
+                            MovableDeckItem(
+                                key = "backups",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                BackupsBody(
-                                    backups = state.backups,
-                                    busy = busy,
-                                    onDelete = { viewModel.confirmDeleteBackup(it) },
-                                )
+                                val bkpSubtitle = if (state.backups.isEmpty()) "none" else "${state.backups.size}"
+                                GuestSectionPlate(
+                                    title = GuestSection.BACKUPS.title,
+                                    subtitle = bkpSubtitle,
+                                    expanded = state.expanded == GuestSection.BACKUPS,
+                                    onToggle = { viewModel.toggleSection(GuestSection.BACKUPS) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.BACKUPS),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.BACKUPS) },
+                                    trailing = {
+                                        IconButton(
+                                            onClick = { viewModel.openCreateBackup(true) },
+                                            enabled = !busy && state.backupStorages.isNotEmpty(),
+                                            modifier = Modifier.size(32.dp),
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = "Backup now")
+                                        }
+                                    },
+                                ) {
+                                    BackupsBody(
+                                        backups = state.backups,
+                                        busy = busy,
+                                        onDelete = { viewModel.confirmDeleteBackup(it) },
+                                    )
+                                }
                             }
                         }
                         "options" -> item(key = "options") {
-                            val optSubtitle = cfg?.ostype?.takeIf { it.isNotBlank() } ?: "boot"
-                            GuestSectionPlate(
-                                title = GuestSection.OPTIONS.title,
-                                subtitle = optSubtitle,
-                                expanded = state.expanded == GuestSection.OPTIONS,
-                                onToggle = { viewModel.toggleSection(GuestSection.OPTIONS) },
-                                showPin = true,
-                                isPinned = state.board.isPinned(GuestSection.OPTIONS),
-                                onTogglePin = { viewModel.togglePinSection(GuestSection.OPTIONS) },
+                            MovableDeckItem(
+                                key = "options",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
                             ) {
-                                OptionsBody(cfg)
+                                val optSubtitle = cfg?.ostype?.takeIf { it.isNotBlank() } ?: "boot"
+                                GuestSectionPlate(
+                                    title = GuestSection.OPTIONS.title,
+                                    subtitle = optSubtitle,
+                                    expanded = state.expanded == GuestSection.OPTIONS,
+                                    onToggle = { viewModel.toggleSection(GuestSection.OPTIONS) },
+                                    showPin = true,
+                                    isPinned = state.board.isPinned(GuestSection.OPTIONS),
+                                    onTogglePin = { viewModel.togglePinSection(GuestSection.OPTIONS) },
+                                ) {
+                                    OptionsBody(cfg)
+                                }
                             }
                         }
                         "console" -> item(key = "console") {
-                            ConsoleCard(
-                                running = running,
-                                busy = busy,
-                                guestType = state.guestType,
-                                onOpenConsole = onOpenConsole,
-                                isTokenSession = state.isTokenSession,
-                                still = currentStill,
-                            )
+                            MovableDeckItem(
+                                key = "console",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
+                            ) {
+                                ConsoleCard(
+                                    running = running,
+                                    busy = busy,
+                                    guestType = state.guestType,
+                                    onOpenConsole = onOpenConsole,
+                                    isTokenSession = state.isTokenSession,
+                                    still = currentStill,
+                                )
+                            }
                         }
                         "history-graph" -> item(key = "history-graph") {
-                            TechHistoryGraph(
-                                points = state.rrdData,
-                                isGuest = true,
-                                timeframe = state.rrdTimeframe,
-                                onTimeframe = { viewModel.setRrdTimeframe(it) },
-                            )
+                            MovableDeckItem(
+                                key = "history-graph",
+                                index = index,
+                                isEditing = state.isEditingBoard,
+                                reduceMotion = reduceMotion,
+                                elapsedMs = { wiggleElapsedMs.longValue },
+                                onMoveUp = { viewModel.moveClipUp(it) },
+                                onMoveDown = { viewModel.moveClipDown(it) },
+                                haptic = haptic,
+                            ) {
+                                TechHistoryGraph(
+                                    points = state.rrdData,
+                                    isGuest = true,
+                                    timeframe = state.rrdTimeframe,
+                                    onTimeframe = { viewModel.setRrdTimeframe(it) },
+                                )
+                            }
                         }
                         "raw" -> item(key = "raw") {
                             GuestSectionPlate(
@@ -1455,17 +1565,219 @@ private fun TechActionIcon(
     }
 }
 
+private fun guestKeyToClipId(key: String): String = when (key) {
+    "hero" -> "VITALS"
+    "hardware" -> "HW"
+    "network" -> "NET"
+    "firewall" -> "FW"
+    "snapshots" -> "SNAP"
+    "backups" -> "BKP"
+    "options" -> "OPT"
+    "console" -> "CONSOLE"
+    "history-graph" -> "HISTORY"
+    "raw" -> "RAW"
+    else -> key.uppercase()
+}
+
 @Composable
+@Suppress("LongParameterList")
+private fun MovableDeckItem(
+    key: String,
+    index: Int,
+    isEditing: Boolean,
+    reduceMotion: Boolean,
+    elapsedMs: () -> Long,
+    onMoveUp: (String) -> Boolean,
+    onMoveDown: (String) -> Boolean,
+    haptic: HapticFeedback,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val clipId = remember(key) { guestKeyToClipId(key) }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .deckCardWiggleDrag(
+                isEditing = isEditing,
+                index = index,
+                clipId = clipId,
+                elapsedMs = elapsedMs,
+                reduceMotion = reduceMotion,
+                onMoveUp = onMoveUp,
+                onMoveDown = onMoveDown,
+                haptic = haptic,
+                enabled = true,
+            ),
+    ) {
+        content()
+    }
+}
+
+private const val DRAG_HOLD_MS = 240L
+private const val DRAG_SLOP_DP = 12
+private const val DRAG_THRESHOLD_DP = 48
+private const val DRAG_SCALE_ARMED = 1.04f
+private const val DRAG_SHADOW_ELEVATION = 8f
+
+@Composable
+@Suppress("LongParameterList")
+private fun Modifier.deckCardWiggleDrag(
+    isEditing: Boolean,
+    index: Int,
+    clipId: String,
+    elapsedMs: () -> Long,
+    reduceMotion: Boolean,
+    onMoveUp: (String) -> Boolean,
+    onMoveDown: (String) -> Boolean,
+    haptic: HapticFeedback,
+    enabled: Boolean = true,
+): Modifier {
+    var isUnderFinger by remember { mutableStateOf(false) }
+    var isArmed by remember { mutableStateOf(false) }
+    var translationYPx by remember { mutableFloatStateOf(0f) }
+    val layoutInRoot = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    // Read during composition. A read that lives only inside graphicsLayer does not schedule the next frame.
+    val elapsed = elapsedMs()
+    val fingerDown = isUnderFinger
+    val armedNow = isArmed
+    val dragY = translationYPx
+    if (!isEditing || !enabled) return this
+
+    val rocking = if (fingerDown || armedNow) {
+        0f
+    } else {
+        editWiggleDegrees(index, elapsed, reduceMotion)
+    }
+    val scale = if (armedNow && !reduceMotion) DRAG_SCALE_ARMED else 1f
+
+    return this
+        .zIndex(if (armedNow) 1f else 0f)
+        .onGloballyPositioned { layoutInRoot.value = it }
+        .pointerInput(clipId, isEditing) {
+            fun fingerRootY(localY: Float): Float {
+                val node = layoutInRoot.value
+                val origin = if (node != null && node.isAttached) node.localToRoot(Offset.Zero).y else 0f
+                return localY + origin
+            }
+            val slopPx = DRAG_SLOP_DP.dp.toPx()
+            val thresholdPx = DRAG_THRESHOLD_DP.dp.toPx()
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                val pointerId = down.id
+                val startRealtime = SystemClock.uptimeMillis()
+                val startUptime = down.uptimeMillis
+                val startPos = down.position
+                var lastRootY = fingerRootY(down.position.y)
+                isUnderFinger = true
+                var armed = false
+                var accumulatedTranslationY = 0f
+
+                try {
+                    while (!armed) {
+                        val heldSoFar = SystemClock.uptimeMillis() - startRealtime
+                        val remaining = (DRAG_HOLD_MS - heldSoFar).coerceAtLeast(0L)
+                        if (remaining <= 0L) {
+                            armed = true
+                            isArmed = true
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            break
+                        }
+                        val event = withTimeoutOrNull(remaining) {
+                            awaitPointerEvent(PointerEventPass.Initial)
+                        }
+                        if (event == null) {
+                            armed = true
+                            isArmed = true
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            break
+                        }
+                        val change = event.changes.find { it.id == pointerId }
+                        if (change == null || !change.pressed) {
+                            return@awaitEachGesture
+                        }
+                        val held = change.uptimeMillis - startUptime
+                        val travel = (change.position - startPos).getDistance()
+                        if (editDragShouldYieldToScroll(held, travel, slopPx)) {
+                            return@awaitEachGesture
+                        }
+                        if (editDragShouldArm(held, travel, slopPx)) {
+                            armed = true
+                            isArmed = true
+                            change.consume()
+                            lastRootY = fingerRootY(change.position.y)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            break
+                        }
+                    }
+
+                    if (armed) {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change == null || !change.pressed) {
+                                change?.consume()
+                                break
+                            }
+                            change.consume()
+                            val rootY = fingerRootY(change.position.y)
+                            val dy = rootY - lastRootY
+                            lastRootY = rootY
+                            accumulatedTranslationY += dy
+                            translationYPx = accumulatedTranslationY
+
+                            var step = editDragStep(accumulatedTranslationY, thresholdPx)
+                            while (step != 0) {
+                                val moved = if (step == -1) onMoveUp(clipId) else onMoveDown(clipId)
+                                if (moved) {
+                                    if (step == -1) {
+                                        accumulatedTranslationY += thresholdPx
+                                    } else {
+                                        accumulatedTranslationY -= thresholdPx
+                                    }
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                } else {
+                                    accumulatedTranslationY = if (step < 0) {
+                                        -(thresholdPx - 1f)
+                                    } else {
+                                        thresholdPx - 1f
+                                    }
+                                }
+                                translationYPx = accumulatedTranslationY
+                                step = editDragStep(accumulatedTranslationY, thresholdPx)
+                            }
+                        }
+                    }
+                } finally {
+                    isUnderFinger = false
+                    isArmed = false
+                    translationYPx = 0f
+                }
+            }
+        }
+        .graphicsLayer {
+            rotationZ = rocking
+            scaleX = scale
+            scaleY = scale
+            translationY = if (armedNow) dragY else 0f
+            shadowElevation = if (armedNow) DRAG_SHADOW_ELEVATION else 0f
+        }
+}
+
+@Composable
+@Suppress("LongParameterList")
 private fun EditBoardCard(
     board: OpsBoard,
-    onMoveUp: (String) -> Unit,
-    onMoveDown: (String) -> Unit,
+    onMoveUp: (String) -> Boolean,
+    onMoveDown: (String) -> Boolean,
     onTogglePin: (GuestSection) -> Unit,
     onToggleConsole: (Boolean) -> Unit,
     onToggleHistory: (Boolean) -> Unit,
     onSaveAsDefault: () -> Unit,
     onClose: () -> Unit,
+    elapsedMs: () -> Long = { 0L },
+    reduceMotion: Boolean = false,
 ) {
+    val haptic = LocalHapticFeedback.current
     TechPlate(
         railColor = MaterialTheme.colorScheme.primary,
         showRail = true,
@@ -1513,14 +1825,33 @@ private fun EditBoardCard(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TechColors.Divider))
 
                 board.clipOrder.forEachIndexed { index, clip ->
+                    key(clip) {
                     val canMoveUp = index > 1 && clip != "VITALS" && clip != "RAW"
                     val canMoveDown = index < board.clipOrder.size - 2 && clip != "VITALS" && clip != "RAW"
+                    val rowModifier = if (clip != "VITALS" && clip != "RAW") {
+                        Modifier
+                            .fillMaxWidth()
+                            .deckCardWiggleDrag(
+                                isEditing = true,
+                                index = index,
+                                clipId = clip,
+                                elapsedMs = elapsedMs,
+                                reduceMotion = reduceMotion,
+                                onMoveUp = onMoveUp,
+                                onMoveDown = onMoveDown,
+                                haptic = haptic,
+                                enabled = true,
+                            )
+                            .padding(vertical = 4.dp)
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    }
                     when (clip) {
                         "VITALS" -> {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1532,9 +1863,7 @@ private fun EditBoardCard(
                         }
                         "FACTS" -> {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -1559,9 +1888,7 @@ private fun EditBoardCard(
                         }
                         "CONSOLE" -> {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -1590,9 +1917,7 @@ private fun EditBoardCard(
                         }
                         "HISTORY" -> {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -1621,9 +1946,7 @@ private fun EditBoardCard(
                         }
                         "RAW" -> {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1637,9 +1960,7 @@ private fun EditBoardCard(
                             val sec = clipIdToSection(clip)
                             val label = sec?.title ?: clip
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = rowModifier,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -1667,6 +1988,7 @@ private fun EditBoardCard(
                                 )
                             }
                         }
+                    }
                     }
                 }
 
