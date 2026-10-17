@@ -62,6 +62,7 @@ import com.pxmx.app.ui.theme.loadBackdropBitmap
 import com.pxmx.app.ui.theme.themeBackdropFile
 import com.pxmx.app.ui.tour.TourOverlay
 import com.pxmx.app.ui.util.ToastHost
+import com.pxmx.app.ui.util.Toasts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -97,6 +98,16 @@ class MainActivity : ComponentActivity() {
             var backdropBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
             var backdropFileExists by remember { mutableStateOf(themeBackdropFile(context).isFile) }
             var lastLoadedBlur by remember { mutableIntStateOf(-1) }
+
+            LaunchedEffect(Unit) {
+                var previous: ThemeMode? = null
+                app.sessionStore.themeMode.collect { mode ->
+                    if (previous != null && previous != ThemeMode.LIGHT && mode == ThemeMode.LIGHT) {
+                        Toasts.show(context, "Y?")
+                    }
+                    previous = mode
+                }
+            }
 
             LaunchedEffect(backdropVersion, themeBackdropEnabled) {
                 backdropFileExists = withContext(Dispatchers.IO) {

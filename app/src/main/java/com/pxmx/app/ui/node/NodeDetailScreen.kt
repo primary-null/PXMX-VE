@@ -454,9 +454,11 @@ private fun ServiceRow(svc: NodeServiceInfo) {
                     )
                 }
             }
-            TechStatusPlate(
-                status = if (svc.isActive) "running" else (svc.state ?: "stopped"),
-            )
+            Box(Modifier.padding(end = 16.dp)) {
+                TechStatusPlate(
+                    status = if (svc.isActive) "running" else (svc.state ?: "stopped"),
+                )
+            }
         }
     }
 }

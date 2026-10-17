@@ -32,7 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -98,7 +98,7 @@ val LightTechPalette = TechPalette(
     danger = Color(0xFFE53935),
 )
 
-val LocalTechColors = staticCompositionLocalOf { DarkTechPalette }
+val LocalTechColors = compositionLocalOf { DarkTechPalette }
 
 /** Shared instrument / communicator chrome used on home + secondary screens. */
 object TechColors {
