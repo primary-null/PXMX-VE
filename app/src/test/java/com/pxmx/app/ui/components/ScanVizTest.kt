@@ -9,8 +9,8 @@ import org.junit.Test
 class ScanVizTest {
 
     @Test
-    fun scanViz_mode_defaultsToSweepStrip() {
-        assertEquals(ScanVizMode.SWEEP_STRIP, ScanViz.mode)
+    fun scanViz_mode_defaultsToScanPicture() {
+        assertEquals(ScanVizMode.SCAN_PICTURE, ScanViz.mode)
     }
 
     @Test
