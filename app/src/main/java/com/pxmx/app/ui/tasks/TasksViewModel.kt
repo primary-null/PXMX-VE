@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
+import com.pxmx.app.data.repo.taskStatusChip
+import com.pxmx.app.data.repo.taskStatusDetail
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +23,11 @@ data class ClusterTask(
     val startTime: Long,
     val endTime: Long?,
     val pid: Long?,
-)
+) {
+    val chip: String get() = taskStatusChip(status)
+    val detail: String? get() = taskStatusDetail(status)
+}
+
 
 data class TasksUiState(
     val tasks: List<ClusterTask> = emptyList(),

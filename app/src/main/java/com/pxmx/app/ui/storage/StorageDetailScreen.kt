@@ -25,6 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.graphics.Color
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -127,7 +129,7 @@ fun StorageDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }, enabled = !state.busy) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                 },
             )

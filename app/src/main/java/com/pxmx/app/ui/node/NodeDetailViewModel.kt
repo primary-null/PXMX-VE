@@ -49,6 +49,12 @@ class NodeDetailViewModel(
     private val context: Context? = null,
 ) : ViewModel() {
 
+    val watchedIds: StateFlow<Set<String>> = sessionStore.watchedIds
+
+    fun setWatched(id: String, watched: Boolean) {
+        sessionStore.setWatched(id, watched)
+    }
+
     private val _uiState = MutableStateFlow(
         NodeDetailUiState(
             node = node,

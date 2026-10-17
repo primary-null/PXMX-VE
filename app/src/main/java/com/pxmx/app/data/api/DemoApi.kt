@@ -469,6 +469,7 @@ class DemoApi : ProxmoxApi {
                 "net0" to "virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0",
                 "ipconfig0" to "ip=192.168.1.100/24,gw=192.168.1.1",
                 "scsi0" to "local-lvm:vm-100-disk-0,size=32G",
+                "usb0" to "host=1234:5678,usb3=1",
             )
             101L -> mapOf(
                 "name" to "meteor",

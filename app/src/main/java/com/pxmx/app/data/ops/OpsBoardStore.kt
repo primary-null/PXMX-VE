@@ -124,27 +124,42 @@ data class OpsBoard(
         return copy(clipOrder = newOrder, includeHistory = include)
     }
 
-    fun moveClipUp(clipId: String): OpsBoard {
-        val idx = clipOrder.indexOf(clipId)
-        if (idx <= 1 || clipId == "VITALS" || clipId == "RAW") return this
-        val newOrder = clipOrder.toMutableList()
-        val prev = newOrder[idx - 1]
-        if (prev == "VITALS") return this
-        newOrder[idx - 1] = clipId
-        newOrder[idx] = prev
-        return copy(clipOrder = newOrder)
+    fun reorderVisibleClip(clipId: String, direction: Int): OpsBoard {
+        val norm = normalizeClipId(clipId)
+        if (norm == "VITALS" || norm == "RAW" || direction == 0) return this
+
+        val visible = computeAppliedClips(this, isTourActive = false).toMutableList()
+        val idx = visible.indexOf(norm)
+        if (idx < 0) return this
+
+        val targetIdx = if (direction < 0) idx - 1 else idx + 1
+        if (targetIdx <= 0 || targetIdx >= visible.size - 1) return this
+        if (visible[targetIdx] == "VITALS" || visible[targetIdx] == "RAW") return this
+
+        val neighbor = visible[targetIdx]
+        visible[idx] = neighbor
+        visible[targetIdx] = norm
+
+        return copy(clipOrder = visible)
     }
 
-    fun moveClipDown(clipId: String): OpsBoard {
-        val idx = clipOrder.indexOf(clipId)
-        if (idx < 0 || idx >= clipOrder.size - 2 || clipId == "VITALS" || clipId == "RAW") return this
-        val newOrder = clipOrder.toMutableList()
-        val next = newOrder[idx + 1]
-        if (next == "RAW") return this
-        newOrder[idx + 1] = clipId
-        newOrder[idx] = next
-        return copy(clipOrder = newOrder)
-    }
+    fun moveClipUp(clipId: String): OpsBoard = reorderVisibleClip(clipId, -1)
+
+    fun moveClipDown(clipId: String): OpsBoard = reorderVisibleClip(clipId, 1)
+}
+
+fun normalizeClipId(clipId: String): String = when (clipId.uppercase()) {
+    "HARDWARE", "HW" -> "HW"
+    "NETWORK", "NET" -> "NET"
+    "FIREWALL", "FW" -> "FW"
+    "SNAPSHOTS", "SNAP" -> "SNAP"
+    "BACKUPS", "BKP" -> "BKP"
+    "OPTIONS", "OPT" -> "OPT"
+    "CONSOLE" -> "CONSOLE"
+    "HISTORY", "HISTORY-GRAPH" -> "HISTORY"
+    "RAW" -> "RAW"
+    "VITALS", "HERO" -> "VITALS"
+    else -> clipId.uppercase()
 }
 
 fun isTourActiveNow(): Boolean = runCatching {
@@ -156,40 +171,37 @@ fun computeAppliedClips(board: OpsBoard, isTourActive: Boolean = isTourActiveNow
         return listOf("VITALS", "HW", "NET", "FW", "SNAP", "BKP", "OPT", "CONSOLE", "HISTORY", "RAW")
     }
     val allFactClips = listOf("HW", "NET", "FW", "SNAP", "BKP", "OPT")
-    val unpinnedFactClips = allFactClips.filter { it !in board.pinnedSections }
 
     val result = mutableListOf<String>()
     for (clip in board.clipOrder) {
         when (clip.uppercase()) {
-            "VITALS" -> result.add("VITALS")
+            "VITALS" -> if ("VITALS" !in result) result.add("VITALS")
             "FACTS" -> {
-                result.addAll(unpinnedFactClips)
+                val unplaced = allFactClips.filter { it !in board.pinnedSections && it !in result }
+                result.addAll(unplaced)
             }
             "CONSOLE" -> {
-                if (board.includeConsole) result.add("CONSOLE")
+                if (board.includeConsole && "CONSOLE" !in result) result.add("CONSOLE")
             }
             "HISTORY" -> {
-                if (board.includeHistory) result.add("HISTORY")
+                if (board.includeHistory && "HISTORY" !in result) result.add("HISTORY")
             }
-            "RAW" -> result.add("RAW")
+            "RAW" -> if ("RAW" !in result) result.add("RAW")
             else -> {
-                val normalized = when (clip.uppercase()) {
-                    "HARDWARE" -> "HW"
-                    "NETWORK" -> "NET"
-                    "FIREWALL" -> "FW"
-                    "SNAPSHOTS" -> "SNAP"
-                    "BACKUPS" -> "BKP"
-                    "OPTIONS" -> "OPT"
-                    else -> clip.uppercase()
-                }
-                if (normalized in board.pinnedSections && normalized != "RAW") {
+                val normalized = normalizeClipId(clip)
+                if (normalized in allFactClips && normalized !in result) {
                     result.add(normalized)
                 }
             }
         }
     }
-    if ("VITALS" !in result) result.add(0, "VITALS")
-    for (clip in unpinnedFactClips) {
+    if ("VITALS" !in result) {
+        result.add(0, "VITALS")
+    } else if (result.indexOf("VITALS") != 0) {
+        result.remove("VITALS")
+        result.add(0, "VITALS")
+    }
+    for (clip in allFactClips) {
         if (clip !in result) {
             val rawIdx = result.indexOf("RAW")
             if (rawIdx >= 0) result.add(rawIdx, clip)

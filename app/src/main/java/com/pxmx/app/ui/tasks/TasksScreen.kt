@@ -1,6 +1,7 @@
 package com.pxmx.app.ui.tasks
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,9 +19,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -52,6 +57,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -111,7 +118,7 @@ fun TasksScreen(
                         onClick = { viewModel.refresh() },
                         enabled = !state.loading && !state.refreshing,
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                 },
             )
@@ -276,33 +283,56 @@ private fun TasksListPane(
 }
 
 @Composable
+private fun taskStatusChipBadge(
+    chip: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = CutCornerShape(bottomEnd = 4.dp),
+        color = color.copy(alpha = 0.15f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+        modifier = modifier.widthIn(max = 96.dp),
+    ) {
+        Text(
+            text = chip,
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun taskStatusColor(chip: String): Color = when (chip) {
+    "OK" -> TechColors.LinkGreen
+    "RUNNING" -> TechColors.Amber
+    else -> MaterialTheme.colorScheme.error
+}
+
+@Composable
 private fun TaskCard(
     task: ClusterTask,
     isSelected: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val isRunning = task.endTime == null || task.status == "running"
-    val isOk = task.status == "OK"
-    val railColor = when {
-        isRunning -> TechColors.Amber
-        isOk -> TechColors.LinkGreen
-        else -> MaterialTheme.colorScheme.error
-    }
-
+    val chip = task.chip
+    val detail = task.detail
+    val railColor = taskStatusColor(chip)
     val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
+    val selectedBorder = Modifier.border(1.dp, TechColors.LinkGreen.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
 
     TechPlate(
         railColor = if (isSelected) TechColors.LinkGreen else railColor,
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .then(
-                if (isSelected) {
-                    Modifier.border(1.dp, TechColors.LinkGreen.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
-                } else {
-                    Modifier
-                }
-            ),
+            .then(if (isSelected) selectedBorder else Modifier),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(
@@ -311,29 +341,34 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    task.type.uppercase(),
+                    text = task.type.uppercase(),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleSmall,
                     color = if (isSelected) TechColors.LinkGreen else MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    task.status.uppercase(),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = railColor,
-                    softWrap = false,
+                    modifier = Modifier.weight(1f),
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(8.dp))
+                taskStatusChipBadge(chip = chip, color = railColor)
+            }
+            if (detail != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             Spacer(Modifier.height(4.dp))
             TechMetaLine("NODE", task.node)
             TechMetaLine("USER", task.user)
             TechMetaLine("START", fmt.format(Date(task.startTime * 1000)))
-            task.endTime?.let {
-                TechMetaLine("END", fmt.format(Date(it * 1000)))
-            }
+            task.endTime?.let { TechMetaLine("END", fmt.format(Date(it * 1000))) }
         }
     }
 }
@@ -353,13 +388,10 @@ private fun TaskDetailPane(
     var copied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    val isRunning = task.endTime == null || task.status == "running"
-    val isOk = task.status == "OK"
-    val statusColor = when {
-        isRunning -> TechColors.Amber
-        isOk -> TechColors.LinkGreen
-        else -> MaterialTheme.colorScheme.error
-    }
+    val chip = task.chip
+    val detail = task.detail
+    val isRunning = chip == "RUNNING"
+    val statusColor = taskStatusColor(chip)
 
     val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     val durationText = remember(task.startTime, task.endTime) {
@@ -389,7 +421,7 @@ private fun TaskDetailPane(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "TASK DETAILS",
                             style = MaterialTheme.typography.titleMedium,
@@ -404,27 +436,16 @@ private fun TaskDetailPane(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = TechColors.LinkGreen,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-
+                    Spacer(Modifier.width(8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Text(
-                            text = task.status.uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = statusColor,
-                            softWrap = false,
-                            maxLines = 1,
-                            modifier = Modifier
-                                .border(1.dp, statusColor.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
-                                .background(statusColor.copy(alpha = 0.12f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
+                        taskStatusChipBadge(chip = chip, color = statusColor)
                         IconButton(
                             onClick = onRefreshLogs,
                             modifier = Modifier.size(32.dp),
@@ -451,6 +472,18 @@ private fun TaskDetailPane(
                         }
                     }
                 }
+                if (detail != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
 
                 Spacer(Modifier.height(14.dp))
 

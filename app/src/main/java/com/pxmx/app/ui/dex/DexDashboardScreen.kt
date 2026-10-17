@@ -24,7 +24,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.components.SystemLogStrip
+import com.pxmx.app.data.model.WatchIds
 import com.pxmx.app.ui.home.ResourceCard
+import com.pxmx.app.ui.extras.StupidCardWrapper
+import com.pxmx.app.ui.extras.stupidChipFlip
+import com.pxmx.app.ui.extras.stupidSearchWobble
+import com.pxmx.app.ui.watch.rememberWatchToggle
 import com.pxmx.app.ui.home.StatusSectionHeader
 import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionState
@@ -46,6 +51,16 @@ fun DexDashboardScreen(
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
     val lampThresholds by viewModel.serverLampThresholds.collectAsStateWithLifecycle()
+    val watchedIds by viewModel.watchedIds.collectAsStateWithLifecycle()
+    val onWatchClick = rememberWatchToggle(viewModel::setWatched)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val consoleCardFace by viewModel.consoleCardFace.collectAsStateWithLifecycle()
+    val stillStore = (context.applicationContext as? com.pxmx.app.ProxmoxApp)?.consoleStillStore
+    val stillsFlow = remember(stillStore) {
+        stillStore?.stills ?: kotlinx.coroutines.flow.flowOf(emptyMap())
+    }
+    val stills by stillsFlow.collectAsStateWithLifecycle(emptyMap())
+    val profileId = remember(state.session) { viewModel.currentProfileId() }
 
     Row(modifier = Modifier.fillMaxSize()) {
         // Left Nav Rail
@@ -58,19 +73,22 @@ fun DexDashboardScreen(
                 selected = state.filter == ResourceFilter.ALL,
                 onClick = { viewModel.setFilter(ResourceFilter.ALL) },
                 icon = { Icon(Icons.Default.Dashboard, contentDescription = "All") },
-                label = { Text("All", fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
+                label = { Text("All", fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                modifier = Modifier.stupidChipFlip(state.filter == ResourceFilter.ALL),
             )
             NavigationRailItem(
                 selected = state.filter == ResourceFilter.GUESTS,
                 onClick = { viewModel.setFilter(ResourceFilter.GUESTS) },
                 icon = { Icon(Icons.Default.Dns, contentDescription = "Guests") },
-                label = { Text("Guests", fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
+                label = { Text("Guests", fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                modifier = Modifier.stupidChipFlip(state.filter == ResourceFilter.GUESTS),
             )
             NavigationRailItem(
                 selected = state.filter == ResourceFilter.NODES,
                 onClick = { viewModel.setFilter(ResourceFilter.NODES) },
                 icon = { Icon(Icons.Default.Storage, contentDescription = "Nodes") },
-                label = { Text("Nodes", fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
+                label = { Text("Nodes", fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                modifier = Modifier.stupidChipFlip(state.filter == ResourceFilter.NODES),
             )
             Spacer(Modifier.weight(1f))
             NavigationRailItem(
@@ -112,6 +130,7 @@ fun DexDashboardScreen(
                 onValueChange = { viewModel.setSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .stupidSearchWobble()
                     .padding(12.dp),
                 singleLine = true,
                 placeholder = {
@@ -181,20 +200,38 @@ fun DexDashboardScreen(
                                 is DetailPaneSelection.Storage -> selectedDetail.node == res.node && selectedDetail.storage == res.name && res.type == "storage"
                                 else -> false
                             }
-                            ResourceCard(
-                                resource = res,
-                                busy = false, // state.busyGuestIds not available easily, default false
-                                thresholds = lampThresholds,
-                                onClick = {
-                                    when (res.type) {
-                                        "node" -> res.node?.let { onSelectDetail(DetailPaneSelection.Node(it)) }
-                                        "storage" -> if (res.node != null && res.name != null) onSelectDetail(DetailPaneSelection.Storage(res.node, res.name))
-                                        else -> if (res.node != null && res.type != null && res.vmid != null && res.name != null) {
-                                            onSelectDetail(DetailPaneSelection.Guest(res.node, res.type, res.vmid, res.name))
+                            val watchId = WatchIds.of(res)
+                            val still = if (consoleCardFace && res.type == "qemu" && res.isRunning && res.vmid != null) {
+                                val key = com.pxmx.app.data.console.ConsoleStillStore.stillKey(
+                                    profileId,
+                                    com.pxmx.app.data.model.GuestType.QEMU,
+                                    res.vmid,
+                                )
+                                stills[key]
+                            } else {
+                                null
+                            }
+                            StupidCardWrapper {
+                                ResourceCard(
+                                    resource = res,
+                                    busy = false, // state.busyGuestIds not available easily, default false
+                                    thresholds = lampThresholds,
+                                    still = still,
+                                    watched = watchId != null && watchId in watchedIds,
+                                    onToggleWatch = watchId?.let { key ->
+                                        { onWatchClick(key, key in watchedIds) }
+                                    },
+                                    onClick = {
+                                        when (res.type) {
+                                            "node" -> res.node?.let { onSelectDetail(DetailPaneSelection.Node(it)) }
+                                            "storage" -> if (res.node != null && res.name != null) onSelectDetail(DetailPaneSelection.Storage(res.node, res.name))
+                                            else -> if (res.node != null && res.type != null && res.vmid != null && res.name != null) {
+                                                onSelectDetail(DetailPaneSelection.Guest(res.node, res.type, res.vmid, res.name))
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }

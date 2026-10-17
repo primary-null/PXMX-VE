@@ -1,5 +1,7 @@
 package com.pxmx.app.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,9 +14,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -26,16 +31,30 @@ import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -148,6 +167,62 @@ fun techRailColor(status: String?, busy: Boolean = false): Color = when {
     else -> TechColors.Mute
 }
 
+/**
+ * Persistent soft blurred halo in accent color for selection chrome only.
+ * No infinite animation, steady alpha.
+ */
+fun Modifier.neonSelectionHalo(
+    enabled: Boolean = true,
+    color: Color = Color(0xFFFF9500),
+    haloRadius: Dp = 6.dp,
+    shape: Shape? = null,
+    pathProvider: (Density.(Size) -> Path)? = null,
+): Modifier = if (!enabled) this else this.drawBehind {
+    val haloPx = haloRadius.toPx()
+    val haloAlpha = 0.40f
+    val haloColor = color.copy(alpha = haloAlpha)
+    drawIntoCanvas { canvas ->
+        val paint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 2.dp.toPx()
+            this.color = haloColor.toArgb()
+            try {
+                maskFilter = android.graphics.BlurMaskFilter(haloPx, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            } catch (_: Throwable) {
+                // Ignore in headless test environments where BlurMaskFilter is unmocked
+            }
+        }
+        if (pathProvider != null) {
+            val p = pathProvider(size)
+            canvas.nativeCanvas.drawPath(p.asAndroidPath(), paint)
+        } else if (shape != null) {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            when (outline) {
+                is Outline.Rectangle -> canvas.nativeCanvas.drawRect(
+                    android.graphics.RectF(0f, 0f, size.width, size.height),
+                    paint,
+                )
+                is Outline.Rounded -> {
+                    val rr = outline.roundRect
+                    canvas.nativeCanvas.drawRoundRect(
+                        android.graphics.RectF(0f, 0f, size.width, size.height),
+                        rr.bottomRightCornerRadius.x,
+                        rr.bottomRightCornerRadius.y,
+                        paint,
+                    )
+                }
+                is Outline.Generic -> canvas.nativeCanvas.drawPath(outline.path.asAndroidPath(), paint)
+            }
+        } else {
+            canvas.nativeCanvas.drawRect(
+                android.graphics.RectF(0f, 0f, size.width, size.height),
+                paint,
+            )
+        }
+    }
+}
+
 /** Small top-bar control (SYNC / MENU) — cut corner, not stock Android icons. */
 @Composable
 fun TechActionPlate(
@@ -170,9 +245,11 @@ fun TechActionPlate(
         else -> TechColors.Edge
     }
     val backgroundColor = if (emphasized && enabled) TechColors.Deck else TechColors.Hull
+    val hasNeon = emphasized && enabled
     Box(
         modifier = modifier
             .testTag("tech_action_" + label.lowercase())
+            .then(if (hasNeon) Modifier.neonSelectionHalo(enabled = true, color = borderColor, shape = shape) else Modifier)
             .clip(shape)
             .background(backgroundColor)
             .border(
@@ -313,10 +390,10 @@ fun TechIconBay(
 fun TechStatusPlate(status: String?) {
     val label = (status ?: "?").uppercase()
     val color = when (status?.lowercase()) {
-        "running", "online", "available" -> TechColors.LinkGreen
-        "paused", "suspended", "frozen", "prelaunch" -> TechColors.Amber
+        "running", "online", "available", "ok", "enabled" -> TechColors.LinkGreen
+        "paused", "suspended", "frozen", "prelaunch", "connecting" -> TechColors.Amber
         "stopped", "offline", "disabled" -> TechColors.Mute
-        "unknown" -> MaterialTheme.colorScheme.error
+        "unknown", "failed", "error" -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.secondary
     }
     Text(
@@ -326,7 +403,10 @@ fun TechStatusPlate(status: String?) {
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp,
         color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
+            .widthIn(max = 120.dp)
             .border(1.dp, color.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
             .background(color.copy(alpha = 0.1f))
             .padding(horizontal = 8.dp, vertical = 5.dp),
@@ -483,5 +563,74 @@ fun TechMenuItem(
             disabledTextColor = TechColors.Mute,
         ),
     )
+}
+
+/**
+ * Cyberdeck-styled switch control.
+ * Replaces Material Switch across settings rows.
+ */
+@Composable
+fun TechSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val trackShape = CutCornerShape(bottomEnd = 8.dp)
+    val thumbShape = CutCornerShape(bottomEnd = 6.dp)
+
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) 26.dp else 0.dp,
+        animationSpec = tween(durationMillis = 140),
+        label = "techSwitchThumb",
+    )
+
+    val borderColor = if (enabled && checked) TechColors.Amber else TechColors.Edge
+    val thumbColor = when {
+        !enabled -> TechColors.Deck
+        checked -> TechColors.Amber
+        else -> TechColors.Mute
+    }
+
+    val toggleModifier = if (onCheckedChange != null) {
+        Modifier.toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        )
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier
+            .then(if (!enabled) Modifier.alpha(0.45f) else Modifier)
+            .size(width = 64.dp, height = 28.dp)
+            .clip(trackShape)
+            .background(TechColors.Hull, trackShape)
+            .border(1.dp, borderColor, trackShape)
+            .then(toggleModifier)
+            .padding(3.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffset)
+                .width(32.dp)
+                .fillMaxHeight()
+                .clip(thumbShape)
+                .background(thumbColor, thumbShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (checked) "ON" else "OFF",
+                fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp,
+                color = if (checked) TechColors.Hull else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
 }
 

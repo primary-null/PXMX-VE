@@ -1,17 +1,46 @@
 package com.pxmx.app.ui.permissions
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -21,6 +50,30 @@ import com.pxmx.app.ui.components.TechSectionLabel
 fun PermissionsScreen(
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    var isNotifyGranted by remember {
+        mutableStateOf(RuntimeNotifyPermission.isGranted(context))
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        isNotifyGranted = granted
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isNotifyGranted = RuntimeNotifyPermission.isGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     BackHandler(onBack = onBack)
 
     Scaffold(
@@ -68,9 +121,18 @@ fun PermissionsScreen(
             }
 
             item {
+                val rail = if (isNotifyGranted) TechColors.LinkGreen else TechColors.Amber
                 PermissionCard(
                     name = "POST_NOTIFICATIONS",
-                    reason = "Task alerts and optional external guest events. Requested at runtime on Android 13+."
+                    reason = "Task alerts, watched guests and nodes, and optional external guest events. Requested at runtime on Android 13+.",
+                    status = if (isNotifyGranted) "GRANTED" else "NOT GRANTED",
+                    statusColor = if (isNotifyGranted) TechColors.LinkGreen else TechColors.Amber,
+                    railColor = rail,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 33 && !isNotifyGranted) {
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
                 )
             }
 
@@ -119,20 +181,48 @@ fun PermissionsScreen(
     }
 }
 
+@Suppress("FunctionNaming", "LongParameterList")
 @Composable
 private fun PermissionCard(
     name: String,
-    reason: String
+    reason: String,
+    status: String? = null,
+    statusColor: Color? = null,
+    railColor: Color = TechColors.Edge,
+    onClick: (() -> Unit)? = null,
 ) {
-    TechPlate(railColor = TechColors.Edge) {
+    val baseModifier = if (onClick != null) {
+        Modifier.clickable(onClick = onClick)
+    } else {
+        Modifier
+    }
+    TechPlate(
+        modifier = baseModifier,
+        railColor = railColor,
+    ) {
         Column(Modifier.padding(14.dp)) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleSmall,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (status != null) {
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor ?: MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 text = reason,

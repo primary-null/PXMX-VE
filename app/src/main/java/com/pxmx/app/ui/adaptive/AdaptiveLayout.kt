@@ -59,6 +59,7 @@ fun tabletopIntent(
 }
 
 enum class SettingsPaneSelection {
+    NUCLEUS,
     NETWORK,
     SDN,
     FIREWALL,
@@ -69,6 +70,7 @@ enum class SettingsPaneSelection {
 }
 
 fun parseSettingsPaneSelection(value: String?): SettingsPaneSelection? = when (value?.uppercase()) {
+    "NUCLEUS" -> SettingsPaneSelection.NUCLEUS
     "NETWORK" -> SettingsPaneSelection.NETWORK
     "SDN" -> SettingsPaneSelection.SDN
     "FIREWALL" -> SettingsPaneSelection.FIREWALL

@@ -1,4 +1,4 @@
-﻿package com.pxmx.app.ui.settings
+package com.pxmx.app.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.graphics.Color
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -233,7 +235,7 @@ fun SdnScreen(
                         onClick = { viewModel.refresh() },
                         enabled = !state.loading && !state.isApplying,
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                 },
             )
