@@ -205,17 +205,19 @@ class PveTaskLiveUpdate(
         const val MAX_IN_FLIGHT_WATCHES = 5
 
         fun humanizeExitStatus(exitstatus: String?): String {
-            if (exitstatus.isNullOrBlank()) return "Failed"
-            val trimmed = exitstatus.trim()
-            if (trimmed == "OK") return "OK"
-            val lower = trimmed.lowercase()
-            if (lower.contains("wrong content type") ||
-                (lower.contains("can't use storage") && lower.contains("for backups")) ||
-                (lower.contains("cannot use storage") && lower.contains("for backups"))
-            ) {
-                return "That datastore does not hold backups. Pick one whose content includes backup."
+            val trimmed = exitstatus?.trim()
+            return when {
+                trimmed.isNullOrEmpty() -> "Failed"
+                trimmed == "OK" -> "OK"
+                isBackupStorageMismatch(trimmed.lowercase()) ->
+                    "That datastore does not hold backups. Pick one whose content includes backup."
+                else -> trimmed
             }
-            return trimmed
+        }
+
+        private fun isBackupStorageMismatch(lower: String): Boolean {
+            val cannotUse = lower.contains("can't use storage") || lower.contains("cannot use storage")
+            return lower.contains("wrong content type") || (cannotUse && lower.contains("for backups"))
         }
 
         fun isDemo(host: String?): Boolean {

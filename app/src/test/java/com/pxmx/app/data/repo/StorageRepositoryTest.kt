@@ -96,7 +96,12 @@ class StorageRepositoryTest {
         // Valid backup stores
         assertTrue(
             StorageRepository.isBackupStorage(
-                NodeStorageEntry(storage = "local", content = "backup,vztmpl,import,images,iso", active = 1, enabled = 1)
+                NodeStorageEntry(
+                    storage = "local",
+                    content = "backup,vztmpl,import,images,iso",
+                    active = 1,
+                    enabled = 1,
+                )
             )
         )
         assertTrue(
@@ -153,11 +158,18 @@ class StorageRepositoryTest {
         val context = ContextWrapper(null)
         val fakePrefs = FakeSharedPreferences()
         val store = SessionStore(injectedPrefs = fakePrefs)
-        store.setSession(SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf"))
+        store.setSession(
+            SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf")
+        )
         val client = PveClient(context, store, object : ProxmoxApiProvider {
             override fun apiFor(config: ServerConfig): ProxmoxApi = object : ProxmoxApi by demo {
                 override suspend fun nodeStorage(node: String) = PveResponse(data = listOf(
-                    NodeStorageEntry(storage = "local", content = "backup,vztmpl,import,images,iso", active = 1, enabled = 1),
+                    NodeStorageEntry(
+                        storage = "local",
+                        content = "backup,vztmpl,import,images,iso",
+                        active = 1,
+                        enabled = 1,
+                    ),
                     NodeStorageEntry(storage = "iso-store", content = "vztmpl,iso,backup", active = 1, enabled = 1),
                     NodeStorageEntry(storage = "local-lvm", content = "rootdir,images", active = 1, enabled = 1),
                     NodeStorageEntry(storage = "iso-import", content = "import", active = 1, enabled = 1),
@@ -165,9 +177,16 @@ class StorageRepositoryTest {
                 ))
             }
             override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demo)
-            override fun clear() {}
+            override fun clear() = Unit
         })
-        val repo = StorageRepository(context, store, client, { _, _ -> Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK")) })
+        val repo = StorageRepository(
+            context,
+            store,
+            client,
+            { _, _ ->
+                Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK"))
+            },
+        )
 
         val storages = repo.listBackupStorageNames("node1").getOrThrow()
         assertEquals(listOf("local", "iso-store"), storages)
@@ -179,7 +198,9 @@ class StorageRepositoryTest {
         val context = ContextWrapper(null)
         val fakePrefs = FakeSharedPreferences()
         val store = SessionStore(injectedPrefs = fakePrefs)
-        store.setSession(SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf"))
+        store.setSession(
+            SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf")
+        )
         var createBackupCalled = false
         val client = PveClient(context, store, object : ProxmoxApiProvider {
             override fun apiFor(config: ServerConfig): ProxmoxApi = object : ProxmoxApi by demo {
@@ -196,9 +217,16 @@ class StorageRepositoryTest {
                 }
             }
             override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demo)
-            override fun clear() {}
+            override fun clear() = Unit
         })
-        val repo = StorageRepository(context, store, client, { _, _ -> Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK")) })
+        val repo = StorageRepository(
+            context,
+            store,
+            client,
+            { _, _ ->
+                Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK"))
+            },
+        )
 
         val result = repo.createBackup("node1", 100, "vm-disks")
         assertTrue(result.isFailure)
@@ -214,7 +242,9 @@ class StorageRepositoryTest {
         val context = ContextWrapper(null)
         val fakePrefs = FakeSharedPreferences()
         val store = SessionStore(injectedPrefs = fakePrefs)
-        store.setSession(SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf"))
+        store.setSession(
+            SessionState(ServerConfig(host = "192.168.1.100", port = 8006), ticket = "ticket", csrf = "csrf")
+        )
         var createBackupCalled = false
         val client = PveClient(context, store, object : ProxmoxApiProvider {
             override fun apiFor(config: ServerConfig): ProxmoxApi = object : ProxmoxApi by demo {
@@ -231,9 +261,16 @@ class StorageRepositoryTest {
                 }
             }
             override fun apiForProbe(config: ServerConfig): ProbeApi = ProbeApi(demo)
-            override fun clear() {}
+            override fun clear() = Unit
         })
-        val repo = StorageRepository(context, store, client, { _, _ -> Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK")) })
+        val repo = StorageRepository(
+            context,
+            store,
+            client,
+            { _, _ ->
+                Result.success(com.pxmx.app.data.model.TaskStatus(status = "stopped", exitstatus = "OK"))
+            },
+        )
 
         val result = repo.createBackup("node1", 100, "local")
         assertTrue(result.isSuccess)

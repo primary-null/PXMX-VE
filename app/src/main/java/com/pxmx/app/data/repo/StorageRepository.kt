@@ -502,12 +502,11 @@ class StorageRepository(
             return content.split(',').any { it.trim().equals("backup", ignoreCase = true) }
         }
 
-        fun isBackupStorage(entry: NodeStorageEntry): Boolean {
-            if (entry.storage.isNullOrBlank()) return false
-            if (entry.active != 1) return false
-            if (entry.enabled == 0) return false
-            return hasBackupContent(entry.content)
-        }
+        fun isBackupStorage(entry: NodeStorageEntry): Boolean =
+            !entry.storage.isNullOrBlank() &&
+                entry.active == 1 &&
+                entry.enabled != 0 &&
+                hasBackupContent(entry.content)
 
         fun sanitizeBackupFilename(name: String): String {
             val trimmed = name.trim()

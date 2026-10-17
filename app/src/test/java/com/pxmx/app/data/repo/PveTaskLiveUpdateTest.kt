@@ -316,17 +316,26 @@ class PveTaskLiveUpdateTest {
 
     @Test
     fun humanizeExitStatus_wrongContentType_mapsToDatastoreCopy() {
-        val raw = "could not get storage information for 'vm-disks': can't use storage 'vm-disks' for backups - wrong content type"
+        val raw = "could not get storage information for 'vm-disks': " +
+            "can't use storage 'vm-disks' for backups - wrong content type"
         val expected = "That datastore does not hold backups. Pick one whose content includes backup."
         assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus(raw))
-        assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("can't use storage 'vm-disks' for backups - wrong content type"))
+        assertEquals(
+            expected,
+            PveTaskLiveUpdate.humanizeExitStatus(
+                "can't use storage 'vm-disks' for backups - wrong content type"
+            ),
+        )
         assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("wrong content type"))
         assertEquals(expected, PveTaskLiveUpdate.humanizeExitStatus("can't use storage 'local-lvm' for backups"))
     }
 
     @Test
     fun humanizeExitStatus_unmatchedError_preservesError() {
-        assertEquals("command failed (exit code 2)", PveTaskLiveUpdate.humanizeExitStatus("command failed (exit code 2)"))
+        assertEquals(
+            "command failed (exit code 2)",
+            PveTaskLiveUpdate.humanizeExitStatus("command failed (exit code 2)"),
+        )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -338,7 +347,8 @@ class PveTaskLiveUpdateTest {
         sessionStore.setSession(SessionState(config, ticket = "fake-ticket", username = "root@pam"))
 
         val poster = RecordingNotificationPoster()
-        val rawErr = "could not get storage information for 'vm-disks': can't use storage 'vm-disks' for backups - wrong content type"
+        val rawErr = "could not get storage information for 'vm-disks': " +
+            "can't use storage 'vm-disks' for backups - wrong content type"
         val liveUpdate = PveTaskLiveUpdate(
             context = ContextWrapper(null),
             sessionStore = sessionStore,
