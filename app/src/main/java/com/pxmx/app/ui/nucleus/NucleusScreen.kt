@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.pxmx.app.ui.nucleus
 
 import android.graphics.Paint
@@ -37,6 +39,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -57,8 +60,13 @@ import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.techTopAppBarColors
 import com.pxmx.app.ui.icons.InstrumentGlyphs
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.min
 import kotlin.math.sin
+
+private const val NANOS_PER_MILLI = 1_000_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,6 +93,21 @@ fun NucleusScreen(
     var pitchRad by remember { mutableFloatStateOf(0.46f) }
     var zoom by remember { mutableFloatStateOf(1.0f) }
     var isDragging by remember { mutableStateOf(false) }
+
+    var animTimeMillis by remember { mutableStateOf(0L) }
+    LaunchedEffect(reduceMotion, state.sessionLost) {
+        if (reduceMotion || state.sessionLost) {
+            animTimeMillis = 0L
+            return@LaunchedEffect
+        }
+        var startNanos = 0L
+        while (true) {
+            withFrameNanos { nanos ->
+                if (startNanos == 0L) startNanos = nanos
+                animTimeMillis = (nanos - startNanos) / NANOS_PER_MILLI
+            }
+        }
+    }
 
     // Slow idle yaw only when the user is not dragging and reduce-motion is off.
     LaunchedEffect(reduceMotion, isDragging, state.sessionLost) {
@@ -295,14 +318,6 @@ fun NucleusScreen(
             }
 
             for (node in layout.nodes) {
-                val coreProj = projectPoint3D(layout.core.position, yawRad, pitchRad, zoom, vw, vh)
-                val nodeProj = projectPoint3D(node.position, yawRad, pitchRad, zoom, vw, vh)
-                drawLine(
-                    color = coolBlueColor.copy(alpha = 0.28f * node.brightness),
-                    start = Offset(coreProj.screenX, coreProj.screenY),
-                    end = Offset(nodeProj.screenX, nodeProj.screenY),
-                    strokeWidth = 1.dp.toPx(),
-                )
                 drawOrbitRing3D(
                     center = node.position,
                     radius = CLUSTER_GUEST_ORBIT_RADIUS,
@@ -330,13 +345,6 @@ fun NucleusScreen(
 
             for (guest in layout.guests) {
                 val proj = projectPoint3D(guest.position, yawRad, pitchRad, zoom, vw, vh)
-                val centerProj = projectPoint3D(guest.orbitCenter, yawRad, pitchRad, zoom, vw, vh)
-                drawLine(
-                    color = amberColor.copy(alpha = 0.22f),
-                    start = Offset(centerProj.screenX, centerProj.screenY),
-                    end = Offset(proj.screenX, proj.screenY),
-                    strokeWidth = 1.dp.toPx(),
-                )
                 val hitRadius = (28.dp.toPx() * layout.guestMarkScale).coerceAtLeast(20.dp.toPx())
                 newHitTargets += ProjectedGuestHitTarget(
                     guest = guest,
@@ -418,6 +426,20 @@ fun NucleusScreen(
                     spokePaint = spokePaint,
                 )
             }
+
+            drawNucleusDressing(
+                layout = layout,
+                yawRad = yawRad,
+                pitchRad = pitchRad,
+                zoom = zoom,
+                viewportWidth = vw,
+                viewportHeight = vh,
+                animMillis = animTimeMillis,
+                selectedGuestKey = state.selectedGuestKey,
+                amberColor = amberColor,
+                coolBlueColor = coolBlueColor,
+                labelPaint = labelPaint,
+            )
         }
     }
 }
@@ -723,5 +745,287 @@ private fun createCutPlatePath(
         lineTo(right - cut, bottom)
         lineTo(left, bottom)
         close()
+    }
+}
+
+private data class PlateHalf(val x: Float, val y: Float)
+
+private fun plateEdge(center: Offset, toward: Offset, half: PlateHalf): Offset {
+    val dx = toward.x - center.x
+    val dy = toward.y - center.y
+    if (dx == 0f && dy == 0f) return center
+    val tx = if (dx == 0f) Float.MAX_VALUE else half.x / abs(dx)
+    val ty = if (dy == 0f) Float.MAX_VALUE else half.y / abs(dy)
+    val t = min(tx, ty)
+    return Offset(center.x + dx * t, center.y + dy * t)
+}
+
+@Suppress("MagicNumber")
+private fun stablePhase(id: String): Float {
+    var hash = 0
+    for (ch in id) {
+        hash = hash * 31 + ch.code
+    }
+    val positive = if (hash < 0) -hash else hash
+    return (positive % 1000) / 1000f
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.coreHalf(label: String, paint: Paint): PlateHalf {
+    paint.textSize = 13.sp.toPx()
+    paint.isFakeBoldText = true
+    val width = (paint.measureText(label.uppercase()) + 32.dp.toPx()).coerceAtLeast(88.dp.toPx())
+    return PlateHalf(width * 0.5f, 18.dp.toPx())
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.nodeHalf(name: String, paint: Paint): PlateHalf {
+    paint.textSize = 11.sp.toPx()
+    paint.isFakeBoldText = true
+    val width = (paint.measureText(name.uppercase()) + 24.dp.toPx()).coerceAtLeast(64.dp.toPx())
+    return PlateHalf(width * 0.5f, 14.dp.toPx())
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.guestHalf(
+    guest: NucleusGuest,
+    drawLabel: Boolean,
+    markScale: Float,
+    paint: Paint,
+): PlateHalf {
+    paint.textSize = (10.sp.toPx() * markScale).coerceAtLeast(8.sp.toPx())
+    val width: Float
+    val height: Float
+    if (drawLabel) {
+        val textWidth = paint.measureText(guest.name.uppercase())
+        width = ((textWidth + 18.dp.toPx()) * markScale).coerceAtLeast(46.dp.toPx() * markScale)
+        height = 22.dp.toPx() * markScale
+    } else {
+        width = 16.dp.toPx() * markScale
+        height = 12.dp.toPx() * markScale
+    }
+    return PlateHalf(width * 0.5f, height * 0.5f)
+}
+
+@Suppress("LongParameterList")
+private fun DrawScope.drawEdgeLink(
+    start: Offset,
+    startHalf: PlateHalf,
+    end: Offset,
+    endHalf: PlateHalf,
+    color: Color,
+    stroke: Float,
+) {
+    drawLine(
+        color = color,
+        start = plateEdge(start, end, startHalf),
+        end = plateEdge(end, start, endHalf),
+        strokeWidth = stroke,
+    )
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.drawBrokenRing(
+    center: Offset,
+    radius: Float,
+    rotation: Float,
+    color: Color,
+    stroke: Float,
+) {
+    val topLeft = Offset(center.x - radius, center.y - radius)
+    val oval = Size(radius * 2f, radius * 2f)
+    val style = Stroke(width = stroke)
+    drawArc(color, rotation, 128f, false, topLeft, oval, style = style)
+    drawArc(color, rotation + 180f, 128f, false, topLeft, oval, style = style)
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.drawReactor(center: Offset, half: PlateHalf, animMillis: Long, amber: Color) {
+    val base = hypot(half.x, half.y)
+    val outerTurn = (animMillis % 14_000L).toFloat() / 14_000f * 360f
+    val innerTurn = (animMillis % 10_000L).toFloat() / 10_000f * -360f
+    val breath = 0.03f * (0.65f + 0.35f * sin((animMillis % 14_000L) / 14_000f * (2f * PI.toFloat())))
+    drawCircle(
+        color = amber.copy(alpha = breath),
+        radius = base + 20.dp.toPx(),
+        center = center,
+        style = Stroke(width = 8.dp.toPx()),
+    )
+    drawBrokenRing(center, base + 8.dp.toPx(), innerTurn, amber.copy(alpha = 0.55f), 1.2.dp.toPx())
+    drawBrokenRing(center, base + 16.dp.toPx(), outerTurn, amber.copy(alpha = 0.4f), 1.dp.toPx())
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.drawNodeCollar(
+    center: Offset,
+    half: PlateHalf,
+    animMillis: Long,
+    online: Boolean,
+    blue: Color,
+) {
+    val radius = hypot(half.x, half.y) + 5.dp.toPx()
+    drawCircle(
+        color = blue.copy(alpha = if (online) 0.7f else 0.35f),
+        radius = radius,
+        center = center,
+        style = Stroke(width = 1.dp.toPx()),
+    )
+    val socket = 1.5.dp.toPx()
+    for (deg in intArrayOf(45, 135, 225, 315)) {
+        val rad = deg * PI.toFloat() / 180f
+        drawCircle(
+            color = blue,
+            radius = socket,
+            center = Offset(center.x + cos(rad) * radius, center.y + sin(rad) * radius),
+        )
+    }
+    if (!online) return
+    val travel = (animMillis % 2_400L).toFloat() / 2_400f * (2f * PI.toFloat())
+    drawCircle(
+        color = Color.White,
+        radius = 2.dp.toPx(),
+        center = Offset(center.x + cos(travel) * radius, center.y + sin(travel) * radius),
+    )
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.drawGuestOrnament(
+    center: Offset,
+    half: PlateHalf,
+    selected: Boolean,
+    labeled: Boolean,
+    amber: Color,
+) {
+    if (labeled && half.x > 10.dp.toPx()) {
+        drawRect(
+            color = amber,
+            topLeft = Offset(center.x - half.x + 4.dp.toPx(), center.y - 1.5.dp.toPx()),
+            size = Size(3.dp.toPx(), 3.dp.toPx()),
+        )
+    } else {
+        drawCircle(color = amber, radius = 1.5.dp.toPx(), center = center)
+    }
+    if (selected) {
+        drawBrackets(center, half, amber)
+    }
+}
+
+@Suppress("MagicNumber")
+private fun DrawScope.drawBrackets(center: Offset, half: PlateHalf, color: Color) {
+    val outset = 4.dp.toPx()
+    val arm = 6.dp.toPx()
+    val stroke = 1.2.dp.toPx()
+    val left = center.x - half.x - outset
+    val right = center.x + half.x + outset
+    val top = center.y - half.y - outset
+    val bottom = center.y + half.y + outset
+    drawLine(color, Offset(left, top + arm), Offset(left, top), stroke)
+    drawLine(color, Offset(left, top), Offset(left + arm, top), stroke)
+    drawLine(color, Offset(right - arm, top), Offset(right, top), stroke)
+    drawLine(color, Offset(right, top), Offset(right, top + arm), stroke)
+    drawLine(color, Offset(right, bottom - arm), Offset(right, bottom), stroke)
+    drawLine(color, Offset(right, bottom), Offset(right - arm, bottom), stroke)
+    drawLine(color, Offset(left + arm, bottom), Offset(left, bottom), stroke)
+    drawLine(color, Offset(left, bottom), Offset(left, bottom - arm), stroke)
+}
+
+@Suppress("MagicNumber", "LongParameterList", "CyclomaticComplexMethod")
+private fun DrawScope.drawLightPacket(
+    core: Offset,
+    coreHalf: PlateHalf,
+    node: Offset?,
+    nodeHalf: PlateHalf?,
+    guest: Offset,
+    guestHalf: PlateHalf,
+    animMillis: Long,
+    phase: Float,
+    alpha: Float,
+    color: Color,
+) {
+    val loop = ((animMillis.toFloat() / 2_500f) + phase) % 1f
+    val point = if (node == null || nodeHalf == null) {
+        pointAlong(plateEdge(core, guest, coreHalf), plateEdge(guest, core, guestHalf), loop)
+    } else if (loop < 0.5f) {
+        pointAlong(plateEdge(core, node, coreHalf), plateEdge(node, core, nodeHalf), loop / 0.5f)
+    } else {
+        pointAlong(plateEdge(node, guest, nodeHalf), plateEdge(guest, node, guestHalf), (loop - 0.5f) / 0.5f)
+    }
+    drawCircle(color = color.copy(alpha = alpha), radius = 2.5.dp.toPx(), center = point)
+    drawCircle(color = Color.White.copy(alpha = alpha), radius = 1.dp.toPx(), center = point)
+}
+
+private fun pointAlong(start: Offset, end: Offset, t: Float): Offset =
+    Offset(start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t)
+
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod", "MagicNumber")
+private fun DrawScope.drawNucleusDressing(
+    layout: NucleusSceneLayout,
+    yawRad: Float,
+    pitchRad: Float,
+    zoom: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    animMillis: Long,
+    selectedGuestKey: String?,
+    amberColor: Color,
+    coolBlueColor: Color,
+    labelPaint: Paint,
+) {
+    val hotNode = layout.guests.firstOrNull { it.key == selectedGuestKey }?.node
+    val coreProj = projectPoint3D(layout.core.position, yawRad, pitchRad, zoom, viewportWidth, viewportHeight)
+    val coreCenter = Offset(coreProj.screenX, coreProj.screenY)
+    val coreHalf = coreHalf(layout.core.label, labelPaint)
+    drawReactor(coreCenter, coreHalf, animMillis, amberColor)
+
+    val nodeCenters = HashMap<String, Offset>(layout.nodes.size)
+    val nodeHalves = HashMap<String, PlateHalf>(layout.nodes.size)
+    for (node in layout.nodes) {
+        val proj = projectPoint3D(node.position, yawRad, pitchRad, zoom, viewportWidth, viewportHeight)
+        val center = Offset(proj.screenX, proj.screenY)
+        val half = nodeHalf(node.name, labelPaint)
+        nodeCenters[node.name] = center
+        nodeHalves[node.name] = half
+        val hot = node.name == hotNode
+        drawEdgeLink(
+            start = coreCenter,
+            startHalf = coreHalf,
+            end = center,
+            endHalf = half,
+            color = coolBlueColor.copy(alpha = if (hot) 0.9f else 0.28f * node.brightness),
+            stroke = if (hot) 1.8.dp.toPx() else 1.dp.toPx(),
+        )
+        drawNodeCollar(center, half, animMillis, node.isOnline, coolBlueColor)
+    }
+
+    for (guest in layout.guests) {
+        val proj = projectPoint3D(guest.position, yawRad, pitchRad, zoom, viewportWidth, viewportHeight)
+        val guestCenter = Offset(proj.screenX, proj.screenY)
+        val labeled = layout.shouldDrawGuestLabel(guest.key, selectedGuestKey)
+        val half = guestHalf(guest, labeled, layout.guestMarkScale, labelPaint)
+        val parentCenter = nodeCenters[guest.node] ?: coreCenter
+        val parentHalf = nodeHalves[guest.node] ?: coreHalf
+        val selected = guest.key == selectedGuestKey
+        drawEdgeLink(
+            start = parentCenter,
+            startHalf = parentHalf,
+            end = guestCenter,
+            endHalf = half,
+            color = amberColor.copy(alpha = if (selected) 0.9f else 0.22f),
+            stroke = if (selected) 1.8.dp.toPx() else 1.dp.toPx(),
+        )
+        drawGuestOrnament(guestCenter, half, selected, labeled, amberColor)
+        val nodeCenter = nodeCenters[guest.node]
+        drawLightPacket(
+            core = coreCenter,
+            coreHalf = coreHalf,
+            node = nodeCenter,
+            nodeHalf = if (nodeCenter == null) null else parentHalf,
+            guest = guestCenter,
+            guestHalf = half,
+            animMillis = animMillis,
+            phase = stablePhase(guest.key),
+            alpha = if (selected) 1f else 0.55f,
+            color = amberColor,
+        )
     }
 }

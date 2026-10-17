@@ -66,8 +66,29 @@ enum class TourStep(
         placement = TourPanelPlacement.BOTTOM,
         usesNext = true,
     ),
-    SUMMARY(
+    NUCLEUS(
         stepNumber = 8,
+        title = "NUCLEUS",
+        instruction = "Settings, Nucleus. The cluster sits around a core you can turn.",
+        placement = TourPanelPlacement.BOTTOM,
+        usesNext = true,
+    ),
+    PULL_ROCKET(
+        stepNumber = 9,
+        title = "PULL TO REFRESH",
+        instruction = "Pull the home list. The rocket holds, then lifts.",
+        placement = TourPanelPlacement.BOTTOM,
+        usesNext = true,
+    ),
+    BEZEL_HOLD(
+        stepNumber = 10,
+        title = "SECTION STRIP",
+        instruction = "Hold the guest strip and slide. The tab under your finger comes forward.",
+        placement = TourPanelPlacement.BOTTOM,
+        usesNext = true,
+    ),
+    SUMMARY(
+        stepNumber = 11,
         title = "HIDDEN EXTRAS",
         instruction = "Hidden extras: long-press PWR for shutdown, reboot, suspend. Five taps on the PXMX title at login unlocks demo mode. Creator link lives at the bottom of Settings.",
         placement = TourPanelPlacement.BOTTOM,
@@ -82,7 +103,10 @@ enum class TourStep(
             LOG_STRIP -> SERVER_LAMPS
             SERVER_LAMPS -> CONSOLE
             CONSOLE -> HISTORY
-            HISTORY -> SUMMARY
+            HISTORY -> NUCLEUS
+            NUCLEUS -> PULL_ROCKET
+            PULL_ROCKET -> BEZEL_HOLD
+            BEZEL_HOLD -> SUMMARY
             SUMMARY -> null
         }
 }

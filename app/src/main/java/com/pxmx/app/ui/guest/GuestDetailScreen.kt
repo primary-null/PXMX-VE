@@ -926,7 +926,9 @@ private fun BezelStamps(
     val density = LocalDensity.current
     val reduceMotion = rememberReduceMotion()
     val haptic = LocalHapticFeedback.current
-    val peakPx = with(density) { 8.dp.toPx() }
+    val liftPx = with(density) { 14.dp.toPx() }
+    val outwardNextPx = with(density) { 8.dp.toPx() }
+    val outwardFarPx = with(density) { 4.dp.toPx() }
     val stampCount = 1 + BEZEL_TABS.size
     val spans = remember(stampCount) { Array(stampCount) { 0f..1f } }
     var scrubIndex by remember { mutableStateOf(-1) }
@@ -952,7 +954,7 @@ private fun BezelStamps(
 
     Row(
         modifier = modifier
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = 14.dp)
             .padding(end = 28.dp)
             .pointerInput(state.isEditingBoard) {
                 if (state.isEditingBoard) return@pointerInput
@@ -1029,7 +1031,9 @@ private fun BezelStamps(
             index = 0,
             scrubIndex = scrubIndex,
             reduceMotion = reduceMotion,
-            peakPx = peakPx,
+            liftPx = liftPx,
+            outwardNextPx = outwardNextPx,
+            outwardFarPx = outwardFarPx,
             spans = spans,
             label = "OPS",
             fullLabel = "OPS",
@@ -1043,7 +1047,9 @@ private fun BezelStamps(
                 index = index,
                 scrubIndex = scrubIndex,
                 reduceMotion = reduceMotion,
-                peakPx = peakPx,
+                liftPx = liftPx,
+                outwardNextPx = outwardNextPx,
+                outwardFarPx = outwardFarPx,
                 spans = spans,
                 label = tab.label,
                 fullLabel = tab.fullLabel,
@@ -1061,12 +1067,15 @@ private fun BezelStamps(
     }
 }
 
+@Suppress("FunctionNaming", "LongParameterList")
 @Composable
 private fun BezelStamp(
     index: Int,
     scrubIndex: Int,
     reduceMotion: Boolean,
-    peakPx: Float,
+    liftPx: Float,
+    outwardNextPx: Float,
+    outwardFarPx: Float,
     spans: Array<ClosedFloatingPointRange<Float>>,
     label: String,
     fullLabel: String,
@@ -1074,8 +1083,14 @@ private fun BezelStamp(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scale = bezelScrubScale(index, scrubIndex, reduceMotion)
-    val bow = if (reduceMotion) 0f else bezelScrubBowPx(index, scrubIndex, peakPx)
+    val warp = bezelScrubWarp(
+        index = index,
+        armedIndex = scrubIndex,
+        reduceMotion = reduceMotion,
+        liftPx = liftPx,
+        outwardNextPx = outwardNextPx,
+        outwardFarPx = outwardFarPx,
+    )
     Box(
         modifier = Modifier
             .onGloballyPositioned { coords ->
@@ -1083,9 +1098,11 @@ private fun BezelStamp(
                 spans[index] = bounds.left..bounds.right
             }
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationY = bow
+                scaleX = warp.scale
+                scaleY = warp.scale
+                translationX = warp.translationX
+                translationY = warp.translationY
+                rotationZ = warp.rotationZ
             },
     ) {
         WeakTab(

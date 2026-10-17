@@ -135,11 +135,23 @@ class CleanSlateAndTourTest {
         TourController.advance(TourStep.CONSOLE)
         assertEquals(TourStep.HISTORY, TourController.currentStep.value)
 
-        // Step 7: HISTORY -> Step 8: SUMMARY
+        // Step 7: HISTORY -> Step 8: NUCLEUS
         TourController.advance(TourStep.HISTORY)
+        assertEquals(TourStep.NUCLEUS, TourController.currentStep.value)
+
+        // Step 8: NUCLEUS -> Step 9: PULL_ROCKET
+        TourController.advance(TourStep.NUCLEUS)
+        assertEquals(TourStep.PULL_ROCKET, TourController.currentStep.value)
+
+        // Step 9: PULL_ROCKET -> Step 10: BEZEL_HOLD
+        TourController.advance(TourStep.PULL_ROCKET)
+        assertEquals(TourStep.BEZEL_HOLD, TourController.currentStep.value)
+
+        // Step 10: BEZEL_HOLD -> Step 11: SUMMARY
+        TourController.advance(TourStep.BEZEL_HOLD)
         assertEquals(TourStep.SUMMARY, TourController.currentStep.value)
 
-        // Step 8: Summary done -> complete tour
+        // Step 11: Summary done -> complete tour
         TourController.complete(sessionStore)
         assertNull(TourController.currentStep.value)
         assertTrue(sessionStore.tourCompleted.value)
@@ -295,6 +307,18 @@ class CleanSlateAndTourTest {
 
         // Step 7: Observational HISTORY advance via NEXT button
         TourController.advance(TourStep.HISTORY)
+        assertEquals(TourStep.NUCLEUS, TourController.currentStep.value)
+
+        // Step 8: Observational NUCLEUS advance via NEXT button
+        TourController.advance(TourStep.NUCLEUS)
+        assertEquals(TourStep.PULL_ROCKET, TourController.currentStep.value)
+
+        // Step 9: Observational PULL_ROCKET advance via NEXT button
+        TourController.advance(TourStep.PULL_ROCKET)
+        assertEquals(TourStep.BEZEL_HOLD, TourController.currentStep.value)
+
+        // Step 10: Observational BEZEL_HOLD advance via NEXT button
+        TourController.advance(TourStep.BEZEL_HOLD)
         assertEquals(TourStep.SUMMARY, TourController.currentStep.value)
     }
 
@@ -345,7 +369,16 @@ class CleanSlateAndTourTest {
         // Step 7: HISTORY target is history charts -> panel at BOTTOM
         assertEquals(TourPanelPlacement.BOTTOM, TourStep.HISTORY.placement)
 
-        // Step 8 / SUMMARY panel has internal DONE action -> panel at BOTTOM
+        // Step 8: NUCLEUS -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.NUCLEUS.placement)
+
+        // Step 9: PULL_ROCKET -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.PULL_ROCKET.placement)
+
+        // Step 10: BEZEL_HOLD -> panel at BOTTOM
+        assertEquals(TourPanelPlacement.BOTTOM, TourStep.BEZEL_HOLD.placement)
+
+        // Step 11 / SUMMARY panel has internal DONE action -> panel at BOTTOM
         assertEquals(TourPanelPlacement.BOTTOM, TourStep.SUMMARY.placement)
     }
 
@@ -358,6 +391,9 @@ class CleanSlateAndTourTest {
         assertTrue(TourStep.SERVER_LAMPS.usesNext)
         assertTrue(TourStep.CONSOLE.usesNext)
         assertTrue(TourStep.HISTORY.usesNext)
+        assertTrue(TourStep.NUCLEUS.usesNext)
+        assertTrue(TourStep.PULL_ROCKET.usesNext)
+        assertTrue(TourStep.BEZEL_HOLD.usesNext)
         assertFalse(TourStep.SUMMARY.usesNext)
     }
 
