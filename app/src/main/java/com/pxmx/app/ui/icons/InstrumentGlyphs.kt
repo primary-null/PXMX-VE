@@ -504,4 +504,157 @@ object InstrumentGlyphs {
             }
         }.build()
     }
+
+    /**
+     * Tasks instrument glyph.
+     * Short list of etched metal faceted plates and status pips with one amber edge along the top item flange.
+     */
+    val Tasks: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "InstrumentTasks",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            // Etched metal body: status pips and task bar plates
+            path(
+                fill = SolidColor(MetalColor),
+                fillAlpha = 1.0f,
+                stroke = null,
+                strokeAlpha = 1.0f,
+                strokeLineWidth = 1.0f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineMiter = 4.0f,
+            ) {
+                // Row 1 pip
+                moveTo(4f, 5.5f)
+                lineTo(6.5f, 5.5f)
+                lineTo(6.5f, 8f)
+                lineTo(4f, 8f)
+                close()
+
+                // Row 1 plate
+                moveTo(8.5f, 6f)
+                lineTo(20f, 6f)
+                lineTo(20f, 8f)
+                lineTo(8.5f, 8f)
+                close()
+
+                // Row 2 pip
+                moveTo(4f, 11f)
+                lineTo(6.5f, 11f)
+                lineTo(6.5f, 13.5f)
+                lineTo(4f, 13.5f)
+                close()
+
+                // Row 2 plate
+                moveTo(8.5f, 11.5f)
+                lineTo(17f, 11.5f)
+                lineTo(18f, 12.5f)
+                lineTo(18f, 13.5f)
+                lineTo(8.5f, 13.5f)
+                close()
+
+                // Row 3 pip
+                moveTo(4f, 16.5f)
+                lineTo(6.5f, 16.5f)
+                lineTo(6.5f, 19f)
+                lineTo(4f, 19f)
+                close()
+
+                // Row 3 plate
+                moveTo(8.5f, 17f)
+                lineTo(14f, 17f)
+                lineTo(15f, 18f)
+                lineTo(15f, 19f)
+                lineTo(8.5f, 19f)
+                close()
+            }
+
+            // One amber edge on top flange of row 1 plate
+            path(
+                fill = SolidColor(AmberEdgeColor),
+                fillAlpha = 1.0f,
+                stroke = null,
+                strokeAlpha = 1.0f,
+                strokeLineWidth = 1.0f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineMiter = 4.0f,
+            ) {
+                moveTo(8.5f, 4.5f)
+                lineTo(18.5f, 4.5f)
+                lineTo(20f, 6f)
+                lineTo(8.5f, 6f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Menu instrument glyph.
+     * Compact stack of faceted cyberdeck marks with one amber edge along the top mark flange.
+     */
+    val Menu: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "InstrumentMenu",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            // Etched metal marks
+            path(
+                fill = SolidColor(MetalColor),
+                fillAlpha = 1.0f,
+                stroke = null,
+                strokeAlpha = 1.0f,
+                strokeLineWidth = 1.0f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineMiter = 4.0f,
+            ) {
+                // Mark 1 body
+                moveTo(4f, 6.5f)
+                lineTo(20f, 6.5f)
+                lineTo(18.5f, 8f)
+                lineTo(5.5f, 8f)
+                close()
+
+                // Mark 2
+                moveTo(4f, 11.5f)
+                lineTo(20f, 11.5f)
+                lineTo(19f, 13.5f)
+                lineTo(5f, 13.5f)
+                close()
+
+                // Mark 3
+                moveTo(5.5f, 17f)
+                lineTo(18.5f, 17f)
+                lineTo(17f, 19f)
+                lineTo(7f, 19f)
+                close()
+            }
+
+            // One amber edge on top flange of mark 1
+            path(
+                fill = SolidColor(AmberEdgeColor),
+                fillAlpha = 1.0f,
+                stroke = null,
+                strokeAlpha = 1.0f,
+                strokeLineWidth = 1.0f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineMiter = 4.0f,
+            ) {
+                moveTo(5.5f, 5f)
+                lineTo(18.5f, 5f)
+                lineTo(20f, 6.5f)
+                lineTo(4f, 6.5f)
+                close()
+            }
+        }.build()
+    }
 }

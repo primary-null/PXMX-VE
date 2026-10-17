@@ -48,7 +48,7 @@ class LocalNetTest {
 
     @Test
     fun generateSubnetIps_producesExpectedRanges() {
-        val helper = SubnetGenerator()
+        val helper = object : LocalNet(null, null) {}
         // /24 subnet (254 hosts: .1 to .254)
         val ips24 = helper.generateSubnetIps("192.0.2.50", 24)
         assertEquals(254, ips24.size)
@@ -66,6 +66,17 @@ class LocalNetTest {
         assertEquals(254, ips16.size)
         assertEquals("198.51.100.1", ips16.first())
         assertEquals("198.51.100.254", ips16.last())
+
+        // /31 subnet (2 hosts under RFC 3021)
+        val ips31 = helper.generateSubnetIps("192.0.2.1", 31)
+        assertEquals(2, ips31.size)
+        assertEquals("192.0.2.0", ips31[0])
+        assertEquals("192.0.2.1", ips31[1])
+
+        // /32 subnet (1 host)
+        val ips32 = helper.generateSubnetIps("192.0.2.1", 32)
+        assertEquals(1, ips32.size)
+        assertEquals("192.0.2.1", ips32.first())
     }
 
     @Test
@@ -176,21 +187,4 @@ class LocalNetTest {
         }
     }
 
-    private class SubnetGenerator {
-        fun generateSubnetIps(ip: String, prefixLength: Int): List<String> {
-            val ipLong = LocalNet.parseIpv4(ip) ?: return emptyList()
-            val effectivePrefix = if (prefixLength < 24) 24 else prefixLength.coerceAtMost(30)
-            val mask = (0xFFFFFFFFL shl (32 - effectivePrefix)) and 0xFFFFFFFFL
-            val network = ipLong and mask
-            val broadcast = network or (mask.inv() and 0xFFFFFFFFL)
-
-            val ips = mutableListOf<String>()
-            var curr = network + 1
-            while (curr < broadcast) {
-                ips.add(LocalNet.formatIpv4(curr))
-                curr++
-            }
-            return ips
-        }
-    }
 }

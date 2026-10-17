@@ -115,6 +115,7 @@ class LoginViewModel(
     private var pendingLabel: String = ""
     private var pendingForceNewProfile: Boolean = false
     private var scanJob: Job? = null
+    private val elevationJobs = mutableMapOf<String, Job>()
     private val pingJobs = mutableMapOf<String, Job>()
 
     val profiles: StateFlow<List<SavedProfile>> = combine(
@@ -487,6 +488,8 @@ class LoginViewModel(
     fun startNetworkScan() {
         if (_ui.value.scanState.isScanning) return
         scanJob?.cancel()
+        elevationJobs.values.forEach { it.cancel() }
+        elevationJobs.clear()
         pingJobs.values.forEach { it.cancel() }
         pingJobs.clear()
 
@@ -603,28 +606,37 @@ class LoginViewModel(
                         )
                     }
 
-                    // Task 4: Launch elevation for PVE_DETECTED with secrets
+                    // Task 4: Launch elevation for PVE_DETECTED with secrets (deduplicated per host)
                     progress.pveDetected.forEach { discovered ->
-                        val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
-                        if (profile != null && profile.hasSavedSecret) {
-                            viewModelScope.launch {
-                                val testResult = authRepo.testProfileConnection(profile)
-                                if (testResult.online && testResult.version != null) {
-                                    _ui.update { state ->
-                                        val elevated = discovered.copy(
-                                            version = testResult.version,
-                                            latencyMs = testResult.latencyMs ?: discovered.latencyMs,
-                                            isPveDetectedOnly = false,
-                                            isSavedKnown = true
-                                        )
-                                        state.copy(
-                                            scanState = state.scanState.copy(
-                                                pveDetectedHosts = state.scanState.pveDetectedHosts.filterNot { it.ip == discovered.ip },
-                                                discoveredHosts = (state.scanState.discoveredHosts + elevated).distinctBy { it.ip }
-                                            )
-                                        )
+                        val key = "${discovered.ip}:${discovered.port}"
+                        if (!elevationJobs.containsKey(key)) {
+                            val profile = sessionStore.listProfiles().find { it.host == discovered.ip && it.port == discovered.port }
+                            if (profile != null && profile.hasSavedSecret) {
+                                val job = viewModelScope.launch {
+                                    try {
+                                        val testResult = authRepo.testProfileConnection(profile)
+                                        if (testResult.online && testResult.version != null) {
+                                            _ui.update { state ->
+                                                val elevated = discovered.copy(
+                                                    version = testResult.version,
+                                                    latencyMs = testResult.latencyMs ?: discovered.latencyMs,
+                                                    isPveDetectedOnly = false,
+                                                    isSavedKnown = true,
+                                                )
+                                                state.copy(
+                                                    scanState = state.scanState.copy(
+                                                        pveDetectedHosts = state.scanState.pveDetectedHosts.filterNot { it.ip == discovered.ip },
+                                                        discoveredHosts = (state.scanState.discoveredHosts + elevated).distinctBy { it.ip },
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (_: Exception) {
                                     }
                                 }
+                                elevationJobs[key] = job
                             }
                         }
                     }
@@ -648,6 +660,8 @@ class LoginViewModel(
 
     fun stopNetworkScan() {
         scanJob?.cancel()
+        elevationJobs.values.forEach { it.cancel() }
+        elevationJobs.clear()
         pingJobs.values.forEach { it.cancel() }
         pingJobs.clear()
         _ui.update { state ->
@@ -827,6 +841,8 @@ class LoginViewModel(
     override fun onCleared() {
         super.onCleared()
         scanJob?.cancel()
+        elevationJobs.values.forEach { it.cancel() }
+        elevationJobs.clear()
         pingJobs.values.forEach { it.cancel() }
         pingJobs.clear()
     }

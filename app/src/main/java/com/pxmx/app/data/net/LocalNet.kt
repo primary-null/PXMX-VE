@@ -11,9 +11,12 @@ import com.pxmx.app.data.session.SessionStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.Mutex
@@ -174,19 +177,29 @@ open class LocalNet(
      */
     open fun generateSubnetIps(ip: String, prefixLength: Int): List<String> {
         val ipLong = parseIpv4(ip) ?: return emptyList()
-        // If prefix is larger than /24 (e.g. /16), sweep only the device's own /24 slice.
-        val effectivePrefix = if (prefixLength < 24) 24 else prefixLength.coerceAtMost(30)
-        val mask = (0xFFFFFFFFL shl (32 - effectivePrefix)) and 0xFFFFFFFFL
-        val network = ipLong and mask
-        val broadcast = network or (mask.inv() and 0xFFFFFFFFL)
+        return when {
+            prefixLength >= 32 -> listOf(formatIpv4(ipLong))
+            prefixLength == 31 -> {
+                val mask = (0xFFFFFFFFL shl 1) and 0xFFFFFFFFL
+                val network = ipLong and mask
+                listOf(formatIpv4(network), formatIpv4(network + 1))
+            }
+            else -> {
+                // If prefix is larger than /24 (e.g. /16), sweep only the device's own /24 slice.
+                val effectivePrefix = if (prefixLength < 24) 24 else prefixLength
+                val mask = (0xFFFFFFFFL shl (32 - effectivePrefix)) and 0xFFFFFFFFL
+                val network = ipLong and mask
+                val broadcast = network or (mask.inv() and 0xFFFFFFFFL)
 
-        val ips = mutableListOf<String>()
-        var curr = network + 1
-        while (curr < broadcast) {
-            ips.add(formatIpv4(curr))
-            curr++
+                val ips = mutableListOf<String>()
+                var curr = network + 1
+                while (curr < broadcast) {
+                    ips.add(formatIpv4(curr))
+                    curr++
+                }
+                ips
+            }
         }
-        return ips
     }
 
     /**
@@ -195,13 +208,22 @@ open class LocalNet(
     open suspend fun checkPortOpen(ip: String, port: Int = 8006, timeoutMs: Int = 400): Boolean =
         withContext(Dispatchers.IO) {
             val socket = Socket()
+            val jobReg = currentCoroutineContext().job.invokeOnCompletion {
+                try {
+                    socket.close()
+                } catch (_: Throwable) {
+                }
+            }
             try {
+                currentCoroutineContext().ensureActive()
                 socket.connect(InetSocketAddress(ip, port), timeoutMs)
                 true
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                currentCoroutineContext().ensureActive()
                 false
             } finally {
+                jobReg.dispose()
                 try {
                     socket.close()
                 } catch (_: Exception) {
@@ -247,42 +269,52 @@ open class LocalNet(
                     .get()
                     .build()
 
+                val call = client.newCall(request)
+                val jobReg = currentCoroutineContext().job.invokeOnCompletion {
+                    call.cancel()
+                }
                 val response = try {
-                    client.newCall(request).execute()
-                } catch (e: IOException) {
+                    call.execute()
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     return@withContext ProbeResult.Unreachable
+                } finally {
+                    jobReg.dispose()
                 }
 
-                val serverHeader = response.header("Server") ?: ""
-                val isPveDaemon = serverHeader.contains("pve-api-daemon", ignoreCase = true)
+                response.use { resp ->
+                    val serverHeader = resp.header("Server") ?: ""
+                    val isPveDaemon = serverHeader.contains("pve-api-daemon", ignoreCase = true)
 
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                        ?: return@withContext if (isPveDaemon) ProbeResult.PveDetected else ProbeResult.NotPve
-                    val json = try {
-                        JSONObject(body)
-                    } catch (_: Exception) {
-                        null
-                    }
-                    val data = json?.optJSONObject("data")
-                    val version = data?.optString("version")
-                    if (version.isNullOrBlank()) {
-                        return@withContext if (isPveDaemon) ProbeResult.PveDetected else ProbeResult.NotPve
-                    }
-                    val release = data.optString("release")
-                    val display = if (release.isNotBlank()) "$version-$release" else version
-                    ProbeResult.Verified(display)
-                } else {
-                    // Modern PVE (post CVE-2025-62577) returns 401 for anonymous /version
-                    // Fallback to unauthenticated root Web GUI (GET /) which returns 200 with HTML metadata (NodeName, pvemanagerlib.js version)
-                    if (isPveDaemon) {
-                        val rootResult = probeRootWebGui(client, host, port)
-                        if (rootResult != null) {
-                            return@withContext rootResult
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string()
+                            ?: return@withContext if (isPveDaemon) ProbeResult.PveDetected else ProbeResult.NotPve
+                        val json = try {
+                            JSONObject(body)
+                        } catch (_: Exception) {
+                            null
                         }
-                        ProbeResult.PveDetected
+                        val data = json?.optJSONObject("data")
+                        val version = data?.optString("version")
+                        if (version.isNullOrBlank()) {
+                            return@withContext if (isPveDaemon) ProbeResult.PveDetected else ProbeResult.NotPve
+                        }
+                        val release = data.optString("release")
+                        val display = if (release.isNotBlank()) "$version-$release" else version
+                        ProbeResult.Verified(display)
                     } else {
-                        ProbeResult.NotPve
+                        // Modern PVE (post CVE-2025-62577) returns 401 for anonymous /version
+                        // Check cancellation before fallback
+                        currentCoroutineContext().ensureActive()
+                        if (isPveDaemon) {
+                            val rootResult = probeRootWebGui(client, host, port)
+                            if (rootResult != null) {
+                                return@withContext rootResult
+                            }
+                            ProbeResult.PveDetected
+                        } else {
+                            ProbeResult.NotPve
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -291,7 +323,7 @@ open class LocalNet(
             }
         }
 
-    internal fun probeRootWebGui(
+    internal suspend fun probeRootWebGui(
         client: OkHttpClient,
         host: String,
         port: Int,
@@ -301,23 +333,36 @@ open class LocalNet(
             .get()
             .build()
 
+        val rootCall = client.newCall(rootRequest)
+        val jobReg = currentCoroutineContext().job.invokeOnCompletion {
+            try {
+                rootCall.cancel()
+            } catch (_: Throwable) {
+            }
+        }
         val rootResponse = try {
-            client.newCall(rootRequest).execute()
-        } catch (_: Exception) {
+            rootCall.execute()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             return null
+        } finally {
+            jobReg.dispose()
         }
 
-        if (!rootResponse.isSuccessful) {
-            return null
-        }
+        return rootResponse.use { resp ->
+            if (!resp.isSuccessful) {
+                return@use null
+            }
 
-        val html = try {
-            rootResponse.body?.string() ?: return null
-        } catch (_: Exception) {
-            return null
-        }
+            val html = try {
+                resp.body?.string() ?: return@use null
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                return@use null
+            }
 
-        return parsePveWebGuiHtml(html)
+            parsePveWebGuiHtml(html)
+        }
     }
 
     internal fun parsePveWebGuiHtml(html: String): ProbeResult? {
@@ -463,6 +508,7 @@ open class LocalNet(
         val verifiedMutex = Mutex()
         val pveDetectedMutex = Mutex()
         val unverifiedMutex = Mutex()
+        val progressMutex = Mutex()
         val semaphore = Semaphore(concurrency)
 
         send(
@@ -485,6 +531,7 @@ open class LocalNet(
                             var result = probePveVersion(ip, port, timeoutMs = 10000L)
                             if (result is ProbeResult.Unreachable) {
                                 // One retry for patient probe
+                                currentCoroutineContext().ensureActive()
                                 result = probePveVersion(ip, port, timeoutMs = 10000L)
                             }
                             val latency = SystemClock.elapsedRealtime() - probeStart
@@ -525,22 +572,24 @@ open class LocalNet(
                                 }
                             }
                         }
-                        val currentScanned = scanned.incrementAndGet()
-                        val currentVerified = verifiedMutex.withLock { verifiedList.toList() }
-                        val currentDetected = pveDetectedMutex.withLock { pveDetectedList.toList() }
-                        val currentUnverified = unverifiedMutex.withLock { unverifiedList.toList() }
+                        progressMutex.withLock {
+                            val currentScanned = scanned.incrementAndGet()
+                            val currentVerified = verifiedMutex.withLock { verifiedList.toList() }
+                            val currentDetected = pveDetectedMutex.withLock { pveDetectedList.toList() }
+                            val currentUnverified = unverifiedMutex.withLock { unverifiedList.toList() }
 
-                        send(
-                            ScanProgress(
-                                scanned = currentScanned,
-                                total = total,
-                                currentIp = ip,
-                                verified = currentVerified,
-                                pveDetected = currentDetected,
-                                unverified = currentUnverified,
-                                infoMessage = infoMsg
+                            send(
+                                ScanProgress(
+                                    scanned = currentScanned,
+                                    total = total,
+                                    currentIp = ip,
+                                    verified = currentVerified,
+                                    pveDetected = currentDetected,
+                                    unverified = currentUnverified,
+                                    infoMessage = infoMsg
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }

@@ -1,7 +1,13 @@
 package com.pxmx.app.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,10 +24,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,21 +39,293 @@ import com.pxmx.app.ui.login.NetworkScanState
 
 /**
  * Scan visualization modes.
- * SWEEP_STRIP is the default (Claude hybrid: ~12dp cell strip, CoolBlue sweep,
- * 1.dp leading line, LinkGreen/Amber hit lights).
- * ADDRESS_BUS is the Gemini 2 subnet strip (.1–.254 bus, probe pip, beacons).
+ * SCAN_PICTURE is the default (~72dp cyberdeck plate: server stack, cable, router).
+ * SWEEP_STRIP and ADDRESS_BUS are legacy alternate modes.
  */
 enum class ScanVizMode {
+    SCAN_PICTURE,
     SWEEP_STRIP,
     ADDRESS_BUS,
 }
 
 object ScanViz {
     /**
-     * One-constant swap. Default is SWEEP_STRIP (Claude hybrid).
-     * Assign ADDRESS_BUS here to ship Gemini 2 + Claude subnet bus instead.
+     * One-constant swap. Default is SCAN_PICTURE (server stack, cable, router).
+     * Assign ADDRESS_BUS or SWEEP_STRIP here to test legacy strips.
      */
-    val mode: ScanVizMode = ScanVizMode.SWEEP_STRIP
+    val mode: ScanVizMode = ScanVizMode.SCAN_PICTURE
+}
+
+private const val SCAN_CYCLE_DURATION_MS = 1600
+private const val PACKET_TRAVEL_DURATION_MS = 650f
+private const val ANTENNA_EXPAND_DURATION_MS = 650f
+private const val SCAN_FADE_OUT_DURATION_MS = 150
+
+/**
+ * 72dp cyberdeck scan plate: three-unit server stack on the left, horizontal cable,
+ * and two-antenna router on the right.
+ * While scanning, an amber packet travels across the cable (first 650ms), two antenna arcs
+ * expand and fade (next 650ms), followed by 300ms of quiet.
+ * On complete or STOP, the cycle is cancelled and fades out within 150ms leaving quiet devices and cable.
+ * Indicator lamps under the picture show link green (verified), amber (detected-only), and mute (unverified).
+ */
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod", "MagicNumber")
+@Composable
+fun ScanPicturePlate(
+    scanState: NetworkScanState,
+    modifier: Modifier = Modifier,
+) {
+    val deckColor = TechColors.Deck
+    val edgeColor = TechColors.Edge
+    val amberColor = TechColors.Amber
+    val linkGreenColor = TechColors.LinkGreen
+    val muteColor = TechColors.Mute
+    val metalColor = Color(0xFFE2E8F0)
+
+    val isScanning = scanState.isScanning
+
+    val infiniteTransition = rememberInfiniteTransition(label = "scanDiagramTransition")
+    val cycleTimeMs by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1600f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = SCAN_CYCLE_DURATION_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "scanCycleTime",
+    )
+
+    val scanFxAlpha by animateFloatAsState(
+        targetValue = if (isScanning) 1f else 0f,
+        animationSpec = tween(durationMillis = SCAN_FADE_OUT_DURATION_MS),
+        label = "scanFxAlpha",
+    )
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(TechPlateShape)
+            .background(deckColor)
+            .border(1.dp, edgeColor, TechPlateShape),
+    ) {
+        val w = size.width
+        val diagramY = 28.dp.toPx()
+        val lampsY = 58.dp.toPx()
+
+        // 1. Left: Three-unit server stack (stationary)
+        val serverLeft = 14.dp.toPx()
+        val serverW = 36.dp.toPx()
+        val unitH = 7.dp.toPx()
+        val unitGap = 2.dp.toPx()
+        val totalStackH = 3 * unitH + 2 * unitGap
+        val stackTop = diagramY - totalStackH / 2f
+
+        for (u in 0 until 3) {
+            val uTop = stackTop + u * (unitH + unitGap)
+            drawRect(
+                color = TechColors.DarkHull,
+                topLeft = Offset(serverLeft, uTop),
+                size = Size(serverW, unitH),
+            )
+            drawRect(
+                color = edgeColor,
+                topLeft = Offset(serverLeft, uTop),
+                size = Size(serverW, unitH),
+                style = Stroke(width = 1.dp.toPx()),
+            )
+            // Mounting screw dots on rack ears
+            drawCircle(
+                color = metalColor,
+                radius = 0.8.dp.toPx(),
+                center = Offset(serverLeft + 2.dp.toPx(), uTop + unitH / 2f),
+            )
+            drawCircle(
+                color = metalColor,
+                radius = 0.8.dp.toPx(),
+                center = Offset(serverLeft + serverW - 2.dp.toPx(), uTop + unitH / 2f),
+            )
+            // Drive bay slits
+            val driveStart = serverLeft + 5.dp.toPx()
+            for (d in 0 until 3) {
+                val dx = driveStart + d * 6.dp.toPx()
+                drawRect(
+                    color = edgeColor.copy(alpha = 0.6f),
+                    topLeft = Offset(dx, uTop + 1.5.dp.toPx()),
+                    size = Size(4.5.dp.toPx(), unitH - 3.dp.toPx()),
+                )
+            }
+            // Status LED
+            val ledColor = when (u) {
+                0 -> amberColor
+                1 -> linkGreenColor
+                else -> muteColor
+            }
+            drawCircle(
+                color = ledColor,
+                radius = 1.dp.toPx(),
+                center = Offset(serverLeft + serverW - 6.dp.toPx(), uTop + unitH / 2f),
+            )
+        }
+
+        // 2. Right: Two-antenna router (stationary)
+        val routerW = 34.dp.toPx()
+        val routerH = 12.dp.toPx()
+        val routerLeft = w - 14.dp.toPx() - routerW
+        val routerTop = diagramY - routerH / 2f
+
+        drawRect(
+            color = TechColors.DarkHull,
+            topLeft = Offset(routerLeft, routerTop),
+            size = Size(routerW, routerH),
+        )
+        drawRect(
+            color = edgeColor,
+            topLeft = Offset(routerLeft, routerTop),
+            size = Size(routerW, routerH),
+            style = Stroke(width = 1.dp.toPx()),
+        )
+
+        // Faceplate LED indicators
+        for (l in 0 until 3) {
+            val lx = routerLeft + 6.dp.toPx() + l * 5.dp.toPx()
+            drawCircle(
+                color = if (l == 0) amberColor else muteColor,
+                radius = 1.dp.toPx(),
+                center = Offset(lx, routerTop + routerH / 2f),
+            )
+        }
+
+        // Two Antennas
+        val antH = 14.dp.toPx()
+        val ant1Base = Offset(routerLeft + 5.dp.toPx(), routerTop)
+        val ant1Tip = Offset(routerLeft + 2.dp.toPx(), routerTop - antH)
+        val ant2Base = Offset(routerLeft + routerW - 5.dp.toPx(), routerTop)
+        val ant2Tip = Offset(routerLeft + routerW - 2.dp.toPx(), routerTop - antH)
+
+        drawLine(
+            color = metalColor,
+            start = ant1Base,
+            end = ant1Tip,
+            strokeWidth = 1.5.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = metalColor,
+            start = ant2Base,
+            end = ant2Tip,
+            strokeWidth = 1.5.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+
+        // 3. Center horizontal cable
+        val cableStartX = serverLeft + serverW
+        val cableEndX = routerLeft
+        val cableY = diagramY
+
+        drawLine(
+            color = edgeColor,
+            start = Offset(cableStartX, cableY),
+            end = Offset(cableEndX, cableY),
+            strokeWidth = 1.5.dp.toPx(),
+        )
+        drawRect(
+            color = metalColor,
+            topLeft = Offset(cableStartX, cableY - 2.dp.toPx()),
+            size = Size(2.dp.toPx(), 4.dp.toPx()),
+        )
+        drawRect(
+            color = metalColor,
+            topLeft = Offset(cableEndX - 2.dp.toPx(), cableY - 2.dp.toPx()),
+            size = Size(2.dp.toPx(), 4.dp.toPx()),
+        )
+
+        // 4. Transmission effects (amber packet & antenna arcs)
+        if (scanFxAlpha > 0f) {
+            val t = cycleTimeMs
+
+            // First 650 ms: Amber packet travels the cable
+            if (t < PACKET_TRAVEL_DURATION_MS) {
+                val packetFrac = (t / PACKET_TRAVEL_DURATION_MS).coerceIn(0f, 1f)
+                val packetX = cableStartX + packetFrac * (cableEndX - cableStartX)
+                val pAlpha = scanFxAlpha
+
+                drawCircle(
+                    color = amberColor.copy(alpha = 0.25f * pAlpha),
+                    radius = 5.dp.toPx(),
+                    center = Offset(packetX, cableY),
+                )
+                drawRoundRect(
+                    color = amberColor.copy(alpha = pAlpha),
+                    topLeft = Offset(packetX - 3.5.dp.toPx(), cableY - 2.dp.toPx()),
+                    size = Size(7.dp.toPx(), 4.dp.toPx()),
+                    cornerRadius = CornerRadius(1.dp.toPx()),
+                )
+            }
+
+            // Next 650 ms: Two antenna arcs expand and fade (650..1300 ms)
+            if (t in PACKET_TRAVEL_DURATION_MS..(PACKET_TRAVEL_DURATION_MS + ANTENNA_EXPAND_DURATION_MS)) {
+                val arcFrac = ((t - PACKET_TRAVEL_DURATION_MS) / ANTENNA_EXPAND_DURATION_MS).coerceIn(0f, 1f)
+                val arcAlpha = (1f - arcFrac) * scanFxAlpha
+
+                if (arcAlpha > 0f) {
+                    listOf(ant1Tip, ant2Tip).forEach { tip ->
+                        val arcRadius = 3.dp.toPx() + arcFrac * 12.dp.toPx()
+                        drawArc(
+                            color = amberColor.copy(alpha = arcAlpha),
+                            startAngle = 210f,
+                            sweepAngle = 120f,
+                            useCenter = false,
+                            topLeft = Offset(tip.x - arcRadius, tip.y - arcRadius),
+                            size = Size(arcRadius * 2, arcRadius * 2),
+                            style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round),
+                        )
+                    }
+                }
+            }
+        }
+
+        // 5. Small lamps under the picture
+        val verified = scanState.discoveredHosts
+        val detected = scanState.pveDetectedHosts
+        val unverified = scanState.unverifiedHosts
+        val totalLamps = verified.size + detected.size + unverified.size
+
+        if (totalLamps > 0) {
+            val lampW = 5.dp.toPx()
+            val lampH = 2.5.dp.toPx()
+            val lampGap = 3.dp.toPx()
+            val step = lampW + lampGap
+
+            val maxLampsPossible = ((w - 28.dp.toPx()) / step).toInt().coerceAtLeast(1)
+            val lampsToDraw = totalLamps.coerceAtMost(maxLampsPossible)
+            val totalWidth = lampsToDraw * step - lampGap
+            val startX = (w - totalWidth) / 2f
+
+            var idx = 0
+            val drawLamp: (Color, Boolean) -> Unit = { col, glow ->
+                if (idx < lampsToDraw) {
+                    val lx = startX + idx * step
+                    if (glow) {
+                        drawRect(
+                            color = col.copy(alpha = 0.3f),
+                            topLeft = Offset(lx - 1.dp.toPx(), lampsY - 1.dp.toPx()),
+                            size = Size(lampW + 2.dp.toPx(), lampH + 2.dp.toPx()),
+                        )
+                    }
+                    drawRect(
+                        color = col,
+                        topLeft = Offset(lx, lampsY),
+                        size = Size(lampW, lampH),
+                    )
+                    idx++
+                }
+            }
+            repeat(verified.size) { drawLamp(linkGreenColor, true) }
+            repeat(detected.size) { drawLamp(amberColor, true) }
+            repeat(unverified.size) { drawLamp(muteColor, false) }
+        }
+    }
 }
 
 /**

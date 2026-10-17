@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -39,11 +40,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.extras.LocalStupidAnimations
+import com.pxmx.app.ui.extras.stupidCartwheelDegrees
+import com.pxmx.app.ui.extras.stupidCartwheelHopDp
 import com.pxmx.app.ui.extras.stupidSpinTurns
 import com.pxmx.app.ui.icons.InstrumentGlyphs
+import kotlinx.coroutines.launch
 
 /** Pane width at which the host still fits beside the site name and version. */
 const val HOME_MASTHEAD_HOST_MIN_DP = 640f
+private val CommandBayIconSize = 14.dp
 
 /**
  * Identity line under the wordmark.
@@ -159,12 +164,16 @@ private fun CommandBay(
     val stupidEnabled = LocalStupidAnimations.current
     val reduceMotion = rememberReduceMotion()
     val rotation = remember { Animatable(0f) }
+    val cartwheel = remember { Animatable(0f) }
+    val hopY = remember { Animatable(0f) }
     var spinCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(emphasized, spinCount, stupidEnabled) {
         if ((emphasized || spinCount > 0) && isSync && stupidEnabled && !reduceMotion) {
             val turns = stupidSpinTurns(true)
             rotation.snapTo(0f)
+            cartwheel.snapTo(0f)
+            hopY.snapTo(0f)
             rotation.animateTo(
                 targetValue = turns * 360f,
                 animationSpec = tween(
@@ -172,12 +181,36 @@ private fun CommandBay(
                     easing = FastOutSlowInEasing,
                 ),
             )
+            val cartwheelTarget = stupidCartwheelDegrees(true)
+            val hopTarget = stupidCartwheelHopDp(true)
+            kotlinx.coroutines.coroutineScope {
+                launch {
+                    cartwheel.animateTo(
+                        targetValue = cartwheelTarget,
+                        animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                    )
+                }
+                launch {
+                    hopY.animateTo(
+                        targetValue = hopTarget,
+                        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                    )
+                    hopY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                    )
+                }
+            }
         } else {
             rotation.snapTo(0f)
+            cartwheel.snapTo(0f)
+            hopY.snapTo(0f)
         }
     }
 
-    val spinDegrees = rotation.value
+    val spinDegrees = rotation.value + cartwheel.value
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val hopPx = with(density) { hopY.value.dp.toPx() }
     Column(
         modifier = modifier
             .testTag("tech_action_" + label.lowercase())
@@ -202,7 +235,28 @@ private fun CommandBay(
                     tint = color,
                     modifier = Modifier
                         .padding(end = 4.dp)
-                        .graphicsLayer { rotationZ = spinDegrees },
+                        .graphicsLayer {
+                            rotationZ = spinDegrees
+                            translationY = hopPx
+                        },
+                )
+            } else if (label.equals("Tasks", ignoreCase = true)) {
+                Icon(
+                    imageVector = InstrumentGlyphs.Tasks,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(CommandBayIconSize),
+                )
+            } else if (label.equals("Menu", ignoreCase = true)) {
+                Icon(
+                    imageVector = InstrumentGlyphs.Menu,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(CommandBayIconSize),
                 )
             }
             Text(

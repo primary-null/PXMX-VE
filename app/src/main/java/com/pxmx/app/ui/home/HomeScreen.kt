@@ -129,6 +129,7 @@ import com.pxmx.app.ui.extras.StupidCardWrapper
 import com.pxmx.app.ui.extras.rememberStupidHeaderMotion
 import com.pxmx.app.ui.extras.stupidChipFlip
 import com.pxmx.app.ui.extras.stupidMenuSquash
+import com.pxmx.app.ui.extras.stupidReverseCrt
 import com.pxmx.app.ui.extras.stupidSearchWobble
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
@@ -575,7 +576,9 @@ fun HomeScreen(
                             state = listState,
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .stupidReverseCrt(),
                         ) {
                             if (canOfferNodeShell && onOpenNodeShell != null) {
                                 val firstNode = state.resources.firstOrNull { it.type == "node" }?.node
@@ -689,7 +692,7 @@ fun HomeScreen(
                                             } else {
                                                 null
                                             }
-                                            StupidCardWrapper {
+                                            StupidCardWrapper(cardIdentity = res.id ?: res.name) {
                                                 ResourceCard(
                                                     resource = res,
                                                     busy = id in state.busyGuestIds,

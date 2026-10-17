@@ -341,35 +341,25 @@ private fun RocketIndicator(
             val climbPx = 140.dp.toPx() * climbProgress
             val nozzleY = if (isLaunching) padY - climbPx else glyph
 
-            if (isLaunching && chargeProgress > 0.05f) {
-                val lobeSpread = (if (unlocked) 40.dp else 28.dp).toPx() * (0.4f + 0.6f * chargeProgress)
-                val lobeRise = (if (unlocked) 16.dp else 11.dp).toPx() * chargeProgress
-                val padPath = Path().apply {
-                    moveTo(cx - lobeSpread, padY)
-                    lineTo(cx - lobeSpread * 0.62f, padY - lobeRise)
-                    lineTo(cx - 8.dp.toPx(), padY - lobeRise * 0.35f)
-                    lineTo(cx + 8.dp.toPx(), padY - lobeRise * 0.35f)
-                    lineTo(cx + lobeSpread * 0.62f, padY - lobeRise)
-                    lineTo(cx + lobeSpread, padY)
-                    close()
+            if (isLaunching) {
+                val ignitionRatio = 80f / ROCKET_CHARGE_MS.toFloat()
+                val inIgnition = !reduceMotion && climbProgress == 0f && chargeProgress <= ignitionRatio
+                val plumeProgress = when {
+                    reduceMotion -> 1f
+                    climbProgress > 0f -> 1f
+                    chargeProgress <= ignitionRatio -> 0f
+                    else -> ((chargeProgress - ignitionRatio) / (1f - ignitionRatio)).coerceIn(0f, 1f)
                 }
-                drawPath(padPath, color = AMBER_FLAME_COLOR.copy(alpha = 0.5f))
 
-                val plumeHalf = (if (unlocked) 32.dp else 24.dp).toPx() * (0.35f + 0.65f * chargeProgress)
-                val nozzleHalf = 2.5.dp.toPx()
+                val nozzleHalf = 2.5.dp.toPx() * (1f - 0.2f * climbProgress)
                 val trailTop = nozzleY.coerceAtMost(padY - 1f)
                 val trailFade = (1f - climbProgress * 0.35f).coerceIn(0.4f, 1f)
-                val plumePath = Path().apply {
-                    moveTo(cx - nozzleHalf, trailTop)
-                    lineTo(cx + nozzleHalf, trailTop)
-                    lineTo(cx + plumeHalf, padY)
-                    lineTo(cx - plumeHalf, padY)
-                    close()
+                val coreLen = if (inIgnition) {
+                    5.dp.toPx()
+                } else {
+                    (8.dp.toPx() + 6.dp.toPx() * chargeProgress)
+                        .coerceAtMost((padY - trailTop).coerceAtLeast(4.dp.toPx()))
                 }
-                drawPath(plumePath, color = AMBER_FLAME_COLOR.copy(alpha = 0.82f * trailFade))
-
-                val coreLen = (8.dp.toPx() + 6.dp.toPx() * chargeProgress)
-                    .coerceAtMost((padY - trailTop).coerceAtLeast(4.dp.toPx()))
                 val corePath = Path().apply {
                     moveTo(cx - nozzleHalf, trailTop)
                     lineTo(cx + nozzleHalf, trailTop)
@@ -377,6 +367,130 @@ private fun RocketIndicator(
                     close()
                 }
                 drawPath(corePath, color = CORE_FLAME_COLOR.copy(alpha = 0.95f * trailFade))
+
+                if (inIgnition) {
+                    val sparkLen = (if (unlocked) 10.dp else 6.dp).toPx()
+                    val sparkStroke = 1.5.dp.toPx()
+                    drawLine(
+                        color = AMBER_FLAME_COLOR.copy(alpha = 0.9f),
+                        start = Offset(cx, trailTop + coreLen),
+                        end = Offset(cx, trailTop + coreLen + sparkLen),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx - 2.dp.toPx(), trailTop + coreLen * 0.7f),
+                        end = Offset(cx - 3.5.dp.toPx(), trailTop + coreLen * 0.7f + sparkLen * 0.85f),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx + 2.dp.toPx(), trailTop + coreLen * 0.7f),
+                        end = Offset(cx + 3.5.dp.toPx(), trailTop + coreLen * 0.7f + sparkLen * 0.85f),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                }
+
+                if (plumeProgress > 0f) {
+                    val lobeSpread = (if (unlocked) 40.dp else 28.dp).toPx() *
+                        (0.4f + 0.6f * plumeProgress) * (1f - 0.2f * climbProgress)
+                    val lobeRise = (if (unlocked) 16.dp else 11.dp).toPx() *
+                        plumeProgress * (1f - 0.2f * climbProgress)
+                    val padPath = Path().apply {
+                        moveTo(cx - lobeSpread, padY)
+                        lineTo(cx - lobeSpread * 0.62f, padY - lobeRise)
+                        lineTo(cx - 8.dp.toPx(), padY - lobeRise * 0.35f)
+                        lineTo(cx + 8.dp.toPx(), padY - lobeRise * 0.35f)
+                        lineTo(cx + lobeSpread * 0.62f, padY - lobeRise)
+                        lineTo(cx + lobeSpread, padY)
+                        close()
+                    }
+                    drawPath(padPath, color = AMBER_FLAME_COLOR.copy(alpha = 0.5f * trailFade))
+
+                    val plumeHalfBase = (if (unlocked) 32.dp else 24.dp).toPx() * (0.35f + 0.65f * plumeProgress)
+                    val plumeHalf = plumeHalfBase * (1f - 0.35f * climbProgress)
+                    val plumePath = Path().apply {
+                        moveTo(cx - nozzleHalf, trailTop)
+                        lineTo(cx + nozzleHalf, trailTop)
+                        lineTo(cx + plumeHalf, padY)
+                        lineTo(cx - plumeHalf, padY)
+                        close()
+                    }
+                    drawPath(plumePath, color = AMBER_FLAME_COLOR.copy(alpha = 0.82f * trailFade))
+
+                    if (!reduceMotion) {
+                        val ringFade = if (climbProgress > 0f) (1f - climbProgress).coerceIn(0f, 1f) else 1f
+                        val ringAlpha = 0.75f * plumeProgress * ringFade
+                        if (ringAlpha > 0.02f) {
+                            val ring1W = 18.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                            val ring1H = 5.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                            drawOval(
+                                color = AMBER_FLAME_COLOR.copy(alpha = ringAlpha),
+                                topLeft = Offset(cx - ring1W, padY - ring1H),
+                                size = Size(ring1W * 2f, ring1H * 2f),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
+                            )
+                            if (unlocked) {
+                                val ring2W = 30.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                                val ring2H = 8.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                                drawOval(
+                                    color = AMBER_FLAME_COLOR.copy(alpha = ringAlpha * 0.7f),
+                                    topLeft = Offset(cx - ring2W, padY - ring2H),
+                                    size = Size(ring2W * 2f, ring2H * 2f),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
+                                )
+                            }
+                        }
+                    }
+
+                    if (!reduceMotion && climbProgress > 0.05f && climbProgress < 0.95f) {
+                        val vaneFlicker = if (((climbProgress * 24f).toInt() % 2) == 0) 0.9f else 0.45f
+                        val vaneColor = CORE_FLAME_COLOR.copy(alpha = vaneFlicker * trailFade)
+                        val strokeW = 1.5.dp.toPx()
+                        val vaneLen = 4.dp.toPx()
+                        val ySpan = padY - trailTop
+                        if (ySpan > 16.dp.toPx()) {
+                            val yVane1 = trailTop + ySpan * 0.3f
+                            val yVane2 = trailTop + ySpan * 0.65f
+                            val frac1 = (yVane1 - trailTop) / ySpan
+                            val halfW1 = nozzleHalf + (plumeHalf - nozzleHalf) * frac1 + 3.dp.toPx()
+                            val frac2 = (yVane2 - trailTop) / ySpan
+                            val halfW2 = nozzleHalf + (plumeHalf - nozzleHalf) * frac2 + 3.dp.toPx()
+
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx - halfW1, yVane1 - vaneLen / 2f),
+                                end = Offset(cx - halfW1 - 2.dp.toPx(), yVane1 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx - halfW2, yVane2 - vaneLen / 2f),
+                                end = Offset(cx - halfW2 - 2.dp.toPx(), yVane2 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx + halfW1, yVane1 - vaneLen / 2f),
+                                end = Offset(cx + halfW1 + 2.dp.toPx(), yVane1 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx + halfW2, yVane2 - vaneLen / 2f),
+                                end = Offset(cx + halfW2 + 2.dp.toPx(), yVane2 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                        }
+                    }
+                }
             }
 
             if (rocketAlpha > 0f) {
@@ -401,6 +515,7 @@ private fun CogIndicator(
 ) {
     val angleState = remember { mutableFloatStateOf(0f) }
     val speedState = remember { mutableFloatStateOf(0f) }
+    val sparkPhaseState = remember { mutableFloatStateOf(0f) }
     val fractionState = rememberUpdatedState(pullFraction)
     val refreshingState = rememberUpdatedState(isRefreshing)
 
@@ -424,6 +539,7 @@ private fun CogIndicator(
         if (reduceMotion) {
             angleState.floatValue = 0f
             speedState.floatValue = 0f
+            sparkPhaseState.floatValue = 0f
             return@LaunchedEffect
         }
         var lastFrameTimeNanos = 0L
@@ -449,12 +565,12 @@ private fun CogIndicator(
                 if (newSpeed > 0f) {
                     angleState.floatValue = (angleState.floatValue + newSpeed * dt) % 360f
                 }
+                sparkPhaseState.floatValue = (sparkPhaseState.floatValue + dt * 4f + (newSpeed / 900f) * dt * 6f) % 1f
             }
         }
     }
 
     val currentAngle = angleState.floatValue
-    val currentSpeed = speedState.floatValue
     val currentAlpha = if (!isRefreshing && pullFraction <= 0f) 0f else 1f
 
     val density = LocalDensity.current
@@ -486,10 +602,12 @@ private fun CogIndicator(
             val currentDist = unmeshedDist + (meshedDist - unmeshedDist) * meshProgress
             val diagUnit = 0.7071f
 
-            val leftCogX = cx - diagUnit * currentDist
-            val leftCogY = cy + diagUnit * currentDist
-            val rightCogX = cx + diagUnit * currentDist
-            val rightCogY = cy + diagUnit * currentDist
+            val arcBulge = if (reduceMotion) 0f else sin(meshProgress * PI.toFloat()) * 5.dp.toPx()
+
+            val leftCogX = cx - diagUnit * currentDist - diagUnit * arcBulge
+            val leftCogY = cy + diagUnit * currentDist + diagUnit * arcBulge
+            val rightCogX = cx + diagUnit * currentDist + diagUnit * arcBulge
+            val rightCogY = cy + diagUnit * currentDist + diagUnit * arcBulge
 
             val rim = mainSize / 2f
             val leftMeshX = cx - diagUnit * rim
@@ -499,15 +617,33 @@ private fun CogIndicator(
 
             val drivingAngle = -currentAngle * 1.75f
 
-            if (showSparks && meshProgress > 0.2f) {
-                val speedFactor = (currentSpeed / 900f).coerceIn(0.35f, 1.2f)
-                val baseLen = (12.dp.toPx() + 14.dp.toPx() * speedFactor)
-                val strokeW = 2.dp.toPx()
+            if (showSparks && meshProgress in 0.8f..1f) {
+                val clashFrac = sin(((meshProgress - 0.8f) / 0.2f) * PI.toFloat())
+                val flashRadius = 6.dp.toPx() * clashFrac
+                val flashAlpha = 0.9f * clashFrac
+                drawCircle(
+                    color = CORE_FLAME_COLOR.copy(alpha = flashAlpha),
+                    radius = flashRadius,
+                    center = Offset(leftMeshX, leftMeshY),
+                )
+                drawCircle(
+                    color = CORE_FLAME_COLOR.copy(alpha = flashAlpha),
+                    radius = flashRadius,
+                    center = Offset(rightMeshX, rightMeshY),
+                )
+            }
 
-                repeat(4) { idx ->
-                    val sparkPhase = ((currentAngle / 40f + idx * 0.28f) % 1f)
-                    val streakLen = baseLen * (0.6f + 0.4f * (1f - sparkPhase))
-                    val angleRad = (PI * 0.75f + (idx - 1.5f) * 0.32f).toFloat()
+            if (showSparks && meshProgress > 0.1f) {
+                val baseLen = 16.dp.toPx()
+                val strokeW = 2.dp.toPx()
+                val isClashing = meshProgress in 0.8f..1f
+                val count = if (isClashing) 6 else 4
+
+                repeat(count) { idx ->
+                    val sparkPhase = (sparkPhaseState.floatValue + idx * (1f / count)) % 1f
+                    val streakLen = (baseLen + (if (isClashing) 8.dp.toPx() else 0.dp.toPx())) *
+                        (0.6f + 0.4f * (1f - sparkPhase))
+                    val angleRad = (PI * 0.75f + (idx - count / 2f) * 0.28f).toFloat()
                     val sparkAlpha = (0.5f + 0.5f * (1f - sparkPhase)) * meshProgress
                     val color = if (idx % 2 == 0) AMBER_FLAME_COLOR else CORE_FLAME_COLOR
                     val startX = leftMeshX + cos(angleRad) * 2.dp.toPx()
@@ -523,10 +659,11 @@ private fun CogIndicator(
                     )
                 }
 
-                repeat(4) { idx ->
-                    val sparkPhase = ((currentAngle / 40f + idx * 0.28f) % 1f)
-                    val streakLen = baseLen * (0.6f + 0.4f * (1f - sparkPhase))
-                    val angleRad = (PI * 0.25f - (idx - 1.5f) * 0.32f).toFloat()
+                repeat(count) { idx ->
+                    val sparkPhase = (sparkPhaseState.floatValue + idx * (1f / count)) % 1f
+                    val streakLen = (baseLen + (if (isClashing) 8.dp.toPx() else 0.dp.toPx())) *
+                        (0.6f + 0.4f * (1f - sparkPhase))
+                    val angleRad = (PI * 0.25f - (idx - count / 2f) * 0.28f).toFloat()
                     val sparkAlpha = (0.5f + 0.5f * (1f - sparkPhase)) * meshProgress
                     val color = if (idx % 2 == 0) AMBER_FLAME_COLOR else CORE_FLAME_COLOR
                     val startX = rightMeshX + cos(angleRad) * 2.dp.toPx()
@@ -550,6 +687,19 @@ private fun CogIndicator(
                             draw(size = Size(secSize, secSize), alpha = meshProgress)
                         }
                     }
+                    val secR = secSize / 2f
+                    repeat(8) { t ->
+                        val tAngleRad = (t * (360f / 8f) * (PI / 180f)).toFloat()
+                        val rIn = secR - 1.dp.toPx()
+                        val rOut = secR + 2.dp.toPx()
+                        drawLine(
+                            color = CORE_FLAME_COLOR.copy(alpha = 0.85f * meshProgress),
+                            start = Offset(leftCogX + cos(tAngleRad) * rIn, leftCogY + sin(tAngleRad) * rIn),
+                            end = Offset(leftCogX + cos(tAngleRad) * rOut, leftCogY + sin(tAngleRad) * rOut),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
+                    }
                 }
 
                 rotate(degrees = drivingAngle, pivot = Offset(rightCogX, rightCogY)) {
@@ -557,6 +707,19 @@ private fun CogIndicator(
                         with(cogPainter) {
                             draw(size = Size(secSize, secSize), alpha = meshProgress)
                         }
+                    }
+                    val secR = secSize / 2f
+                    repeat(8) { t ->
+                        val tAngleRad = (t * (360f / 8f) * (PI / 180f)).toFloat()
+                        val rIn = secR - 1.dp.toPx()
+                        val rOut = secR + 2.dp.toPx()
+                        drawLine(
+                            color = CORE_FLAME_COLOR.copy(alpha = 0.85f * meshProgress),
+                            start = Offset(rightCogX + cos(tAngleRad) * rIn, rightCogY + sin(tAngleRad) * rIn),
+                            end = Offset(rightCogX + cos(tAngleRad) * rOut, rightCogY + sin(tAngleRad) * rOut),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
                     }
                 }
             }
@@ -566,6 +729,19 @@ private fun CogIndicator(
                     with(cogPainter) {
                         draw(size = Size(mainSize, mainSize))
                     }
+                }
+                val mainR = mainSize / 2f
+                repeat(12) { t ->
+                    val tAngleRad = (t * (360f / 12f) * (PI / 180f)).toFloat()
+                    val rIn = mainR - 1.5.dp.toPx()
+                    val rOut = mainR + 2.dp.toPx()
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx + cos(tAngleRad) * rIn, cy + sin(tAngleRad) * rIn),
+                        end = Offset(cx + cos(tAngleRad) * rOut, cy + sin(tAngleRad) * rOut),
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
                 }
             }
         }

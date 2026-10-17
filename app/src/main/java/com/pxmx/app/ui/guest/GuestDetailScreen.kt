@@ -122,6 +122,7 @@ import com.pxmx.app.data.console.ConsoleStillStore
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.neonSelectionHalo
 import com.pxmx.app.ui.extras.stupidChipFlip
+import com.pxmx.app.ui.extras.stupidSectionFold
 import com.pxmx.app.ui.extras.stupidTabDeckYaw
 import com.pxmx.app.ui.icons.InstrumentGlyphs
 import com.pxmx.app.ui.util.Toasts
@@ -1547,7 +1548,10 @@ private fun GuestSectionPlate(
             trailing?.invoke()
         }
         if (expanded) {
-            TechDeck(showAccentBar = true) {
+            TechDeck(
+                modifier = Modifier.stupidSectionFold(expanded),
+                showAccentBar = true,
+            ) {
                 content()
             }
         }

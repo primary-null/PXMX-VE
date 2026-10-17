@@ -50,7 +50,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +81,7 @@ import com.pxmx.app.data.model.SessionResumeInfo
 import com.pxmx.app.data.net.DiscoveredHost
 import com.pxmx.app.ui.components.PingPlateFill
 import com.pxmx.app.ui.components.ScanAddressBus
+import com.pxmx.app.ui.components.ScanPicturePlate
 import com.pxmx.app.ui.components.ScanSweepStrip
 import com.pxmx.app.ui.components.ScanViz
 import com.pxmx.app.ui.components.ScanVizMode
@@ -89,6 +89,7 @@ import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
+import com.pxmx.app.ui.components.TechSwitch
 import com.pxmx.app.ui.components.pingBand
 import com.pxmx.app.ui.components.pingBandColor
 import com.pxmx.app.ui.util.formatLastLoginMs
@@ -541,7 +542,16 @@ private fun ConnectionPaneContent(
 
     // Network Scan Progress & Discovered PVE Hosts
     val scan = state.scanState
-    if (scan.isScanning || scan.discoveredHosts.isNotEmpty() || scan.pveDetectedHosts.isNotEmpty() || scan.unverifiedHosts.isNotEmpty() || scan.error != null || scan.infoMessage != null || (scan.isComplete && scan.discoveredHosts.isEmpty() && scan.unverifiedHosts.isEmpty() && scan.pveDetectedHosts.isEmpty())) {
+    val hasScanActivity = scan.isScanning ||
+        scan.isComplete ||
+        scan.scannedCount > 0 ||
+        scan.totalCount > 0 ||
+        scan.discoveredHosts.isNotEmpty() ||
+        scan.pveDetectedHosts.isNotEmpty() ||
+        scan.unverifiedHosts.isNotEmpty() ||
+        scan.error != null ||
+        scan.infoMessage != null
+    if (hasScanActivity) {
         val scanRailColor = when {
             scan.error != null -> MaterialTheme.colorScheme.error
             scan.isScanning -> TechColors.Amber
@@ -572,14 +582,15 @@ private fun ConnectionPaneContent(
                             text = when {
                                 scan.isScanning -> "SCANNING"
                                 scan.error != null -> "SCAN ERROR"
-                                else -> "NETWORK DISCOVERY"
+                                scan.isComplete -> "SCAN COMPLETE"
+                                else -> "SCAN STOPPED"
                             },
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleSmall,
                             color = scanHeaderColor,
                         )
-                        if (scan.isScanning && scan.totalCount > 0) {
+                        if (scan.totalCount > 0) {
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "${scan.scannedCount}/${scan.totalCount}",
@@ -593,8 +604,8 @@ private fun ConnectionPaneContent(
                             Spacer(Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(2.dp),
-                                color = TechColors.CoolBlue.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, TechColors.CoolBlue.copy(alpha = 0.5f)),
+                                color = TechColors.Amber.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, TechColors.Amber.copy(alpha = 0.5f)),
                                 onClick = {
                                     Toast.makeText(context, "Simulated data", Toast.LENGTH_SHORT).show()
                                 }
@@ -603,7 +614,7 @@ private fun ConnectionPaneContent(
                                     text = "DEMO SIMULATION",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontFamily = FontFamily.Monospace,
-                                    color = TechColors.CoolBlue,
+                                    color = TechColors.Amber,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 )
                             }
@@ -622,16 +633,11 @@ private fun ConnectionPaneContent(
                     }
                 }
 
-                val showScanViz = scan.isScanning ||
-                    scan.discoveredHosts.isNotEmpty() ||
-                    scan.pveDetectedHosts.isNotEmpty() ||
-                    scan.unverifiedHosts.isNotEmpty()
-                if (showScanViz) {
-                    Spacer(Modifier.height(8.dp))
-                    when (ScanViz.mode) {
-                        ScanVizMode.SWEEP_STRIP -> ScanSweepStrip(scanState = scan)
-                        ScanVizMode.ADDRESS_BUS -> ScanAddressBus(scanState = scan)
-                    }
+                Spacer(Modifier.height(8.dp))
+                when (ScanViz.mode) {
+                    ScanVizMode.SCAN_PICTURE -> ScanPicturePlate(scanState = scan)
+                    ScanVizMode.SWEEP_STRIP -> ScanSweepStrip(scanState = scan)
+                    ScanVizMode.ADDRESS_BUS -> ScanAddressBus(scanState = scan)
                 }
 
                 scan.infoMessage?.let { msg ->
@@ -640,7 +646,7 @@ private fun ConnectionPaneContent(
                         text = msg,
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
-                        color = TechColors.CoolBlue,
+                        color = TechColors.Mute,
                     )
                 }
 
@@ -1010,7 +1016,7 @@ private fun SettingRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        TechSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
