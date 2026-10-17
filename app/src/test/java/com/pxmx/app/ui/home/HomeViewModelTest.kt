@@ -452,4 +452,19 @@ class HomeViewModelTest {
         assertTrue(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local", "nfs-share"), "local"))
         assertTrue(com.pxmx.app.ui.guest.detail.canConfirmBackup(listOf("local", "nfs-share"), "nfs-share"))
     }
+
+    @Test
+    fun refreshShouldStart_returnsTrueForInitialOrNotInFlight() {
+        // Not in flight, non-initial: should start
+        assertTrue(refreshShouldStart(inFlight = false, initial = false))
+
+        // In flight, non-initial: should NOT start (single-flight guard)
+        assertFalse(refreshShouldStart(inFlight = true, initial = false))
+
+        // In flight, initial: should start (cancels in-flight job)
+        assertTrue(refreshShouldStart(inFlight = true, initial = true))
+
+        // Not in flight, initial: should start
+        assertTrue(refreshShouldStart(inFlight = false, initial = true))
+    }
 }

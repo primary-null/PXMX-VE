@@ -72,29 +72,31 @@ data class TechPalette(
     val danger: Color = Color(0xFFE53935),
 )
 
+@Suppress("MagicNumber")
 val DarkTechPalette = TechPalette(
     hull = Color(0xFF050505),
-    deck = Color(0xFF2C2C2C),
-    edge = Color(0xFF3D3D3D),
-    divider = Color(0xFF1A1A1A),
+    deck = Color(0xFF2F2F2F),
+    edge = Color(0xFF414141),
+    divider = Color(0xFF1C1C1C),
     amber = Color(0xFFFF9800),
     linkGreen = Color(0xFF69F0AE),
     coolBlue = Color(0xFF42A5F5),
-    mute = Color(0xFF757575),
-    stoppedRail = Color(0xFF4A4A4A),
+    mute = Color(0xFF7D7D7D),
+    stoppedRail = Color(0xFF4F4F4F),
     danger = Color(0xFFE53935),
 )
 
+@Suppress("MagicNumber")
 val LightTechPalette = TechPalette(
     hull = Color(0xFFF6F6F6),
-    deck = Color(0xFFEAEAEA),
-    edge = Color(0xFFCCCCCC),
-    divider = Color(0xFFDCDCDC),
+    deck = Color(0xFFDCDCDC),
+    edge = Color(0xFFC0C0C0),
+    divider = Color(0xFFCFCFCF),
     amber = Color(0xFFE65100),
     linkGreen = Color(0xFF2E7D32),
     coolBlue = Color(0xFF1565C0),
-    mute = Color(0xFF6E6E6E),
-    stoppedRail = Color(0xFF9E9E9E),
+    mute = Color(0xFF676767),
+    stoppedRail = Color(0xFF949494),
     danger = Color(0xFFE53935),
 )
 

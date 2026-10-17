@@ -89,7 +89,7 @@ fun TourOverlay(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = if (visibleStep == TourStep.SUMMARY) "QUICK TOUR · COMPLETE"
-                                        else "QUICK TOUR · STEP ${visibleStep.stepNumber}/7",
+                                        else "QUICK TOUR · STEP ${visibleStep.stepNumber}/10",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,

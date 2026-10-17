@@ -3,7 +3,6 @@ package com.pxmx.app.ui.extras
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -45,8 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.icons.InstrumentGlyphs
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 val LocalRefreshCog = compositionLocalOf { false }
 
@@ -56,14 +60,13 @@ data class RefreshCogActions(
 
 val LocalRefreshCogActions = compositionLocalOf<RefreshCogActions?> { null }
 
-private const val rocketChargeMs = 180
-private const val rocketLaunchMs = 460
+private const val ROCKET_CHARGE_MS = 220
+private const val ROCKET_LAUNCH_MS = 560
+private const val COG_MESH_MS = 140
 
 private val INDICATOR_SIZE = 28.dp
 private val RESTING_TOP_OFFSET = 16.dp
-private const val PULL_DISTANCE_MULTIPLIER = 44f
 private const val COG_DECELERATION_DEG_PER_SEC = 1800f
-private const val ROCKET_LAUNCH_OFFSET_Y = -160f
 private val AMBER_FLAME_COLOR = Color(0xFFFF9800)
 private val CORE_FLAME_COLOR = Color(0xFFE2E8F0)
 
@@ -264,7 +267,7 @@ fun HomeScreenPullRefreshIndicator(
     }
 }
 
-@Suppress("MagicNumber")
+@Suppress("MagicNumber", "LongMethod", "FunctionNaming", "CyclomaticComplexMethod")
 @Composable
 private fun RocketIndicator(
     pullFraction: Float,
@@ -272,133 +275,237 @@ private fun RocketIndicator(
     reduceMotion: Boolean,
     unlocked: Boolean = false,
 ) {
-    val flameAnim = remember { Animatable(0f) }
-    val liftAnim = remember { Animatable(0f) }
-    val alphaAnim = remember { Animatable(1f) }
+    val chargeAnim = remember { Animatable(0f) }
+    val climbAnim = remember { Animatable(0f) }
 
     LaunchedEffect(isRefreshing, reduceMotion) {
         if (isRefreshing) {
             if (reduceMotion) {
-                liftAnim.snapTo(0f)
-                flameAnim.snapTo(0f)
-                alphaAnim.snapTo(1f)
+                chargeAnim.snapTo(1f)
+                climbAnim.snapTo(0f)
             } else {
-                liftAnim.snapTo(0f)
-                alphaAnim.snapTo(1f)
-                flameAnim.snapTo(0f)
-                flameAnim.animateTo(
+                climbAnim.snapTo(0f)
+                chargeAnim.snapTo(0f)
+                chargeAnim.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = rocketChargeMs, easing = FastOutSlowInEasing),
+                    animationSpec = tween(durationMillis = ROCKET_CHARGE_MS, easing = FastOutSlowInEasing),
                 )
-                launch {
-                    liftAnim.animateTo(
-                        targetValue = ROCKET_LAUNCH_OFFSET_Y,
-                        animationSpec = tween(durationMillis = rocketLaunchMs, easing = FastOutLinearInEasing),
-                    )
-                }
-                launch {
-                    alphaAnim.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = rocketLaunchMs, easing = LinearEasing),
-                    )
-                }
+                climbAnim.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = ROCKET_LAUNCH_MS, easing = FastOutLinearInEasing),
+                )
             }
         } else {
-            liftAnim.snapTo(0f)
-            flameAnim.snapTo(0f)
-            alphaAnim.snapTo(1f)
+            chargeAnim.snapTo(0f)
+            climbAnim.snapTo(0f)
         }
     }
 
-    // Read animated values in composition before graphicsLayer
-    val currentFlameScale = flameAnim.value
-    val currentLiftOffset = liftAnim.value
-    val currentAlpha = if (!isRefreshing && pullFraction <= 0f) 0f else alphaAnim.value
+    val chargeProgress = if (reduceMotion) 1f else chargeAnim.value
+    val climbProgress = if (reduceMotion) 0f else climbAnim.value
+    val rocketAlpha = when {
+        !isRefreshing && pullFraction <= 0f -> 0f
+        reduceMotion -> 1f
+        !isRefreshing -> 1f
+        climbProgress < 0.67f -> 1f
+        else -> (1f - (climbProgress - 0.67f) / 0.33f).coerceIn(0f, 1f)
+    }
 
     val density = LocalDensity.current
-    val baseOffsetDp = if (isRefreshing) {
-        RESTING_TOP_OFFSET
-    } else {
-        RESTING_TOP_OFFSET + (pullFraction.coerceIn(0f, 1.5f) * PULL_DISTANCE_MULTIPLIER).dp
-    }
-    val translationYPx = with(density) { baseOffsetDp.toPx() } + currentLiftOffset
+    val baseOffsetDp = RESTING_TOP_OFFSET
+    val translationYPx = with(density) { baseOffsetDp.toPx() }
 
     val rocketPainter = rememberVectorPainter(InstrumentGlyphs.Rocket)
 
+    val isLaunching = isRefreshing
+    val canvasWidth = if (isLaunching) 112.dp else INDICATOR_SIZE
+    val canvasHeight = if (isLaunching) 184.dp else INDICATOR_SIZE
+
     Box(
-        modifier = Modifier.graphicsLayer {
-            translationY = translationYPx
-            alpha = currentAlpha
-        },
+        modifier = Modifier
+            .size(
+                width = if (isLaunching) 112.dp else INDICATOR_SIZE,
+                height = INDICATOR_SIZE,
+            )
+            .wrapContentSize(align = Alignment.BottomCenter, unbounded = true)
+            .graphicsLayer { translationY = translationYPx },
+        contentAlignment = Alignment.BottomCenter,
     ) {
-        val showCloud = unlocked && isRefreshing
         Canvas(
-            modifier = Modifier.size(
-                width = INDICATOR_SIZE,
-                height = if (showCloud) 72.dp else INDICATOR_SIZE,
-            ),
+            modifier = Modifier.size(width = canvasWidth, height = canvasHeight),
         ) {
-            val scale = size.width / 24f
-            val glyph = Size(size.width, size.width)
+            val glyph = INDICATOR_SIZE.toPx()
+            val cx = size.width / 2f
+            val rocketLeft = cx - glyph / 2f
+            val padY = if (isLaunching) size.height - 8.dp.toPx() else glyph
+            val climbPx = 140.dp.toPx() * climbProgress
+            val nozzleY = if (isLaunching) padY - climbPx else glyph
 
-            if (showCloud) {
-                if (reduceMotion) {
-                    drawOval(
-                        color = AMBER_FLAME_COLOR.copy(alpha = 0.5f),
-                        topLeft = Offset(6f * scale, 18.5f * scale),
-                        size = Size(12f * scale, 9f * scale),
-                    )
+            if (isLaunching) {
+                val ignitionRatio = 80f / ROCKET_CHARGE_MS.toFloat()
+                val inIgnition = !reduceMotion && climbProgress == 0f && chargeProgress <= ignitionRatio
+                val plumeProgress = when {
+                    reduceMotion -> 1f
+                    climbProgress > 0f -> 1f
+                    chargeProgress <= ignitionRatio -> 0f
+                    else -> ((chargeProgress - ignitionRatio) / (1f - ignitionRatio)).coerceIn(0f, 1f)
+                }
+
+                val nozzleHalf = 2.5.dp.toPx() * (1f - 0.2f * climbProgress)
+                val trailTop = nozzleY.coerceAtMost(padY - 1f)
+                val trailFade = (1f - climbProgress * 0.35f).coerceIn(0.4f, 1f)
+                val coreLen = if (inIgnition) {
+                    5.dp.toPx()
                 } else {
-                    val riseFraction = (-currentLiftOffset / -ROCKET_LAUNCH_OFFSET_Y).coerceIn(0f, 1f)
-                    val growth = if (currentLiftOffset < 0f) {
-                        0.75f + 0.45f * riseFraction
-                    } else {
-                        0.3f + 0.7f * currentFlameScale
+                    (8.dp.toPx() + 6.dp.toPx() * chargeProgress)
+                        .coerceAtMost((padY - trailTop).coerceAtLeast(4.dp.toPx()))
+                }
+                val corePath = Path().apply {
+                    moveTo(cx - nozzleHalf, trailTop)
+                    lineTo(cx + nozzleHalf, trailTop)
+                    lineTo(cx, trailTop + coreLen)
+                    close()
+                }
+                drawPath(corePath, color = CORE_FLAME_COLOR.copy(alpha = 0.95f * trailFade))
+
+                if (inIgnition) {
+                    val sparkLen = (if (unlocked) 10.dp else 6.dp).toPx()
+                    val sparkStroke = 1.5.dp.toPx()
+                    drawLine(
+                        color = AMBER_FLAME_COLOR.copy(alpha = 0.9f),
+                        start = Offset(cx, trailTop + coreLen),
+                        end = Offset(cx, trailTop + coreLen + sparkLen),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx - 2.dp.toPx(), trailTop + coreLen * 0.7f),
+                        end = Offset(cx - 3.5.dp.toPx(), trailTop + coreLen * 0.7f + sparkLen * 0.85f),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx + 2.dp.toPx(), trailTop + coreLen * 0.7f),
+                        end = Offset(cx + 3.5.dp.toPx(), trailTop + coreLen * 0.7f + sparkLen * 0.85f),
+                        strokeWidth = sparkStroke,
+                        cap = StrokeCap.Round,
+                    )
+                }
+
+                if (plumeProgress > 0f) {
+                    val lobeSpread = (if (unlocked) 40.dp else 28.dp).toPx() *
+                        (0.4f + 0.6f * plumeProgress) * (1f - 0.2f * climbProgress)
+                    val lobeRise = (if (unlocked) 16.dp else 11.dp).toPx() *
+                        plumeProgress * (1f - 0.2f * climbProgress)
+                    val padPath = Path().apply {
+                        moveTo(cx - lobeSpread, padY)
+                        lineTo(cx - lobeSpread * 0.62f, padY - lobeRise)
+                        lineTo(cx - 8.dp.toPx(), padY - lobeRise * 0.35f)
+                        lineTo(cx + 8.dp.toPx(), padY - lobeRise * 0.35f)
+                        lineTo(cx + lobeSpread * 0.62f, padY - lobeRise)
+                        lineTo(cx + lobeSpread, padY)
+                        close()
                     }
-                    if (growth > 0.05f) {
-                        drawOval(
-                            color = AMBER_FLAME_COLOR.copy(alpha = 0.55f),
-                            topLeft = Offset((4f - growth) * scale, 18.5f * scale),
-                            size = Size((8f + growth) * scale, (8f * growth) * scale),
-                        )
-                        drawOval(
-                            color = AMBER_FLAME_COLOR.copy(alpha = 0.55f),
-                            topLeft = Offset((12f - growth) * scale, 18.5f * scale),
-                            size = Size((8f + growth) * scale, (8f * growth) * scale),
-                        )
-                        drawOval(
-                            color = CORE_FLAME_COLOR.copy(alpha = 0.4f),
-                            topLeft = Offset((7f - growth) * scale, (22f + 2f * growth) * scale),
-                            size = Size((10f + 2f * growth) * scale, (9f * growth) * scale),
-                        )
+                    drawPath(padPath, color = AMBER_FLAME_COLOR.copy(alpha = 0.5f * trailFade))
+
+                    val plumeHalfBase = (if (unlocked) 32.dp else 24.dp).toPx() * (0.35f + 0.65f * plumeProgress)
+                    val plumeHalf = plumeHalfBase * (1f - 0.35f * climbProgress)
+                    val plumePath = Path().apply {
+                        moveTo(cx - nozzleHalf, trailTop)
+                        lineTo(cx + nozzleHalf, trailTop)
+                        lineTo(cx + plumeHalf, padY)
+                        lineTo(cx - plumeHalf, padY)
+                        close()
+                    }
+                    drawPath(plumePath, color = AMBER_FLAME_COLOR.copy(alpha = 0.82f * trailFade))
+
+                    if (!reduceMotion) {
+                        val ringFade = if (climbProgress > 0f) (1f - climbProgress).coerceIn(0f, 1f) else 1f
+                        val ringAlpha = 0.75f * plumeProgress * ringFade
+                        if (ringAlpha > 0.02f) {
+                            val ring1W = 18.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                            val ring1H = 5.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                            drawOval(
+                                color = AMBER_FLAME_COLOR.copy(alpha = ringAlpha),
+                                topLeft = Offset(cx - ring1W, padY - ring1H),
+                                size = Size(ring1W * 2f, ring1H * 2f),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
+                            )
+                            if (unlocked) {
+                                val ring2W = 30.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                                val ring2H = 8.dp.toPx() * (0.4f + 0.6f * plumeProgress)
+                                drawOval(
+                                    color = AMBER_FLAME_COLOR.copy(alpha = ringAlpha * 0.7f),
+                                    topLeft = Offset(cx - ring2W, padY - ring2H),
+                                    size = Size(ring2W * 2f, ring2H * 2f),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
+                                )
+                            }
+                        }
+                    }
+
+                    if (!reduceMotion && climbProgress > 0.05f && climbProgress < 0.95f) {
+                        val vaneFlicker = if (((climbProgress * 24f).toInt() % 2) == 0) 0.9f else 0.45f
+                        val vaneColor = CORE_FLAME_COLOR.copy(alpha = vaneFlicker * trailFade)
+                        val strokeW = 1.5.dp.toPx()
+                        val vaneLen = 4.dp.toPx()
+                        val ySpan = padY - trailTop
+                        if (ySpan > 16.dp.toPx()) {
+                            val yVane1 = trailTop + ySpan * 0.3f
+                            val yVane2 = trailTop + ySpan * 0.65f
+                            val frac1 = (yVane1 - trailTop) / ySpan
+                            val halfW1 = nozzleHalf + (plumeHalf - nozzleHalf) * frac1 + 3.dp.toPx()
+                            val frac2 = (yVane2 - trailTop) / ySpan
+                            val halfW2 = nozzleHalf + (plumeHalf - nozzleHalf) * frac2 + 3.dp.toPx()
+
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx - halfW1, yVane1 - vaneLen / 2f),
+                                end = Offset(cx - halfW1 - 2.dp.toPx(), yVane1 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx - halfW2, yVane2 - vaneLen / 2f),
+                                end = Offset(cx - halfW2 - 2.dp.toPx(), yVane2 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx + halfW1, yVane1 - vaneLen / 2f),
+                                end = Offset(cx + halfW1 + 2.dp.toPx(), yVane1 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                            drawLine(
+                                color = vaneColor,
+                                start = Offset(cx + halfW2, yVane2 - vaneLen / 2f),
+                                end = Offset(cx + halfW2 + 2.dp.toPx(), yVane2 + vaneLen / 2f),
+                                strokeWidth = strokeW,
+                                cap = StrokeCap.Round,
+                            )
+                        }
                     }
                 }
             }
 
-            with(rocketPainter) {
-                draw(glyph)
-            }
-            if (currentFlameScale > 0f) {
-                val flamePath = Path().apply {
-                    moveTo(10.5f * scale, 17.5f * scale)
-                    lineTo(13.5f * scale, 17.5f * scale)
-                    lineTo(12f * scale, (17.5f + 6.5f * currentFlameScale) * scale)
-                    close()
+            if (rocketAlpha > 0f) {
+                val rocketTop = if (isLaunching) nozzleY - glyph else 0f
+                translate(left = rocketLeft, top = rocketTop) {
+                    with(rocketPainter) {
+                        draw(size = Size(glyph, glyph), alpha = rocketAlpha)
+                    }
                 }
-                drawPath(flamePath, color = AMBER_FLAME_COLOR)
-                val corePath = Path().apply {
-                    moveTo(11.2f * scale, 17.5f * scale)
-                    lineTo(12.8f * scale, 17.5f * scale)
-                    lineTo(12f * scale, (17.5f + 3.5f * currentFlameScale) * scale)
-                    close()
-                }
-                drawPath(corePath, color = CORE_FLAME_COLOR)
             }
         }
     }
 }
 
-@Suppress("MagicNumber")
+@Suppress("MagicNumber", "LongMethod", "FunctionNaming", "CyclomaticComplexMethod")
 @Composable
 private fun CogIndicator(
     pullFraction: Float,
@@ -408,15 +515,31 @@ private fun CogIndicator(
 ) {
     val angleState = remember { mutableFloatStateOf(0f) }
     val speedState = remember { mutableFloatStateOf(0f) }
-    // pullFraction changes every frame. Keying the loop on it restarts the
-    // frame clock and the cog never gathers speed.
+    val sparkPhaseState = remember { mutableFloatStateOf(0f) }
     val fractionState = rememberUpdatedState(pullFraction)
     val refreshingState = rememberUpdatedState(isRefreshing)
+
+    val meshAnim = remember { Animatable(if (unlocked) 1f else 0f) }
+    LaunchedEffect(unlocked, reduceMotion) {
+        if (unlocked) {
+            if (reduceMotion) {
+                meshAnim.snapTo(1f)
+            } else {
+                meshAnim.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = COG_MESH_MS, easing = FastOutSlowInEasing),
+                )
+            }
+        } else {
+            meshAnim.snapTo(0f)
+        }
+    }
 
     LaunchedEffect(reduceMotion) {
         if (reduceMotion) {
             angleState.floatValue = 0f
             speedState.floatValue = 0f
+            sparkPhaseState.floatValue = 0f
             return@LaunchedEffect
         }
         var lastFrameTimeNanos = 0L
@@ -434,7 +557,7 @@ private fun CogIndicator(
                 )
                 val currentSpeed = speedState.floatValue
                 val newSpeed = if (targetSpeed >= currentSpeed) {
-                    targetSpeed
+                    minOf(targetSpeed, currentSpeed + (900f / 0.22f) * dt)
                 } else {
                     maxOf(0f, currentSpeed - COG_DECELERATION_DEG_PER_SEC * dt)
                 }
@@ -442,73 +565,183 @@ private fun CogIndicator(
                 if (newSpeed > 0f) {
                     angleState.floatValue = (angleState.floatValue + newSpeed * dt) % 360f
                 }
+                sparkPhaseState.floatValue = (sparkPhaseState.floatValue + dt * 4f + (newSpeed / 900f) * dt * 6f) % 1f
             }
         }
     }
 
-    // Read cog angle and speed in composition before graphicsLayer
     val currentAngle = angleState.floatValue
-    val currentSpeed = speedState.floatValue
     val currentAlpha = if (!isRefreshing && pullFraction <= 0f) 0f else 1f
 
     val density = LocalDensity.current
-    val baseOffsetDp = if (isRefreshing) {
-        RESTING_TOP_OFFSET
-    } else {
-        RESTING_TOP_OFFSET + (pullFraction.coerceIn(0f, 1.5f) * PULL_DISTANCE_MULTIPLIER).dp
-    }
+    val baseOffsetDp = RESTING_TOP_OFFSET
     val translationYPx = with(density) { baseOffsetDp.toPx() }
 
     val cogPainter = rememberVectorPainter(InstrumentGlyphs.Cog)
 
-    val showSparks = unlocked && currentSpeed >= 480f && !reduceMotion
+    val showSparks = unlocked && !reduceMotion
+    val meshProgress = if (reduceMotion) (if (unlocked) 1f else 0f) else meshAnim.value
 
     Box(
         modifier = Modifier
-            .size(width = 96.dp, height = INDICATOR_SIZE)
+            .size(width = 112.dp, height = 80.dp)
             .graphicsLayer {
                 translationY = translationYPx
                 alpha = currentAlpha
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.TopCenter,
     ) {
-        if (showSparks) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val scale = size.height / 24f
-                val cx = size.width / 2f
-                val cy = size.height / 2f
-                val reach = (7f + ((currentSpeed - 480f) / 420f).coerceIn(0f, 1f) * 10f) * scale
-                val phase = currentAngle / 360f
-                repeat(3) { index ->
-                    val along = ((phase * 3f + index * 0.37f) % 1f)
-                    val yOff = (index - 1) * 4.2f * scale
-                    val sparkAlpha = 0.45f + 0.55f * (1f - along)
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = size.width / 2f
+            val cy = 20.dp.toPx()
+            val mainSize = 28.dp.toPx()
+            val secSize = 16.dp.toPx()
+
+            val unmeshedDist = 34.dp.toPx()
+            val meshedDist = 19.5.dp.toPx()
+            val currentDist = unmeshedDist + (meshedDist - unmeshedDist) * meshProgress
+            val diagUnit = 0.7071f
+
+            val arcBulge = if (reduceMotion) 0f else sin(meshProgress * PI.toFloat()) * 5.dp.toPx()
+
+            val leftCogX = cx - diagUnit * currentDist - diagUnit * arcBulge
+            val leftCogY = cy + diagUnit * currentDist + diagUnit * arcBulge
+            val rightCogX = cx + diagUnit * currentDist + diagUnit * arcBulge
+            val rightCogY = cy + diagUnit * currentDist + diagUnit * arcBulge
+
+            val rim = mainSize / 2f
+            val leftMeshX = cx - diagUnit * rim
+            val leftMeshY = cy + diagUnit * rim
+            val rightMeshX = cx + diagUnit * rim
+            val rightMeshY = cy + diagUnit * rim
+
+            val drivingAngle = -currentAngle * 1.75f
+
+            if (showSparks && meshProgress in 0.8f..1f) {
+                val clashFrac = sin(((meshProgress - 0.8f) / 0.2f) * PI.toFloat())
+                val flashRadius = 6.dp.toPx() * clashFrac
+                val flashAlpha = 0.9f * clashFrac
+                drawCircle(
+                    color = CORE_FLAME_COLOR.copy(alpha = flashAlpha),
+                    radius = flashRadius,
+                    center = Offset(leftMeshX, leftMeshY),
+                )
+                drawCircle(
+                    color = CORE_FLAME_COLOR.copy(alpha = flashAlpha),
+                    radius = flashRadius,
+                    center = Offset(rightMeshX, rightMeshY),
+                )
+            }
+
+            if (showSparks && meshProgress > 0.1f) {
+                val baseLen = 16.dp.toPx()
+                val strokeW = 2.dp.toPx()
+                val isClashing = meshProgress in 0.8f..1f
+                val count = if (isClashing) 6 else 4
+
+                repeat(count) { idx ->
+                    val sparkPhase = (sparkPhaseState.floatValue + idx * (1f / count)) % 1f
+                    val streakLen = (baseLen + (if (isClashing) 8.dp.toPx() else 0.dp.toPx())) *
+                        (0.6f + 0.4f * (1f - sparkPhase))
+                    val angleRad = (PI * 0.75f + (idx - count / 2f) * 0.28f).toFloat()
+                    val sparkAlpha = (0.5f + 0.5f * (1f - sparkPhase)) * meshProgress
+                    val color = if (idx % 2 == 0) AMBER_FLAME_COLOR else CORE_FLAME_COLOR
+                    val startX = leftMeshX + cos(angleRad) * 2.dp.toPx()
+                    val startY = leftMeshY + sin(angleRad) * 2.dp.toPx()
+                    val endX = leftMeshX + cos(angleRad) * streakLen
+                    val endY = leftMeshY + sin(angleRad) * streakLen
                     drawLine(
-                        color = AMBER_FLAME_COLOR.copy(alpha = sparkAlpha),
-                        start = Offset(cx - 11f * scale, cy + yOff * 0.25f),
-                        end = Offset(cx - 11f * scale - reach * (0.45f + along), cy + yOff),
-                        strokeWidth = 1.6f * scale,
+                        color = color.copy(alpha = sparkAlpha),
+                        start = Offset(startX, startY),
+                        end = Offset(endX, endY),
+                        strokeWidth = strokeW,
                         cap = StrokeCap.Round,
                     )
+                }
+
+                repeat(count) { idx ->
+                    val sparkPhase = (sparkPhaseState.floatValue + idx * (1f / count)) % 1f
+                    val streakLen = (baseLen + (if (isClashing) 8.dp.toPx() else 0.dp.toPx())) *
+                        (0.6f + 0.4f * (1f - sparkPhase))
+                    val angleRad = (PI * 0.25f - (idx - count / 2f) * 0.28f).toFloat()
+                    val sparkAlpha = (0.5f + 0.5f * (1f - sparkPhase)) * meshProgress
+                    val color = if (idx % 2 == 0) AMBER_FLAME_COLOR else CORE_FLAME_COLOR
+                    val startX = rightMeshX + cos(angleRad) * 2.dp.toPx()
+                    val startY = rightMeshY + sin(angleRad) * 2.dp.toPx()
+                    val endX = rightMeshX + cos(angleRad) * streakLen
+                    val endY = rightMeshY + sin(angleRad) * streakLen
                     drawLine(
-                        color = CORE_FLAME_COLOR.copy(alpha = sparkAlpha),
-                        start = Offset(cx + 11f * scale, cy + yOff * 0.25f),
-                        end = Offset(cx + 11f * scale + reach * (0.45f + along), cy + yOff),
-                        strokeWidth = 1.6f * scale,
+                        color = color.copy(alpha = sparkAlpha),
+                        start = Offset(startX, startY),
+                        end = Offset(endX, endY),
+                        strokeWidth = strokeW,
                         cap = StrokeCap.Round,
                     )
                 }
             }
-        }
 
-        Box(
-            modifier = Modifier.graphicsLayer {
-                rotationZ = currentAngle
-            },
-        ) {
-            Canvas(modifier = Modifier.size(INDICATOR_SIZE)) {
-                with(cogPainter) {
-                    draw(size)
+            if (meshProgress > 0f) {
+                rotate(degrees = drivingAngle, pivot = Offset(leftCogX, leftCogY)) {
+                    translate(left = leftCogX - secSize / 2f, top = leftCogY - secSize / 2f) {
+                        with(cogPainter) {
+                            draw(size = Size(secSize, secSize), alpha = meshProgress)
+                        }
+                    }
+                    val secR = secSize / 2f
+                    repeat(8) { t ->
+                        val tAngleRad = (t * (360f / 8f) * (PI / 180f)).toFloat()
+                        val rIn = secR - 1.dp.toPx()
+                        val rOut = secR + 2.dp.toPx()
+                        drawLine(
+                            color = CORE_FLAME_COLOR.copy(alpha = 0.85f * meshProgress),
+                            start = Offset(leftCogX + cos(tAngleRad) * rIn, leftCogY + sin(tAngleRad) * rIn),
+                            end = Offset(leftCogX + cos(tAngleRad) * rOut, leftCogY + sin(tAngleRad) * rOut),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                }
+
+                rotate(degrees = drivingAngle, pivot = Offset(rightCogX, rightCogY)) {
+                    translate(left = rightCogX - secSize / 2f, top = rightCogY - secSize / 2f) {
+                        with(cogPainter) {
+                            draw(size = Size(secSize, secSize), alpha = meshProgress)
+                        }
+                    }
+                    val secR = secSize / 2f
+                    repeat(8) { t ->
+                        val tAngleRad = (t * (360f / 8f) * (PI / 180f)).toFloat()
+                        val rIn = secR - 1.dp.toPx()
+                        val rOut = secR + 2.dp.toPx()
+                        drawLine(
+                            color = CORE_FLAME_COLOR.copy(alpha = 0.85f * meshProgress),
+                            start = Offset(rightCogX + cos(tAngleRad) * rIn, rightCogY + sin(tAngleRad) * rIn),
+                            end = Offset(rightCogX + cos(tAngleRad) * rOut, rightCogY + sin(tAngleRad) * rOut),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                }
+            }
+
+            rotate(degrees = currentAngle, pivot = Offset(cx, cy)) {
+                translate(left = cx - mainSize / 2f, top = cy - mainSize / 2f) {
+                    with(cogPainter) {
+                        draw(size = Size(mainSize, mainSize))
+                    }
+                }
+                val mainR = mainSize / 2f
+                repeat(12) { t ->
+                    val tAngleRad = (t * (360f / 12f) * (PI / 180f)).toFloat()
+                    val rIn = mainR - 1.5.dp.toPx()
+                    val rOut = mainR + 2.dp.toPx()
+                    drawLine(
+                        color = CORE_FLAME_COLOR.copy(alpha = 0.85f),
+                        start = Offset(cx + cos(tAngleRad) * rIn, cy + sin(tAngleRad) * rIn),
+                        end = Offset(cx + cos(tAngleRad) * rOut, cy + sin(tAngleRad) * rOut),
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
                 }
             }
         }

@@ -1,13 +1,23 @@
 package com.pxmx.app.data.session
 
 import com.pxmx.app.data.FakeSharedPreferences
+import com.pxmx.app.ui.extras.StupidCardMotion
+import com.pxmx.app.ui.extras.pickStupidCardMotion
+import com.pxmx.app.ui.extras.stupidCartwheelDegrees
+import com.pxmx.app.ui.extras.stupidCartwheelHopDp
 import com.pxmx.app.ui.extras.stupidChipFlipDegrees
+import com.pxmx.app.ui.extras.stupidCrtInitialScale
+import com.pxmx.app.ui.extras.stupidCrtScaleXDuration
+import com.pxmx.app.ui.extras.stupidCrtScaleYDuration
+import com.pxmx.app.ui.extras.stupidFoldDegrees
 import com.pxmx.app.ui.extras.stupidHeaderSquash
 import com.pxmx.app.ui.extras.stupidLogShakeOffsets
+import com.pxmx.app.ui.extras.stupidPopScales
 import com.pxmx.app.ui.extras.stupidPressScale
 import com.pxmx.app.ui.extras.stupidPressYaw
 import com.pxmx.app.ui.extras.stupidSearchWobbleDegrees
 import com.pxmx.app.ui.extras.stupidSpinTurns
+import com.pxmx.app.ui.extras.stupidSwingDegrees
 import com.pxmx.app.ui.extras.stupidTabYawDegrees
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -116,5 +126,57 @@ class StupidAnimationsTest {
     fun pureFunction_stupidSearchWobbleDegrees() {
         assertEquals(listOf(-3f, 3f, 0f), stupidSearchWobbleDegrees(enabled = true))
         assertEquals(listOf(0f), stupidSearchWobbleDegrees(enabled = false))
+    }
+
+    @Test
+    fun pureFunction_stupidCartwheelDegrees() {
+        assertEquals(360f, stupidCartwheelDegrees(enabled = true), 0.0001f)
+        assertEquals(0f, stupidCartwheelDegrees(enabled = false), 0.0001f)
+    }
+
+    @Test
+    fun pureFunction_stupidCartwheelHopDp() {
+        assertEquals(-8f, stupidCartwheelHopDp(enabled = true), 0.0001f)
+        assertEquals(0f, stupidCartwheelHopDp(enabled = false), 0.0001f)
+    }
+
+    @Test
+    fun pureFunction_stupidFoldDegrees() {
+        assertEquals(-90f, stupidFoldDegrees(enabled = true), 0.0001f)
+        assertEquals(0f, stupidFoldDegrees(enabled = false), 0.0001f)
+    }
+
+    @Test
+    fun pureFunction_stupidCrtInitialScale() {
+        assertEquals(0.04f, stupidCrtInitialScale(enabled = true), 0.0001f)
+        assertEquals(1f, stupidCrtInitialScale(enabled = false), 0.0001f)
+    }
+
+    @Test
+    fun pureFunction_stupidCrtDurations() {
+        assertEquals(140, stupidCrtScaleXDuration(enabled = true))
+        assertEquals(0, stupidCrtScaleXDuration(enabled = false))
+        assertEquals(420, stupidCrtScaleYDuration(enabled = true))
+        assertEquals(0, stupidCrtScaleYDuration(enabled = false))
+    }
+
+    @Test
+    fun pureFunction_stupidSwingDegrees() {
+        assertEquals(listOf(10f, -8f, 5f, 0f), stupidSwingDegrees(enabled = true))
+        assertEquals(listOf(0f), stupidSwingDegrees(enabled = false))
+    }
+
+    @Test
+    fun pureFunction_stupidPopScales() {
+        assertEquals(listOf(0.86f, 1.08f, 1f), stupidPopScales(enabled = true))
+        assertEquals(listOf(1f), stupidPopScales(enabled = false))
+    }
+
+    @Test
+    fun pureFunction_pickStupidCardMotion_allMotionsReachable() {
+        val pickedMotions = (0..5).map { press ->
+            pickStupidCardMotion(cardIdentity = "vm-100", pressCount = press)
+        }.toSet()
+        assertEquals(StupidCardMotion.values().toSet(), pickedMotions)
     }
 }

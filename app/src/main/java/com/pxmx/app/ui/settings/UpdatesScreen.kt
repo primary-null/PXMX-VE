@@ -31,14 +31,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import com.pxmx.app.ui.icons.InstrumentGlyphs
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextOverflow
+import com.pxmx.app.ui.components.rememberReduceMotion
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -858,6 +866,7 @@ private fun NodeStatusRectangle(
                                     fontFamily = FontFamily.Monospace,
                                     color = if (idx == displayLines.lastIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -899,33 +908,19 @@ private fun NodeStatusRectangle(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(Modifier.height(10.dp))
-                            OutlinedButton(
+                            UpdatesActionButton(
+                                text = "OPEN NODE SHELL",
                                 onClick = onOpenNodeShell,
                                 enabled = !anyJobActive,
-                                shape = RoundedCornerShape(2.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = "OPEN NODE SHELL",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedButton(
+                                isPrimary = false,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            UpdatesActionButton(
+                                text = "REFRESH APT LISTS",
                                 onClick = onRefreshApt,
                                 enabled = !anyJobActive,
-                                shape = RoundedCornerShape(2.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = "REFRESH APT LISTS",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                )
-                            }
+                                isPrimary = false,
+                            )
                         }
                     }
                 } else if (isRemoteUpgradeRemoved && snap.updateCount > 0 && !isBusy) {
@@ -958,112 +953,55 @@ private fun NodeStatusRectangle(
                             )
                             Spacer(Modifier.height(10.dp))
                             if (sshAvailability == SshUpgradeAvailability.AVAILABLE) {
-                                Button(
+                                UpdatesActionButton(
+                                    text = "INSTALL VIA SSH",
                                     onClick = onInstallViaSsh,
                                     enabled = !anyJobActive,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = Color.Black,
-                                    ),
-                                    shape = RoundedCornerShape(2.dp),
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(
-                                        text = "INSTALL VIA SSH",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp,
-                                    )
-                                }
-                                Spacer(Modifier.height(6.dp))
+                                    isPrimary = true,
+                                )
+                                Spacer(Modifier.height(8.dp))
                             }
-                            OutlinedButton(
+                            UpdatesActionButton(
+                                text = "OPEN NODE SHELL",
                                 onClick = onOpenNodeShell,
                                 enabled = !anyJobActive,
-                                shape = RoundedCornerShape(2.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = "OPEN NODE SHELL",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedButton(
+                                isPrimary = false,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            UpdatesActionButton(
+                                text = "REFRESH APT LISTS",
                                 onClick = onRefreshApt,
                                 enabled = !anyJobActive,
-                                shape = RoundedCornerShape(2.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = "REFRESH APT LISTS",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                )
-                            }
+                                isPrimary = false,
+                            )
                         }
                     }
                 } else if (snap.updateCount > 0 && !isBusy) {
-                    Button(
+                    UpdatesActionButton(
+                        text = "INSTALL UPDATES (${snap.updateCount})",
                         onClick = onInstallUpdates,
                         enabled = !anyJobActive,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.Black,
-                        ),
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = "INSTALL UPDATES (${snap.updateCount})",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                        )
-                    }
+                        isPrimary = true,
+                    )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
+                    UpdatesActionButton(
+                        text = "REFRESH APT LISTS",
                         onClick = onRefreshApt,
                         enabled = !anyJobActive,
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = "REFRESH APT LISTS",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                        )
-                    }
+                        isPrimary = false,
+                    )
                 } else {
-                    Button(
+                    UpdatesActionButton(
+                        text = when {
+                            state == NodeRefreshState.UPGRADING -> "UPGRADING PACKAGES…"
+                            isBusy -> "PARSING REPOSITORIES…"
+                            else -> "REFRESH APT LISTS"
+                        },
                         onClick = onRefreshApt,
                         enabled = !isBusy && !anyJobActive,
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (isBusy) {
-                            CircularProgressIndicator(
-                                Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(
-                            text = when {
-                                state == NodeRefreshState.UPGRADING -> "UPGRADING PACKAGES…"
-                                isBusy -> "PARSING REPOSITORIES…"
-                                else -> "REFRESH APT LISTS"
-                            },
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                        )
-                    }
+                        isPrimary = true,
+                        isBusy = isBusy,
+                    )
                 }
             }
         }
@@ -1145,6 +1083,9 @@ private fun PackageUpdateRow(
                         letterSpacing = 0.6.sp,
                         style = MaterialTheme.typography.titleSmall,
                         color = textColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
                     )
                     StatusTag(
                         text = if (isSecurity) "SECURITY" else "UPDATABLE",
@@ -1239,18 +1180,22 @@ private fun VersionCard(ver: AptPackageVersion) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     (ver.packageName ?: "?").uppercase(Locale.US),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     ver.version ?: "—",
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             ver.currentState?.let {
@@ -1264,3 +1209,130 @@ private fun VersionCard(ver: AptPackageVersion) {
         }
     }
 }
+
+@Suppress("FunctionNaming", "MagicNumber", "LongMethod")
+@Composable
+private fun UpdatesBusyMark(
+    color: Color,
+    modifier: Modifier = Modifier.size(14.dp),
+) {
+    val reduceMotion = rememberReduceMotion()
+    val angle = if (reduceMotion) {
+        0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "updates-busy")
+        val rotation by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+            ),
+            label = "busy-spin",
+        )
+        rotation
+    }
+
+    Canvas(modifier = modifier) {
+        val radius = (size.minDimension - 3.dp.toPx()) / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        if (reduceMotion) {
+            drawArc(
+                color = color,
+                startAngle = -45f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = stroke,
+            )
+            drawArc(
+                color = color.copy(alpha = 0.45f),
+                startAngle = 135f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = stroke,
+            )
+        } else {
+            val sweep = 65f
+            drawArc(
+                color = color,
+                startAngle = angle,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = stroke,
+            )
+            drawArc(
+                color = color.copy(alpha = 0.5f),
+                startAngle = angle + 180f,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = stroke,
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming", "MagicNumber", "LongParameterList")
+@Composable
+private fun UpdatesActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isPrimary: Boolean = false,
+    isBusy: Boolean = false,
+) {
+    val cutShape = CutCornerShape(bottomEnd = 6.dp)
+    val bgColor = when {
+        !enabled -> TechColors.Hull.copy(alpha = 0.6f)
+        isPrimary -> TechColors.Amber
+        else -> TechColors.Hull
+    }
+    val contentColor = when {
+        !enabled -> TechColors.Mute
+        isPrimary -> Color.Black
+        else -> TechColors.Amber
+    }
+    val borderColor = when {
+        !enabled -> TechColors.Edge.copy(alpha = 0.4f)
+        isPrimary -> TechColors.Amber
+        else -> TechColors.Edge
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(cutShape)
+            .background(bgColor)
+            .border(1.dp, borderColor, cutShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            if (isBusy) {
+                UpdatesBusyMark(color = contentColor)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                text = text,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = contentColor,
+            )
+        }
+    }
+}
+

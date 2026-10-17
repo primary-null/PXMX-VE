@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.update
 import com.pxmx.app.data.repo.recentBackupChip
 import com.pxmx.app.data.repo.recentBackupDetail
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -297,6 +298,12 @@ data class HomeUiState(
     }
 }
 
+/**
+ * Decision function for single-flight refresh.
+ * Returns true when initial is true or inFlight is false.
+ */
+fun refreshShouldStart(inFlight: Boolean, initial: Boolean): Boolean = initial || !inFlight
+
 class HomeViewModel(
     private val nodeRepo: NodeRepository,
     private val guestRepo: GuestRepository,
@@ -310,6 +317,7 @@ class HomeViewModel(
 
     private val watchPoster: WatchPoster = PlatformWatchPoster(context)
     private var lastSilentRefreshMs = 0L
+    private var refreshJob: Job? = null
 
     val watchedIds: StateFlow<Set<String>> = sessionStore.watchedIds
     val consoleCardFace: StateFlow<Boolean> = sessionStore.consoleCardFace
@@ -517,8 +525,16 @@ class HomeViewModel(
         }
     }
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun refresh(initial: Boolean = false) {
-        viewModelScope.launch {
+        val inFlight = refreshJob?.isActive == true
+        if (!refreshShouldStart(inFlight = inFlight, initial = initial)) {
+            return
+        }
+        if (initial) {
+            refreshJob?.cancel()
+        }
+        refreshJob = viewModelScope.launch {
             _ui.update {
                 it.copy(
                     loading = initial,
@@ -861,6 +877,11 @@ class HomeViewModel(
         latestLog = repository.latestLog,
         taskNotificationWatcher = repository.taskNotificationWatcher,
     )
+
+    override fun onCleared() {
+        super.onCleared()
+        refreshJob?.cancel()
+    }
 
     class Factory(
         private val repository: ProxmoxRepository,
