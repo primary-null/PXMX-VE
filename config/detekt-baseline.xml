@@ -9,17 +9,20 @@
     <ID>ComplexCondition:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher.Companion$!sata0.isNullOrBlank() &amp;&amp; sata0 != "none" &amp;&amp; (sata0.contains(".iso") || sata0.contains(":iso/"))</ID>
     <ID>ComplexCondition:ConsoleHelpers.kt$ConsoleMimeUtils$!name.equals("Content-Encoding", ignoreCase = true) &amp;&amp; !name.equals("Content-Length", ignoreCase = true) &amp;&amp; !name.equals("Transfer-Encoding", ignoreCase = true) &amp;&amp; !name.equals("Content-Type", ignoreCase = true)</ID>
     <ID>ComplexCondition:ConsoleScreen.kt$(!isDisposed[0] || acceptLastStill[0]) &amp;&amp; !result.isNullOrBlank() &amp;&amp; result != "null"</ID>
+    <ID>ComplexCondition:DexDashboardScreen.kt$consoleCardFace &amp;&amp; res.type == "qemu" &amp;&amp; res.isRunning &amp;&amp; res.vmid != null</ID>
     <ID>ComplexCondition:DexDashboardScreen.kt$res.node != null &amp;&amp; res.type != null &amp;&amp; res.vmid != null &amp;&amp; res.name != null</ID>
     <ID>ComplexCondition:Format.kt$disk == null || disk &lt;= 0L || maxdisk == null || maxdisk &lt;= 0L</ID>
     <ID>ComplexCondition:GuestConfigParser.kt$GuestConfigParser$head.contains('=') &amp;&amp; !head.contains(':') &amp;&amp; !head.contains('/') &amp;&amp; !head.startsWith("name=")</ID>
     <ID>ComplexCondition:GuestConfigParser.kt$GuestConfigParser$k in secretKeys || k.contains("password") || k.contains("secret") || k.contains("token")</ID>
     <ID>ComplexCondition:GuestDetailScreen.kt$logState.lastS != s || logState.lastT != t || logState.lastE != e || logState.lastM != m || logState.lastC != c || logState.lastMax != constraints.maxWidth || logState.lastPath != path</ID>
+    <ID>ComplexCondition:HomeMasthead.kt$(emphasized || spinCount &gt; 0) &amp;&amp; isSync &amp;&amp; stupidEnabled &amp;&amp; !reduceMotion</ID>
+    <ID>ComplexCondition:HomeScreen.kt$consoleCardFace &amp;&amp; res.type == "qemu" &amp;&amp; res.isRunning &amp;&amp; res.vmid != null</ID>
     <ID>ComplexCondition:LoginScreen.kt$scan.isComplete &amp;&amp; scan.discoveredHosts.isEmpty() &amp;&amp; scan.unverifiedHosts.isEmpty() &amp;&amp; scan.pveDetectedHosts.isEmpty() &amp;&amp; scan.error == null</ID>
     <ID>ComplexCondition:LoginScreen.kt$scan.isScanning || scan.discoveredHosts.isNotEmpty() || scan.pveDetectedHosts.isNotEmpty() || scan.unverifiedHosts.isNotEmpty() || scan.error != null || scan.infoMessage != null || (scan.isComplete &amp;&amp; scan.discoveredHosts.isEmpty() &amp;&amp; scan.unverifiedHosts.isEmpty() &amp;&amp; scan.pveDetectedHosts.isEmpty())</ID>
-    <ID>ComplexCondition:OpsBoardStore.kt$OpsBoard$idx &lt; 0 || idx &gt;= clipOrder.size - 2 || clipId == "VITALS" || clipId == "RAW"</ID>
     <ID>ComplexCondition:SdnScreen.kt$state.loading &amp;&amp; state.zones.isEmpty() &amp;&amp; state.vnets.isEmpty() &amp;&amp; state.statuses.isEmpty() &amp;&amp; state.error == null</ID>
     <ID>ComplexCondition:SshCredentialPolicy.kt$SshCredentialPolicy$config.authMode != AuthMode.PASSWORD || session.ticket.isNullOrBlank() || session.username != "root@pam" || PveClient.normalizeUsername(config.username, config.realm) != "root@pam"</ID>
     <ID>ComplexCondition:StorageRepository.kt$StorageRepository.Companion$trimmed.isEmpty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..")</ID>
+    <ID>ComplexCondition:ThemeBackdrop.kt$radiusPx &lt;= 0 || width &lt;= 0 || height &lt;= 0 || pixels.size &lt; width * height</ID>
     <ID>ComplexCondition:UpdatesScreen.kt$state.error != null || state.loading || state.refreshing || state.nodes.isEmpty()</ID>
     <ID>ComplexCondition:UpdatesScreen.kt$state.error == null &amp;&amp; !state.loading &amp;&amp; !state.refreshing &amp;&amp; state.totalPending == 0 &amp;&amp; !state.anyJobActive &amp;&amp; state.nodes.isNotEmpty()</ID>
     <ID>CyclomaticComplexMethod:AuthRepository.kt$AuthRepository$suspend fun login( config: ServerConfig, saveCredentials: Boolean = true, profileId: String? = null, enableAutoConnect: Boolean? = null, label: String = "", forceNewProfile: Boolean = false, silent: Boolean = false, renewalOf: SessionSnapshot? = null, ): LoginOutcome</ID>
@@ -35,18 +38,18 @@
     <ID>CyclomaticComplexMethod:FirewallScreen.kt$@Composable private fun RuleCard(rule: FirewallRule)</ID>
     <ID>CyclomaticComplexMethod:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming", "LongMethod") private fun BezelHugRow( state: GuestDetailUiState, viewModel: GuestDetailViewModel, listState: LazyListState, keysInLazyColumn: List&lt;String&gt;, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming", "LongParameterList") private fun BezelStamps( state: GuestDetailUiState, viewModel: GuestDetailViewModel, listState: LazyListState, keysInLazyColumn: List&lt;String&gt;, coroutineScope: CoroutineScope, modifier: Modifier = Modifier, )</ID>
     <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
-    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable @Suppress("FunctionNaming") private fun WeakTab( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, )</ID>
+    <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable @Suppress("FunctionNaming") private fun WeakTab( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, armed: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:GuestNetworkHelper.kt$GuestNetworkHelper$fun parseAgentInterfaces(data: JsonElement?): List&lt;GuestLiveInterface&gt;</ID>
     <ID>CyclomaticComplexMethod:GuestNetworkHelper.kt$GuestNetworkHelper$fun parseLxcInterfaces(data: JsonElement?): List&lt;GuestLiveInterface&gt;</ID>
     <ID>CyclomaticComplexMethod:GuestRepository.kt$GuestRepository$suspend fun attachUsb( node: String, guestType: GuestType, vmid: Long, hostId: String, usb3: Boolean = true, ): Result&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:GuestRepository.kt$GuestRepository$suspend fun guestAction( node: String, guestType: GuestType, vmid: Long, action: GuestAction, ): Result&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:GuestRepository.kt$GuestRepository$suspend fun loadGuests( api: ProxmoxApi, nodeName: String, guestType: String, ): List&lt;ClusterResource&gt;</ID>
-    <ID>CyclomaticComplexMethod:HomeScreen.kt$@Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), )</ID>
     <ID>CyclomaticComplexMethod:HomeScreen.kt$@Composable private fun GuestQuickActions( resource: ClusterResource, busy: Boolean, onPowerToggle: (Boolean) -&gt; Unit, onGuestAction: (GuestAction) -&gt; Unit, onReboot: () -&gt; Unit, onOnbootToggle: (Boolean) -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( viewModel: HomeViewModel, onOpenGuest: (node: String, type: String, vmid: Long, name: String) -&gt; Unit, onOpenStorage: (node: String, storage: String) -&gt; Unit, onOpenNode: (node: String) -&gt; Unit, onOpenSettings: () -&gt; Unit, onOpenLampSettings: () -&gt; Unit = {}, onOpenTasks: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, onOpenServers: () -&gt; Unit, onOpenUpdates: () -&gt; Unit = {}, onLogout: () -&gt; Unit, onSwitchAccount: () -&gt; Unit, canOfferNodeShell: Boolean = false, onOpenNodeShell: ((node: String) -&gt; Unit)? = null, isTabletop: Boolean = false, modifier: Modifier = Modifier, )</ID>
-    <ID>CyclomaticComplexMethod:HomeScreen.kt$private fun metricsLine(r: ClusterResource): String</ID>
+    <ID>CyclomaticComplexMethod:HomeScreen.kt$@Suppress("FunctionNaming", "LongParameterList") @Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, watched: Boolean = false, onToggleWatch: (() -&gt; Unit)? = null, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), still: ConsoleStill? = null, )</ID>
     <ID>CyclomaticComplexMethod:HomeViewModel.kt$HomeUiState.Companion$fun resourceComparator( filter: ResourceFilter, sort: ResourceSort, ): Comparator&lt;ClusterResource&gt;</ID>
     <ID>CyclomaticComplexMethod:LocalNet.kt$LocalNet$@Suppress("DEPRECATION") fun getScannableSubnets(): List&lt;SubnetInfo&gt;</ID>
     <ID>CyclomaticComplexMethod:LocalNet.kt$LocalNet$fun scanSubnet( subnet: SubnetInfo? = null, port: Int = 8006, concurrency: Int = 32, ): Flow&lt;ScanProgress&gt;</ID>
@@ -56,6 +59,7 @@
     <ID>CyclomaticComplexMethod:LoginScreen.kt$@Composable private fun DiscoveredHostCard( candidate: DiscoveredHost, isDemo: Boolean, ping: HostPingUi?, onPing: () -&gt; Unit, onClick: () -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:LoginScreen.kt$@Composable private fun ProfileCard( profile: SavedProfile, selected: Boolean, isLast: Boolean, testState: com.pxmx.app.ui.login.ProfileTestState?, onSelect: () -&gt; Unit, onTest: () -&gt; Unit, onQuickConnect: () -&gt; Unit, onDelete: () -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:LoginViewModel.kt$LoginViewModel$fun startNetworkScan()</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt$MainActivity$@OptIn(ExperimentalComposeUiApi::class) override fun onCreate(savedInstanceState: Bundle?)</ID>
     <ID>CyclomaticComplexMethod:NavGraph.kt$@OptIn(ExperimentalMaterial3AdaptiveApi::class) @Composable fun ProxmoxNavGraph()</ID>
     <ID>CyclomaticComplexMethod:NetworkSection.kt$@Composable fun NetworkUsbBody( cfg: ParsedGuestConfig?, hostUsbs: List&lt;HostUsbDevice&gt;, liveInterfaces: List&lt;GuestLiveInterface&gt; = emptyList(), firewall: FirewallSnapshot? = null, isQemu: Boolean, busy: Boolean, onDetach: (usbKey: String) -&gt; Unit, onAttach: (hostId: String, usb3: Boolean) -&gt; Unit, onRefreshUsb: () -&gt; Unit, onToggleFirewall: ((net: ConfigNet) -&gt; Unit)? = null, onToggleLinkDown: ((net: ConfigNet) -&gt; Unit)? = null, )</ID>
     <ID>CyclomaticComplexMethod:NetworkSection.kt$@Composable private fun MiniNet( net: ConfigNet, cloudInitIp: String?, liveInterface: GuestLiveInterface?, isQemu: Boolean, busy: Boolean, onToggleFirewall: (() -&gt; Unit)?, onToggleLinkDown: (() -&gt; Unit)?, )</ID>
@@ -63,6 +67,9 @@
     <ID>CyclomaticComplexMethod:NodeDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NodeDetailScreen( viewModel: NodeDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: (String?) -&gt; Unit, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>CyclomaticComplexMethod:NodeRepository.kt$NodeRepository$suspend fun nodeSyslog( node: String, start: Int? = null, limit: Int? = 50, ): Result&lt;List&lt;ClusterLogEntry&gt;&gt;</ID>
     <ID>CyclomaticComplexMethod:NodeSshTarget.kt$NodeReportedAddress$fun contains(targetIp: String): Boolean</ID>
+    <ID>CyclomaticComplexMethod:NucleusLayout.kt$fun buildNucleusLayout( siteInfo: SiteInfo?, resources: List&lt;ClusterResource&gt;, ): NucleusSceneLayout</ID>
+    <ID>CyclomaticComplexMethod:NucleusScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NucleusScreen( viewModel: NucleusViewModel, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:NucleusViewModel.kt$NucleusViewModel$fun refresh(initial: Boolean = false)</ID>
     <ID>CyclomaticComplexMethod:OpsBoardStore.kt$fun computeAppliedClips(board: OpsBoard, isTourActive: Boolean = isTourActiveNow()): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:OptionsSection.kt$@Composable fun OptionsBody(cfg: ParsedGuestConfig?)</ID>
     <ID>CyclomaticComplexMethod:PveClient.kt$PveClient$fun mapError(e: Exception): Exception</ID>
@@ -70,6 +77,8 @@
     <ID>CyclomaticComplexMethod:PveClient.kt$PveClient.Companion$fun formatHttpError(code: Int, rawBody: String?, httpMessage: String?): String</ID>
     <ID>CyclomaticComplexMethod:PveTaskLiveUpdate.kt$PveTaskLiveUpdate$fun watchTask(upid: String): Job?</ID>
     <ID>CyclomaticComplexMethod:RecentActionRegistry.kt$RecentActionRegistry$fun isSuppressed( entry: ClusterLogEntry, sessionUser: String?, nowMs: Long = System.currentTimeMillis(), ): Boolean</ID>
+    <ID>CyclomaticComplexMethod:RefreshStyle.kt$@Suppress("MagicNumber") @Composable private fun RocketIndicator( pullFraction: Float, isRefreshing: Boolean, reduceMotion: Boolean, unlocked: Boolean = false, )</ID>
+    <ID>CyclomaticComplexMethod:RefreshStyle.kt$@Suppress("MagicNumber") fun stepRefreshEgg( sample: RefreshEggSample, tick: RefreshEggTick, ): RefreshEggSample</ID>
     <ID>CyclomaticComplexMethod:SdnScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SdnScreen( viewModel: SdnViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:SdnViewModel.kt$SdnViewModel$fun applySdn(): Job?</ID>
     <ID>CyclomaticComplexMethod:ServersScreen.kt$@Composable private fun ServerCard( server: ServerCardState, onClick: () -&gt; Unit )</ID>
@@ -81,6 +90,7 @@
     <ID>CyclomaticComplexMethod:TechHistoryGraph.kt$@Composable fun TechHistoryGraph( points: List&lt;RrdPoint&gt;, isGuest: Boolean, modifier: Modifier = Modifier, timeframe: HistoryTimeframe = HistoryTimeframe.HOUR, onTimeframe: ((HistoryTimeframe) -&gt; Unit)? = null, )</ID>
     <ID>CyclomaticComplexMethod:TechHistoryGraph.kt$private fun DrawScope.drawLineSeries( points: List&lt;RrdPoint&gt;, color: Color, fill: Boolean, minVal: Double, maxVal: Double, value: (RrdPoint) -&gt; Double?, strokeWidth: Float = 1.8f, yZero: Float? = null, yPositiveIsUp: Boolean = true, halfHeight: Float? = null, )</ID>
     <ID>CyclomaticComplexMethod:TechHistoryGraph.kt$private fun rowValueText(row: HistoryRowId, point: RrdPoint?, isGuest: Boolean): String</ID>
+    <ID>CyclomaticComplexMethod:ThemeBackdrop.kt$suspend fun importCopiedBackdrop( context: Context, source: File, sessionStore: SessionStore, ): Boolean</ID>
     <ID>CyclomaticComplexMethod:Toasts.kt$Toasts$private fun inferKind(msg: String): ToastKind</ID>
     <ID>CyclomaticComplexMethod:UpdatesScreen.kt$@Composable private fun NodeStatusRectangle( snap: NodeUpdateSnapshot, progress: NodeRefreshProgress?, nodeStatus: NodeStatus?, serverHost: String, pveVersion: String, isRemoteUpgradeRemoved: Boolean = false, sshAvailability: SshUpgradeAvailability = SshUpgradeAvailability.AVAILABLE, anyJobActive: Boolean, onRefreshApt: () -&gt; Unit, onInstallUpdates: () -&gt; Unit, onInstallViaSsh: () -&gt; Unit = {}, onOpenNodeShell: () -&gt; Unit = {}, onClick: () -&gt; Unit, onDismiss: () -&gt; Unit, )</ID>
     <ID>CyclomaticComplexMethod:UpdatesScreen.kt$@Composable private fun PackageUpdateRow( upd: AptPackageUpdate, node: String, isActive: Boolean, isUpgrading: Boolean = false, )</ID>
@@ -89,6 +99,7 @@
     <ID>CyclomaticComplexMethod:UpdatesViewModel.kt$UpdatesViewModel$fun installUpdates(node: String)</ID>
     <ID>CyclomaticComplexMethod:UpdatesViewModel.kt$UpdatesViewModel$fun refresh(initial: Boolean = false)</ID>
     <ID>CyclomaticComplexMethod:UpdatesViewModel.kt$UpdatesViewModel$fun refreshAptDb(node: String)</ID>
+    <ID>CyclomaticComplexMethod:WatchCopy.kt$fun watchNotice(resource: ClusterResource): WatchNotice?</ID>
     <ID>EmptyFunctionBlock:ConsoleViewModelTest.kt$ConsoleViewModelTest.&lt;no name provided&gt;${}</ID>
     <ID>EmptyFunctionBlock:FakeSharedPreferences.kt$FakeSharedPreferences${}</ID>
     <ID>EmptyFunctionBlock:GuestDetailViewModelTest.kt$GuestDetailViewModelTest.&lt;no name provided&gt;${}</ID>
@@ -132,6 +143,7 @@
     <ID>FunctionNaming:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:FirewallSection.kt$@Composable fun FirewallBody( snapshot: FirewallSnapshot?, error: String? = null, )</ID>
     <ID>FunctionNaming:FirewallSection.kt$@Composable private fun RuleSummaryRow(rule: FirewallRule)</ID>
+    <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun BezelStamp( index: Int, scrubIndex: Int, reduceMotion: Boolean, peakPx: Float, spans: Array&lt;ClosedFloatingPointRange&lt;Float&gt;&gt;, label: String, fullLabel: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun HeroCard( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
     <ID>FunctionNaming:GuestDetailScreen.kt$@Composable private fun LinearBusy()</ID>
@@ -139,7 +151,9 @@
     <ID>FunctionNaming:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>FunctionNaming:HardwareSection.kt$@Composable fun HardwareBody(cfg: ParsedGuestConfig?)</ID>
     <ID>FunctionNaming:HardwareSection.kt$@Composable private fun MiniDisk(disk: ConfigDisk)</ID>
-    <ID>FunctionNaming:HomeScreen.kt$@Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), )</ID>
+    <ID>FunctionNaming:HomeMasthead.kt$@Composable fun HomeCommandStrip( refreshing: Boolean, menuOpen: Boolean, onSync: () -&gt; Unit, onTasks: () -&gt; Unit, onMenu: () -&gt; Unit, menu: @Composable () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:HomeMasthead.kt$@Composable private fun BayDivider()</ID>
+    <ID>FunctionNaming:HomeMasthead.kt$@Composable private fun CommandBay( label: String, emphasized: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable fun StatusSectionHeader( title: String, count: Int, collapsed: Boolean, onToggle: () -&gt; Unit )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable private fun CategoryRail( selected: ResourceFilter, onSelect: (ResourceFilter) -&gt; Unit, )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable private fun GuestQuickActions( resource: ClusterResource, busy: Boolean, onPowerToggle: (Boolean) -&gt; Unit, onGuestAction: (GuestAction) -&gt; Unit, onReboot: () -&gt; Unit, onOnbootToggle: (Boolean) -&gt; Unit, )</ID>
@@ -179,11 +193,15 @@
     <ID>FunctionNaming:NotificationSettingsScreen.kt$@Composable private fun NotificationToggleRow( title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:NotificationSettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NotificationSettingsContent( prefs: NotificationPrefs, onUpdatePrefs: (NotificationPrefs) -&gt; Unit, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:NotificationSettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NotificationSettingsScreen( sessionStore: SessionStore, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:NucleusScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NucleusScreen( viewModel: NucleusViewModel, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:OptionsSection.kt$@Composable fun OptionsBody(cfg: ParsedGuestConfig?)</ID>
-    <ID>FunctionNaming:PermissionsScreen.kt$@Composable private fun PermissionCard( name: String, reason: String )</ID>
     <ID>FunctionNaming:PermissionsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun PermissionsScreen( onBack: () -&gt; Unit )</ID>
     <ID>FunctionNaming:PingFillBar.kt$@Composable fun PingPlateFill( running: Boolean, latencyMs: Long?, failed: Boolean, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:RawSection.kt$@Composable fun RawBody(cfg: ParsedGuestConfig?)</ID>
+    <ID>FunctionNaming:RefreshStyle.kt$@Composable fun RefreshCogRow(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:RefreshStyle.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreenPullRefreshIndicator( state: PullToRefreshState, isRefreshing: Boolean, modifier: Modifier = Modifier, eggSample: RefreshEggSample = RefreshEggSample(), )</ID>
+    <ID>FunctionNaming:RefreshStyle.kt$@Suppress("MagicNumber") @Composable private fun CogIndicator( pullFraction: Float, isRefreshing: Boolean, reduceMotion: Boolean, unlocked: Boolean = false, )</ID>
+    <ID>FunctionNaming:RefreshStyle.kt$@Suppress("MagicNumber") @Composable private fun RocketIndicator( pullFraction: Float, isRefreshing: Boolean, reduceMotion: Boolean, unlocked: Boolean = false, )</ID>
     <ID>FunctionNaming:SdnScreen.kt$@Composable fun ZeroStateCard(title: String, subtitle: String)</ID>
     <ID>FunctionNaming:SdnScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SdnScreen( viewModel: SdnViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:ServerLamp.kt$@Composable fun ChassisLamp( state: ServerLampState, modifier: Modifier = Modifier, contentDescription: String? = null, blinkToken: String? = null, reduceMotion: Boolean = false, )</ID>
@@ -199,12 +217,15 @@
     <ID>FunctionNaming:ServersScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ServersScreen( viewModel: ServersViewModel, onBack: () -&gt; Unit, onServerSelected: (String) -&gt; Unit, onLoginPrefilled: (String) -&gt; Unit )</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun CleanSlatePlate( onPurgeAndExit: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SettingsRow( title: String, subtitle: String, onClick: () -&gt; Unit, )</ID>
-    <ID>FunctionNaming:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNucleus: () -&gt; Unit = {}, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, onRandomJump: () -&gt; Unit = {}, consoleCardFace: Boolean = false, onConsoleCardFace: (Boolean) -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:SnapshotsSection.kt$@Composable fun CreateSnapshotDialog( isQemu: Boolean, onDismiss: () -&gt; Unit, onConfirm: (name: String, desc: String, includeRam: Boolean) -&gt; Unit, )</ID>
     <ID>FunctionNaming:SnapshotsSection.kt$@Composable fun SnapshotsBody( snapshots: List&lt;SnapshotInfo&gt;, busy: Boolean, onDelete: (String) -&gt; Unit, onRollback: (String) -&gt; Unit, )</ID>
     <ID>FunctionNaming:SplashScreen.kt$@Composable fun SplashScreen( statusText: String = "", bootstrap: suspend () -&gt; Boolean, onFinished: (autoConnected: Boolean) -&gt; Unit, )</ID>
     <ID>FunctionNaming:StorageDetailScreen.kt$@Composable private fun ContentCard( item: StorageContentItem, busy: Boolean, onDelete: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:StorageDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun StorageDetailScreen( viewModel: StorageDetailViewModel, onBack: () -&gt; Unit, isEmbeddedInPane: Boolean = false, )</ID>
+    <ID>FunctionNaming:StupidAnimations.kt$@Composable fun StupidAnimationsRow(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:StupidAnimations.kt$@Composable fun StupidCardWrapper( modifier: Modifier = Modifier, content: @Composable () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:StupidAnimations.kt$@Composable fun StupidDetailPane( identityKey: Any?, modifier: Modifier = Modifier, content: @Composable () -&gt; Unit, )</ID>
     <ID>FunctionNaming:SystemLogStrip.kt$@Composable fun SystemLogStrip( entry: ClusterLogEntry?, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:TagChip.kt$@Composable fun AddTagButton( onAddTag: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:TagChip.kt$@Composable fun TagChip( tag: String, modifier: Modifier = Modifier, isSelected: Boolean = false, onClick: (() -&gt; Unit)? = null, onRemove: (() -&gt; Unit)? = null, )</ID>
@@ -226,7 +247,9 @@
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechPlate( modifier: Modifier = Modifier, railColor: Color = TechColors.Amber, showRail: Boolean = true, fillMaxWidth: Boolean = true, testTag: String? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechSectionLabel( title: String, count: Int? = null, accent: Color = TechColors.Amber, )</ID>
     <ID>FunctionNaming:TechPlate.kt$@Composable fun TechStatusPlate(status: String?)</ID>
+    <ID>FunctionNaming:TechPlate.kt$@Composable fun TechSwitch( checked: Boolean, onCheckedChange: ((Boolean) -&gt; Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true, )</ID>
     <ID>FunctionNaming:Theme.kt$@Composable fun ProxmoxTheme( themeMode: ThemeMode = ThemeMode.OLED_DARK, content: @Composable () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:ThemeBackdrop.kt$@Composable fun ThemeBackdropSection( modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:Toasts.kt$@Composable fun TechToastBanner( toast: ToastEvent, onDismiss: () -&gt; Unit = {}, )</ID>
     <ID>FunctionNaming:Toasts.kt$@Composable fun ToastHost( modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:TourOverlay.kt$@Composable fun TourOverlay( modifier: Modifier = Modifier, )</ID>
@@ -243,6 +266,7 @@
     <ID>InstanceOfCheckForException:GuestRepository.kt$GuestRepository$e is retrofit2.HttpException</ID>
     <ID>InstanceOfCheckForException:LocalNet.kt$LocalNet$e is CancellationException</ID>
     <ID>InstanceOfCheckForException:NodeSshTarget.kt$e is CancellationException</ID>
+    <ID>InstanceOfCheckForException:NucleusViewModel.kt$NucleusViewModel$e is CancellationException</ID>
     <ID>InstanceOfCheckForException:PveClient.kt$PveClient$e is CancellationException</ID>
     <ID>InstanceOfCheckForException:PveClient.kt$PveClient$e is HttpException</ID>
     <ID>InstanceOfCheckForException:SecurePrefs.kt$SecurePrefs$e is CancellationException</ID>
@@ -256,7 +280,6 @@
     <ID>LongMethod:AdaptiveDialog.kt$@Composable fun AdaptiveAlertDialog( onDismissRequest: () -&gt; Unit, confirmButton: @Composable () -&gt; Unit, modifier: Modifier = Modifier, dismissButton: @Composable (() -&gt; Unit)? = null, icon: @Composable (() -&gt; Unit)? = null, title: @Composable (() -&gt; Unit)? = null, text: @Composable (() -&gt; Unit)? = null, shape: Shape = TechPlateShape, containerColor: Color = TechColors.Hull, iconContentColor: Color = LocalContentColor.current, titleContentColor: Color = MaterialTheme.colorScheme.onSurface, textContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant, tonalElevation: Dp = AlertDialogDefaults.TonalElevation, targetPane: DialogPane = LocalDialogPane.current, primaryPaneWidth: Dp = LocalPrimaryPaneWidth.current, )</ID>
     <ID>LongMethod:AdaptivePaneSplitter.kt$@Composable fun AdaptivePaneSplitter( currentWidthDp: Float, onWidthChange: (Float) -&gt; Unit, onResetDefault: () -&gt; Unit, modifier: Modifier = Modifier, minWidthDp: Float = 260f, maxWidthDp: Float = 540f, defaultWidthDp: Float = OPERATOR_PRIMARY_PANE_WIDTH_DP.toFloat(), creaseX: Float? = null, )</ID>
     <ID>LongMethod:AuthRepository.kt$AuthRepository$suspend fun login( config: ServerConfig, saveCredentials: Boolean = true, profileId: String? = null, enableAutoConnect: Boolean? = null, label: String = "", forceNewProfile: Boolean = false, silent: Boolean = false, renewalOf: SessionSnapshot? = null, ): LoginOutcome</ID>
-    <ID>LongMethod:BackupsSection.kt$@Composable fun CreateBackupDialog( storages: List&lt;String&gt;, onDismiss: () -&gt; Unit, onConfirm: (storage: String, mode: String) -&gt; Unit, )</ID>
     <ID>LongMethod:CleanSlateAndTourTest.kt$CleanSlateAndTourTest$@Test fun tourController_tapPathLambdas_guestDetailPowerPathsAdvance()</ID>
     <ID>LongMethod:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$fun onClusterTasks(tasks: List&lt;Map&lt;String, Any&gt;&gt;)</ID>
     <ID>LongMethod:ConsoleHelpers.kt$ConsoleMimeUtils$fun buildFitScript(wide: Boolean): String</ID>
@@ -271,15 +294,19 @@
     <ID>LongMethod:FirewallScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FirewallScreen( viewModel: FirewallViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:FirewallSection.kt$@Composable fun FirewallBody( snapshot: FirewallSnapshot?, error: String? = null, )</ID>
     <ID>LongMethod:FirewallViewModel.kt$FirewallViewModel$fun setFirewallEnabled(enable: Boolean): Job?</ID>
+    <ID>LongMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming") private fun BezelEditButton( state: GuestDetailUiState, viewModel: GuestDetailViewModel, listState: LazyListState, coroutineScope: CoroutineScope, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming") private fun ConsoleCard( running: Boolean, busy: Boolean, guestType: GuestType, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, still: ConsoleStill? = null, )</ID>
+    <ID>LongMethod:GuestDetailScreen.kt$@Composable @Suppress("FunctionNaming", "LongParameterList") private fun BezelStamps( state: GuestDetailUiState, viewModel: GuestDetailViewModel, listState: LazyListState, keysInLazyColumn: List&lt;String&gt;, coroutineScope: CoroutineScope, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@Composable private fun EditBoardCard( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@Composable private fun HeroCard( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable @Suppress("FunctionNaming") private fun GuestSectionPlate( title: String, subtitle: String? = null, expanded: Boolean = false, onToggle: () -&gt; Unit = {}, showPin: Boolean = false, isPinned: Boolean = false, onTogglePin: () -&gt; Unit = {}, testTag: String? = null, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable () -&gt; Unit, )</ID>
     <ID>LongMethod:GuestDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GuestDetailScreen( viewModel: GuestDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, isEmbeddedInPane: Boolean = false, )</ID>
-    <ID>LongMethod:HomeScreen.kt$@Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), )</ID>
+    <ID>LongMethod:HomeMasthead.kt$@Composable private fun CommandBay( label: String, emphasized: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable fun StatusSectionHeader( title: String, count: Int, collapsed: Boolean, onToggle: () -&gt; Unit )</ID>
     <ID>LongMethod:HomeScreen.kt$@Composable private fun GuestQuickActions( resource: ClusterResource, busy: Boolean, onPowerToggle: (Boolean) -&gt; Unit, onGuestAction: (GuestAction) -&gt; Unit, onReboot: () -&gt; Unit, onOnbootToggle: (Boolean) -&gt; Unit, )</ID>
     <ID>LongMethod:HomeScreen.kt$@Composable private fun RecentBackupsSection( tasks: List&lt;RecentBackupTask&gt;, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( viewModel: HomeViewModel, onOpenGuest: (node: String, type: String, vmid: Long, name: String) -&gt; Unit, onOpenStorage: (node: String, storage: String) -&gt; Unit, onOpenNode: (node: String) -&gt; Unit, onOpenSettings: () -&gt; Unit, onOpenLampSettings: () -&gt; Unit = {}, onOpenTasks: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, onOpenServers: () -&gt; Unit, onOpenUpdates: () -&gt; Unit = {}, onLogout: () -&gt; Unit, onSwitchAccount: () -&gt; Unit, canOfferNodeShell: Boolean = false, onOpenNodeShell: ((node: String) -&gt; Unit)? = null, isTabletop: Boolean = false, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@Suppress("FunctionNaming", "LongParameterList") @Composable fun ResourceCard( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, watched: Boolean = false, onToggleWatch: (() -&gt; Unit)? = null, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), still: ConsoleStill? = null, )</ID>
     <ID>LongMethod:LocalNet.kt$LocalNet$fun scanSubnet( subnet: SubnetInfo? = null, port: Int = 8006, concurrency: Int = 32, ): Flow&lt;ScanProgress&gt;</ID>
     <ID>LongMethod:LocalNet.kt$LocalNet$open suspend fun probePveVersion( host: String, port: Int = 8006, timeoutMs: Long = 10000L ): ProbeResult</ID>
     <ID>LongMethod:LogScreen.kt$@Composable private fun LogDetailPane( entry: ClusterLogEntry, modifier: Modifier = Modifier, )</ID>
@@ -293,6 +320,7 @@
     <ID>LongMethod:LoginScreen.kt$@Composable private fun TfaCard( state: LoginUiState, viewModel: LoginViewModel, )</ID>
     <ID>LongMethod:LoginViewModel.kt$LoginViewModel$fun startNetworkScan()</ID>
     <ID>LongMethod:LoginViewModel.kt$LoginViewModel$private fun performLogin( overrideProfileId: String?, forceNewProfile: Boolean, newLabel: String, )</ID>
+    <ID>LongMethod:MainActivity.kt$MainActivity$@OptIn(ExperimentalComposeUiApi::class) override fun onCreate(savedInstanceState: Bundle?)</ID>
     <ID>LongMethod:NavGraph.kt$@OptIn(ExperimentalMaterial3AdaptiveApi::class) @Composable fun ProxmoxNavGraph()</ID>
     <ID>LongMethod:NetworkScreen.kt$@Composable private fun IfaceCard(iface: NetworkIface)</ID>
     <ID>LongMethod:NetworkScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NetworkScreen( viewModel: NetworkViewModel, onBack: () -&gt; Unit, )</ID>
@@ -301,27 +329,39 @@
     <ID>LongMethod:NewGuestSheet.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NewGuestSheet( templates: List&lt;ClusterResource&gt;, nodes: List&lt;String&gt;, maxVmid: Long, deploying: Boolean, storages: List&lt;NodeStorageEntry&gt; = emptyList(), osTemplates: List&lt;StorageContentItem&gt; = emptyList(), error: String? = null, onDismiss: () -&gt; Unit, onCloneConfirm: (source: ClusterResource, newId: Long, name: String) -&gt; Unit, onBlankConfirm: (node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int, storage: String, ostemplate: String?) -&gt; Unit, onNodeChange: ((String) -&gt; Unit)? = null, )</ID>
     <ID>LongMethod:NodeDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NodeDetailScreen( viewModel: NodeDetailViewModel, onBack: () -&gt; Unit, onOpenConsole: (String?) -&gt; Unit, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>LongMethod:NotificationSettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NotificationSettingsContent( prefs: NotificationPrefs, onUpdatePrefs: (NotificationPrefs) -&gt; Unit, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:NucleusLayout.kt$fun buildGuestSpokes(config: ParsedGuestConfig): List&lt;NucleusSpoke&gt;</ID>
+    <ID>LongMethod:NucleusLayout.kt$fun buildNucleusLayout( siteInfo: SiteInfo?, resources: List&lt;ClusterResource&gt;, ): NucleusSceneLayout</ID>
+    <ID>LongMethod:NucleusScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NucleusScreen( viewModel: NucleusViewModel, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:NucleusScreen.kt$private fun DrawScope.drawGuestSpokesOverlay( guestProj: ProjectedPoint, spokes: List&lt;NucleusSpoke&gt;, amberColor: Color, coolBlueColor: Color, linkGreenColor: Color, muteColor: Color, hullColor: Color, edgeColor: Color, spokePaint: Paint, )</ID>
+    <ID>LongMethod:NucleusViewModel.kt$NucleusViewModel$fun onGuestTapped(guest: NucleusGuest)</ID>
+    <ID>LongMethod:NucleusViewModel.kt$NucleusViewModel$fun refresh(initial: Boolean = false)</ID>
     <ID>LongMethod:PermissionsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun PermissionsScreen( onBack: () -&gt; Unit )</ID>
     <ID>LongMethod:PveClient.kt$PveClient$private suspend fun &lt;T&gt; executeCall( getApi: (SessionSnapshot) -&gt; ProxmoxApi, block: suspend (ProxmoxApi) -&gt; T, ): Result&lt;T&gt;</ID>
     <ID>LongMethod:PveClient.kt$PveClient.Companion$fun formatHttpError(code: Int, rawBody: String?, httpMessage: String?): String</ID>
     <ID>LongMethod:PveTaskLiveUpdate.kt$PveTaskLiveUpdate$fun watchTask(upid: String): Job?</ID>
+    <ID>LongMethod:RefreshStyle.kt$@Suppress("MagicNumber") @Composable private fun CogIndicator( pullFraction: Float, isRefreshing: Boolean, reduceMotion: Boolean, unlocked: Boolean = false, )</ID>
+    <ID>LongMethod:RefreshStyle.kt$@Suppress("MagicNumber") @Composable private fun RocketIndicator( pullFraction: Float, isRefreshing: Boolean, reduceMotion: Boolean, unlocked: Boolean = false, )</ID>
     <ID>LongMethod:SdnScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SdnScreen( viewModel: SdnViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:SdnViewModel.kt$SdnViewModel$fun applySdn(): Job?</ID>
     <ID>LongMethod:ServerLampSettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ServerLampSettingsContent( thresholds: ServerLampThresholds, onActivityChange: (Int) -&gt; Unit, onWarnChange: (Int) -&gt; Unit, onReset: () -&gt; Unit, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:ServersScreen.kt$@Composable private fun ServerCard( server: ServerCardState, onClick: () -&gt; Unit )</ID>
     <ID>LongMethod:ServersScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ServersScreen( viewModel: ServersViewModel, onBack: () -&gt; Unit, onServerSelected: (String) -&gt; Unit, onLoginPrefilled: (String) -&gt; Unit )</ID>
     <ID>LongMethod:ServersViewModel.kt$ServersViewModel$private fun probeAll()</ID>
+    <ID>LongMethod:SessionStore.kt$SessionStore$fun purgeAll(context: Context? = null)</ID>
     <ID>LongMethod:SettingsScreen.kt$@Composable private fun CleanSlatePlate( onPurgeAndExit: () -&gt; Unit, )</ID>
-    <ID>LongMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNucleus: () -&gt; Unit = {}, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, onRandomJump: () -&gt; Unit = {}, consoleCardFace: Boolean = false, onConsoleCardFace: (Boolean) -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:StorageDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun StorageDetailScreen( viewModel: StorageDetailViewModel, onBack: () -&gt; Unit, isEmbeddedInPane: Boolean = false, )</ID>
     <ID>LongMethod:StorageRepository.kt$StorageRepository$suspend fun backupToDevice( node: String, type: String, vmid: Long, storage: String, onProgress: (String) -&gt; Unit ): Result&lt;String&gt;</ID>
     <ID>LongMethod:StorageRepository.kt$StorageRepository$suspend fun uploadIso( node: String, storage: String, uri: Uri?, displayName: String, onProgress: (String) -&gt; Unit = {}, ): Result&lt;String&gt;</ID>
+    <ID>LongMethod:SystemLogStrip.kt$@Composable fun SystemLogStrip( entry: ClusterLogEntry?, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:TagChip.kt$@Composable fun AddTagButton( onAddTag: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:TasksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TasksScreen( viewModel: TasksViewModel, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:TasksScreen.kt$@Suppress("DEPRECATION") @Composable private fun TaskDetailPane( task: ClusterTask, logLines: List&lt;String&gt;, isLoadingLogs: Boolean, logError: String?, onRefreshLogs: () -&gt; Unit, onDismiss: (() -&gt; Unit)? = null, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:TechHistoryGraph.kt$@Composable fun TechHistoryGraph( points: List&lt;RrdPoint&gt;, isGuest: Boolean, modifier: Modifier = Modifier, timeframe: HistoryTimeframe = HistoryTimeframe.HOUR, onTimeframe: ((HistoryTimeframe) -&gt; Unit)? = null, )</ID>
     <ID>LongMethod:TechHistoryGraph.kt$@Composable private fun HistoryCanvas( points: List&lt;RrdPoint&gt;, row: HistoryRowId, isGuest: Boolean, lineColor: Color, scrubIndex: Int?, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:TechHistoryGraph.kt$@Composable private fun HistorySparkRow( row: HistoryRowId, points: List&lt;RrdPoint&gt;, isGuest: Boolean, expanded: Boolean, scrubIndex: Int?, onSelect: () -&gt; Unit, onScrub: (Int?) -&gt; Unit, )</ID>
+    <ID>LongMethod:ThemeBackdrop.kt$@Composable fun ThemeBackdropSection( modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:ThemeBackdrop.kt$fun blurPixels( pixels: IntArray, width: Int, height: Int, radiusPx: Int = 22, ): IntArray</ID>
     <ID>LongMethod:TourOverlay.kt$@Composable fun TourOverlay( modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:UpdatesScreen.kt$@Composable private fun NodeStatusRectangle( snap: NodeUpdateSnapshot, progress: NodeRefreshProgress?, nodeStatus: NodeStatus?, serverHost: String, pveVersion: String, isRemoteUpgradeRemoved: Boolean = false, sshAvailability: SshUpgradeAvailability = SshUpgradeAvailability.AVAILABLE, anyJobActive: Boolean, onRefreshApt: () -&gt; Unit, onInstallUpdates: () -&gt; Unit, onInstallViaSsh: () -&gt; Unit = {}, onOpenNodeShell: () -&gt; Unit = {}, onClick: () -&gt; Unit, onDismiss: () -&gt; Unit, )</ID>
     <ID>LongMethod:UpdatesScreen.kt$@Composable private fun PackageUpdateRow( upd: AptPackageUpdate, node: String, isActive: Boolean, isUpgrading: Boolean = false, )</ID>
@@ -351,7 +391,8 @@
     <ID>LongParameterList:ExpandableSection.kt$( title: String, subtitle: String? = null, icon: ImageVector? = null, expanded: Boolean, onToggle: () -&gt; Unit, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( board: OpsBoard, onMoveUp: (String) -&gt; Unit, onMoveDown: (String) -&gt; Unit, onTogglePin: (GuestSection) -&gt; Unit, onToggleConsole: (Boolean) -&gt; Unit, onToggleHistory: (Boolean) -&gt; Unit, onSaveAsDefault: () -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( icon: ImageVector, contentDescription: String?, onClick: () -&gt; Unit, modifier: Modifier = Modifier, enabled: Boolean = true, tint: Color = MaterialTheme.colorScheme.primary, )</ID>
-    <ID>LongParameterList:GuestDetailScreen.kt$( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( index: Int, scrubIndex: Int, reduceMotion: Boolean, peakPx: Float, spans: Array&lt;ClosedFloatingPointRange&lt;Float&gt;&gt;, label: String, fullLabel: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongParameterList:GuestDetailScreen.kt$( label: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, fullLabel: String = label, embedded: Boolean = false, armed: Boolean = false, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( name: String, status: String?, kindLabel: String, uptime: Long?, cpu: Double?, cpus: Int?, mem: Long?, maxmem: Long?, disk: Long?, maxdisk: Long?, tags: String?, busy: Boolean, vmid: Long? = null, onAddTag: (String) -&gt; Unit = {}, onRemoveTag: (String) -&gt; Unit = {}, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( running: Boolean, busy: Boolean, guestType: GuestType, onOpenConsole: () -&gt; Unit, isTokenSession: Boolean = false, still: ConsoleStill? = null, )</ID>
     <ID>LongParameterList:GuestDetailScreen.kt$( title: String, subtitle: String? = null, expanded: Boolean = false, onToggle: () -&gt; Unit = {}, showPin: Boolean = false, isPinned: Boolean = false, onTogglePin: () -&gt; Unit = {}, testTag: String? = null, trailing: @Composable (() -&gt; Unit)? = null, content: @Composable () -&gt; Unit, )</ID>
@@ -361,7 +402,7 @@
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, guestType: GuestType, vmid: Long, name: String, description: String? = null, includeRam: Boolean = false, )</ID>
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, guestType: GuestType, vmid: Long, net: ConfigNet, toggleFirewall: Boolean = false, toggleLinkDown: Boolean = false, )</ID>
     <ID>LongParameterList:GuestRepository.kt$GuestRepository$( node: String, type: GuestType, vmid: Long, name: String, storage: String, ostemplate: String? = null, diskSizeG: Int = 32, )</ID>
-    <ID>LongParameterList:HomeScreen.kt$( resource: ClusterResource, busy: Boolean = false, selectedTag: String? = null, onTagClick: ((String) -&gt; Unit)? = null, onClick: () -&gt; Unit, onPowerToggle: (Boolean) -&gt; Unit = {}, onGuestAction: (GuestAction) -&gt; Unit = {}, onBackupOnServer: () -&gt; Unit = {}, onBackupToDevice: () -&gt; Unit = {}, onReboot: () -&gt; Unit = {}, onOnbootToggle: (Boolean) -&gt; Unit = {}, thresholds: ServerLampThresholds = ServerLampThresholds(), )</ID>
+    <ID>LongParameterList:HomeMasthead.kt$( refreshing: Boolean, menuOpen: Boolean, onSync: () -&gt; Unit, onTasks: () -&gt; Unit, onMenu: () -&gt; Unit, menu: @Composable () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongParameterList:HomeScreen.kt$( resource: ClusterResource, busy: Boolean, onPowerToggle: (Boolean) -&gt; Unit, onGuestAction: (GuestAction) -&gt; Unit, onReboot: () -&gt; Unit, onOnbootToggle: (Boolean) -&gt; Unit, )</ID>
     <ID>LongParameterList:HomeScreen.kt$( viewModel: HomeViewModel, onOpenGuest: (node: String, type: String, vmid: Long, name: String) -&gt; Unit, onOpenStorage: (node: String, storage: String) -&gt; Unit, onOpenNode: (node: String) -&gt; Unit, onOpenSettings: () -&gt; Unit, onOpenLampSettings: () -&gt; Unit = {}, onOpenTasks: () -&gt; Unit, onOpenLogs: () -&gt; Unit = {}, onOpenServers: () -&gt; Unit, onOpenUpdates: () -&gt; Unit = {}, onLogout: () -&gt; Unit, onSwitchAccount: () -&gt; Unit, canOfferNodeShell: Boolean = false, onOpenNodeShell: ((node: String) -&gt; Unit)? = null, isTabletop: Boolean = false, modifier: Modifier = Modifier, )</ID>
     <ID>LongParameterList:HomeViewModel.kt$HomeViewModel$( id: String, node: String, guestType: GuestType, vmid: Long, action: GuestAction, guestName: String = "Guest", )</ID>
@@ -375,6 +416,12 @@
     <ID>LongParameterList:NewGuestSheet.kt$( templates: List&lt;ClusterResource&gt;, nodes: List&lt;String&gt;, maxVmid: Long, deploying: Boolean, storages: List&lt;NodeStorageEntry&gt; = emptyList(), osTemplates: List&lt;StorageContentItem&gt; = emptyList(), error: String? = null, onDismiss: () -&gt; Unit, onCloneConfirm: (source: ClusterResource, newId: Long, name: String) -&gt; Unit, onBlankConfirm: (node: String, type: GuestType, vmid: Long, name: String, diskSizeG: Int, storage: String, ostemplate: String?) -&gt; Unit, onNodeChange: ((String) -&gt; Unit)? = null, )</ID>
     <ID>LongParameterList:NodeRepository.kt$NodeRepository$( private val pveClient: PveClient, private val sessionStore: SessionStore, private val clientFactory: ProxmoxApiProvider, private val activeTaskProvider: () -&gt; ActiveAptTask?, private val updateTaskLogLine: (node: String, upid: String, type: String, line: String) -&gt; Unit, private val onClusterLogUpdated: (List&lt;ClusterLogEntry&gt;) -&gt; Unit, private val loadGuests: suspend (ProxmoxApi, String, String) -&gt; List&lt;ClusterResource&gt;, private val loadStorage: suspend (ProxmoxApi, String) -&gt; List&lt;ClusterResource&gt;, )</ID>
     <ID>LongParameterList:NotificationSettingsScreen.kt$( title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongParameterList:NucleusLayout.kt$( point: Vec3, yawRad: Float, pitchRad: Float, zoom: Float, viewportWidth: Float, viewportHeight: Float, )</ID>
+    <ID>LongParameterList:NucleusScreen.kt$( center: Vec3, radius: Float, yawRad: Float, pitchRad: Float, zoom: Float, viewportWidth: Float, viewportHeight: Float, color: Color, strokeWidthPx: Float, )</ID>
+    <ID>LongParameterList:NucleusScreen.kt$( core: NucleusCore, proj: ProjectedPoint, amberColor: Color, deckColor: Color, hullColor: Color, textColor: Color, labelPaint: Paint, )</ID>
+    <ID>LongParameterList:NucleusScreen.kt$( guest: NucleusGuest, proj: ProjectedPoint, isSelected: Boolean, drawLabel: Boolean, markScale: Float, amberColor: Color, deckColor: Color, hullColor: Color, textColor: Color, labelPaint: Paint, )</ID>
+    <ID>LongParameterList:NucleusScreen.kt$( guestProj: ProjectedPoint, spokes: List&lt;NucleusSpoke&gt;, amberColor: Color, coolBlueColor: Color, linkGreenColor: Color, muteColor: Color, hullColor: Color, edgeColor: Color, spokePaint: Paint, )</ID>
+    <ID>LongParameterList:NucleusScreen.kt$( node: NucleusNode, proj: ProjectedPoint, coolBlueColor: Color, muteColor: Color, deckColor: Color, textColor: Color, labelPaint: Paint, )</ID>
     <ID>LongParameterList:ProxmoxApi.kt$ProxmoxApi$( @Path("node") node: String, @Field("vmid") vmid: Long, @Field("hostname") hostname: String, @Field("ostemplate") ostemplate: String? = null, @Field("rootfs") rootfs: String? = null, @Field("cores") cores: Int? = 1, @Field("memory") memory: Long? = 1024, )</ID>
     <ID>LongParameterList:ProxmoxApi.kt$ProxmoxApi$( @Path("node") node: String, @Field("vmid") vmid: Long, @Field("name") name: String, @Field("scsi0") scsi0: String? = null, @Field("cores") cores: Int? = 1, @Field("memory") memory: Long? = 2048, )</ID>
     <ID>LongParameterList:ProxmoxApi.kt$ProxmoxApi$( @Path("node") node: String, @Field("vmid") vmid: Long, @Field("storage") storage: String, @Field("mode") mode: String? = "snapshot", @Field("compress") compress: String? = "zstd", @Field("remove") remove: Int? = 0, @Field("notes-template") notesTemplate: String? = null, )</ID>
@@ -390,7 +437,7 @@
     <ID>LongParameterList:SavedProfile.kt$ProfileConflictResolver$( host: String, port: Int, username: String, realm: String, authMode: AuthMode, activeProfileId: String?, existingProfiles: List&lt;SavedProfile&gt;, )</ID>
     <ID>LongParameterList:ServerLampSettingsScreen.kt$( thresholds: ServerLampThresholds, onActivityChange: (Int) -&gt; Unit, onWarnChange: (Int) -&gt; Unit, onReset: () -&gt; Unit, onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongParameterList:SessionStore.kt$SessionStore$( config: ServerConfig, saveCredentials: Boolean, profileId: String? = null, label: String = "", forceNewProfile: Boolean = false, version: String? = null, )</ID>
-    <ID>LongParameterList:SettingsScreen.kt$( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
+    <ID>LongParameterList:SettingsScreen.kt$( hostDisplay: String, versionDisplay: String, themeMode: ThemeMode, uiState: SettingsUiState = SettingsUiState(), onBack: () -&gt; Unit, onOpenNucleus: () -&gt; Unit = {}, onOpenNetwork: () -&gt; Unit, onOpenSdn: () -&gt; Unit, onOpenFirewall: () -&gt; Unit, onOpenUpdates: () -&gt; Unit, onOpenPermissions: () -&gt; Unit = {}, onOpenLogs: () -&gt; Unit = {}, lampThresholds: ServerLampThresholds = ServerLampThresholds(), onOpenServerLamps: () -&gt; Unit = {}, notificationPrefs: NotificationPrefs = NotificationPrefs(), onOpenNotifications: () -&gt; Unit = {}, onThemeMode: (ThemeMode) -&gt; Unit, onSwitchAccount: () -&gt; Unit, onCleanSlate: () -&gt; Unit = {}, onRandomJump: () -&gt; Unit = {}, consoleCardFace: Boolean = false, onConsoleCardFace: (Boolean) -&gt; Unit = {}, modifier: Modifier = Modifier, )</ID>
     <ID>LongParameterList:SftpDownloader.kt$SftpDownloader$( host: String, port: Int = 22, username: String, password: String, remotePath: String, localSink: OutputStream, onProgress: (Long, Long) -&gt; Unit )</ID>
     <ID>LongParameterList:SshUpgradeExecutor.kt$SshUpgradeExecutor$( host: String, port: Int = 22, username: String = "root", password: String, command: String = "apt-get update &amp;&amp; apt-get full-upgrade -y", onOutputLine: (String) -&gt; Unit = {}, )</ID>
     <ID>LongParameterList:StorageRepository.kt$StorageRepository$( node: String, vmid: Long, storage: String, mode: String = "snapshot", compress: String = "zstd", onLongTask: ((String) -&gt; Unit)? = null, )</ID>
@@ -406,7 +453,9 @@
     <ID>LongParameterList:TechPlate.kt$( modifier: Modifier = Modifier, railColor: Color = TechColors.Amber, showRail: Boolean = true, fillMaxWidth: Boolean = true, testTag: String? = null, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
     <ID>LongParameterList:UpdatesScreen.kt$( snap: NodeUpdateSnapshot, progress: NodeRefreshProgress?, nodeStatus: NodeStatus?, serverHost: String, pveVersion: String, isRemoteUpgradeRemoved: Boolean = false, sshAvailability: SshUpgradeAvailability = SshUpgradeAvailability.AVAILABLE, anyJobActive: Boolean, onRefreshApt: () -&gt; Unit, onInstallUpdates: () -&gt; Unit, onInstallViaSsh: () -&gt; Unit = {}, onOpenNodeShell: () -&gt; Unit = {}, onClick: () -&gt; Unit, onDismiss: () -&gt; Unit, )</ID>
     <ID>LoopWithTooManyJumpStatements:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GuestDetailScreen.kt$while</ID>
     <ID>LoopWithTooManyJumpStatements:GuestNetworkHelper.kt$GuestNetworkHelper$for</ID>
+    <ID>LoopWithTooManyJumpStatements:HomeViewModel.kt$HomeViewModel$for</ID>
     <ID>LoopWithTooManyJumpStatements:LocalNet.kt$LocalNet$for</ID>
     <ID>LoopWithTooManyJumpStatements:StorageRepository.kt$StorageRepository$for</ID>
     <ID>MagicNumber:AdaptiveLayout.kt$3</ID>
@@ -417,6 +466,9 @@
     <ID>MagicNumber:AdaptivePaneSplitter.kt$0.1f</ID>
     <ID>MagicNumber:AdaptivePaneSplitter.kt$150</ID>
     <ID>MagicNumber:AuthRepository.kt$AuthRepository$401</ID>
+    <ID>MagicNumber:BezelScrub.kt$0.5f</ID>
+    <ID>MagicNumber:BezelScrub.kt$1.03f</ID>
+    <ID>MagicNumber:BezelScrub.kt$1.08f</ID>
     <ID>MagicNumber:BoundedSshOperation.kt$15_000L</ID>
     <ID>MagicNumber:ClusterGrouping.kt$ClusterGrouping$7</ID>
     <ID>MagicNumber:ClusterGrouping.kt$ClusterGrouping$8</ID>
@@ -667,6 +719,13 @@
     <ID>MagicNumber:GuestRepository.kt$GuestRepository$500</ID>
     <ID>MagicNumber:GuestRepository.kt$GuestRepository$60_000</ID>
     <ID>MagicNumber:HistorySeries.kt$100.0</ID>
+    <ID>MagicNumber:HomeMasthead.kt$20f</ID>
+    <ID>MagicNumber:HomeMasthead.kt$24f</ID>
+    <ID>MagicNumber:HomeMasthead.kt$28f</ID>
+    <ID>MagicNumber:HomeMasthead.kt$340f</ID>
+    <ID>MagicNumber:HomeMasthead.kt$34f</ID>
+    <ID>MagicNumber:HomeMasthead.kt$480f</ID>
+    <ID>MagicNumber:HomeScreen.kt$0.55f</ID>
     <ID>MagicNumber:HomeScreen.kt$0.6</ID>
     <ID>MagicNumber:HomeScreen.kt$0.85</ID>
     <ID>MagicNumber:HomeScreen.kt$0xFF69F0AE</ID>
@@ -675,22 +734,23 @@
     <ID>MagicNumber:HomeScreen.kt$100.0</ID>
     <ID>MagicNumber:HomeScreen.kt$1000</ID>
     <ID>MagicNumber:HomeScreen.kt$100L</ID>
-    <ID>MagicNumber:HomeScreen.kt$14f</ID>
     <ID>MagicNumber:HomeScreen.kt$160</ID>
     <ID>MagicNumber:HomeScreen.kt$180</ID>
     <ID>MagicNumber:HomeScreen.kt$180f</ID>
     <ID>MagicNumber:HomeScreen.kt$220</ID>
     <ID>MagicNumber:HomeScreen.kt$250</ID>
     <ID>MagicNumber:HomeScreen.kt$280</ID>
-    <ID>MagicNumber:HomeScreen.kt$36f</ID>
+    <ID>MagicNumber:HomeScreen.kt$480</ID>
+    <ID>MagicNumber:HomeScreen.kt$480f</ID>
+    <ID>MagicNumber:HomeScreen.kt$500L</ID>
+    <ID>MagicNumber:HomeScreen.kt$6</ID>
     <ID>MagicNumber:HomeScreen.kt$8</ID>
     <ID>MagicNumber:HomeScreen.kt$800</ID>
     <ID>MagicNumber:HomeScreen.kt$9</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeUiState.Companion$3</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeUiState.Companion$9</ID>
-    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$5</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$400L</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$5_000</ID>
-    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$6</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$8_000L</ID>
     <ID>MagicNumber:HostPing.kt$HostPing$1_000_000L</ID>
     <ID>MagicNumber:LocalNet.kt$LocalNet$0xFFFFFFFFL</ID>
@@ -735,6 +795,9 @@
     <ID>MagicNumber:LoginViewModel.kt$LoginViewModel$8</ID>
     <ID>MagicNumber:LoginViewModel.kt$LoginViewModel$8006</ID>
     <ID>MagicNumber:LoginViewModel.kt$LoginViewModel$8L</ID>
+    <ID>MagicNumber:MainActivity.kt$MainActivity$0.55f</ID>
+    <ID>MagicNumber:MainActivity.kt$MainActivity$100f</ID>
+    <ID>MagicNumber:MainActivity.kt$MainActivity$250</ID>
     <ID>MagicNumber:Models.kt$ClusterResource$0.25</ID>
     <ID>MagicNumber:Models.kt$ClusterResource$100.0</ID>
     <ID>MagicNumber:Models.kt$ClusterResource$3</ID>
@@ -761,6 +824,24 @@
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$128</ID>
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$32</ID>
     <ID>MagicNumber:NodeSshTarget.kt$NodeReportedAddress$8</ID>
+    <ID>MagicNumber:NucleusLayout.kt$0.35f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$0.5f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$0.65f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$0.8f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$1.15f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$4.8f</ID>
+    <ID>MagicNumber:NucleusLayout.kt$NucleusNode$0.45f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.0075f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.18f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.1f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.3f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.46f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.55f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.5f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$0.62f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$1.35f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$1_000_000_000f</ID>
+    <ID>MagicNumber:NucleusScreen.kt$48</ID>
     <ID>MagicNumber:OpsBoardStore.kt$InMemoryOpsBoardStore$200</ID>
     <ID>MagicNumber:OpsBoardStore.kt$OpsBoard$4</ID>
     <ID>MagicNumber:OpsBoardStore.kt$RealOpsBoardStore$200</ID>
@@ -780,6 +861,14 @@
     <ID>MagicNumber:PveTaskLiveUpdate.kt$PveTaskLiveUpdate$33</ID>
     <ID>MagicNumber:PveTaskLiveUpdate.kt$PveTaskLiveUpdate$600_000L</ID>
     <ID>MagicNumber:PveTaskLiveUpdate.kt$PveTaskLiveUpdate.Companion$26</ID>
+    <ID>MagicNumber:RandomJump.kt$0.5f</ID>
+    <ID>MagicNumber:RandomJump.kt$10</ID>
+    <ID>MagicNumber:RandomJump.kt$1000L</ID>
+    <ID>MagicNumber:RandomJump.kt$195</ID>
+    <ID>MagicNumber:RandomJump.kt$255</ID>
+    <ID>MagicNumber:RandomJump.kt$60</ID>
+    <ID>MagicNumber:RefreshStyle.kt$0xFFE2E8F0</ID>
+    <ID>MagicNumber:RefreshStyle.kt$0xFFFF9800</ID>
     <ID>MagicNumber:RepositoryErrors.kt$401</ID>
     <ID>MagicNumber:RepositoryErrors.kt$403</ID>
     <ID>MagicNumber:SdnScreen.kt$6</ID>
@@ -787,6 +876,7 @@
     <ID>MagicNumber:SdnViewModel.kt$SdnViewModel$600L</ID>
     <ID>MagicNumber:SdnViewModel.kt$SdnViewModel$6500L</ID>
     <ID>MagicNumber:ServerLamp.kt$0.35f</ID>
+    <ID>MagicNumber:ServerLamp.kt$0.42f</ID>
     <ID>MagicNumber:ServerLamp.kt$0.5f</ID>
     <ID>MagicNumber:ServerLamp.kt$100.0</ID>
     <ID>MagicNumber:ServerLamp.kt$160</ID>
@@ -795,13 +885,11 @@
     <ID>MagicNumber:ServerLampThresholds.kt$ServerLampThresholds.Companion$100</ID>
     <ID>MagicNumber:ServerLampThresholds.kt$ServerLampThresholds.Companion$99</ID>
     <ID>MagicNumber:ServersScreen.kt$6</ID>
+    <ID>MagicNumber:SessionStore.kt$SessionStore$48</ID>
+    <ID>MagicNumber:SessionStore.kt$SessionStore$80</ID>
     <ID>MagicNumber:SessionStore.kt$SessionStore$8006</ID>
     <ID>MagicNumber:SettingsScreen.kt$10</ID>
-    <ID>MagicNumber:SettingsScreen.kt$1000</ID>
-    <ID>MagicNumber:SettingsScreen.kt$19</ID>
-    <ID>MagicNumber:SettingsScreen.kt$255</ID>
-    <ID>MagicNumber:SettingsScreen.kt$60</ID>
-    <ID>MagicNumber:SettingsScreen.kt$900</ID>
+    <ID>MagicNumber:SettingsScreen.kt$10000L</ID>
     <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$5_000</ID>
     <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$6500L</ID>
     <ID>MagicNumber:SftpDownloader.kt$SftpDownloader$1024</ID>
@@ -820,6 +908,17 @@
     <ID>MagicNumber:StorageRepository.kt$StorageRepository$2000</ID>
     <ID>MagicNumber:StorageRepository.kt$StorageRepository$600_000</ID>
     <ID>MagicNumber:StorageRepository.kt$StorageRepository.Companion$4</ID>
+    <ID>MagicNumber:StupidAnimations.kt$0.65f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$0.85f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$1.06f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$1.2f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$22f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$3f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$4f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$70f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$80f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$8f</ID>
+    <ID>MagicNumber:StupidAnimations.kt$90f</ID>
     <ID>MagicNumber:SystemLogStrip.kt$0xFFFF5252</ID>
     <ID>MagicNumber:SystemLogStrip.kt$3</ID>
     <ID>MagicNumber:SystemLogStrip.kt$4</ID>
@@ -834,6 +933,8 @@
     <ID>MagicNumber:TechHistoryGraph.kt$3600</ID>
     <ID>MagicNumber:TechHistoryGraph.kt$3f</ID>
     <ID>MagicNumber:TechHistoryGraph.kt$6f</ID>
+    <ID>MagicNumber:TechPlate.kt$0.40f</ID>
+    <ID>MagicNumber:TechPlate.kt$0.45f</ID>
     <ID>MagicNumber:TechPlate.kt$0xFF050505</ID>
     <ID>MagicNumber:TechPlate.kt$0xFF1565C0</ID>
     <ID>MagicNumber:TechPlate.kt$0xFF1A1A1A</ID>
@@ -852,6 +953,7 @@
     <ID>MagicNumber:TechPlate.kt$0xFFE65100</ID>
     <ID>MagicNumber:TechPlate.kt$0xFFEAEAEA</ID>
     <ID>MagicNumber:TechPlate.kt$0xFFF6F6F6</ID>
+    <ID>MagicNumber:TechPlate.kt$0xFFFF9500</ID>
     <ID>MagicNumber:TechPlate.kt$0xFFFF9800</ID>
     <ID>MagicNumber:TechPlate.kt$TechPalette$0xFFE53935</ID>
     <ID>MagicNumber:Theme.kt$0xFF0A0A0A</ID>
@@ -886,6 +988,21 @@
     <ID>MagicNumber:Theme.kt$0xFFFF6B6B</ID>
     <ID>MagicNumber:Theme.kt$0xFFFF9800</ID>
     <ID>MagicNumber:Theme.kt$0xFFFFE8D6</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$0xFF</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$16</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$180f</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$2048</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$2048f</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$22</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$24</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$255</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$270f</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$3</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$42</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$55</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$8</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$85</ID>
+    <ID>MagicNumber:ThemeBackdrop.kt$90f</ID>
     <ID>MagicNumber:Toasts.kt$200</ID>
     <ID>MagicNumber:Toasts.kt$2200L</ID>
     <ID>MagicNumber:Toasts.kt$250</ID>
@@ -918,6 +1035,9 @@
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$5</ID>
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$6</ID>
     <ID>MagicNumber:UpidLiveTask.kt$UpidLiveTask.Companion$7</ID>
+    <ID>MagicNumber:WatchCopy.kt$12</ID>
+    <ID>MagicNumber:WatchCopy.kt$3</ID>
+    <ID>MagicNumber:WatchEye.kt$0.15f</ID>
     <ID>MatchingDeclarationName:HistorySeries.kt$HistoryRowId</ID>
     <ID>MatchingDeclarationName:NavGraph.kt$Routes</ID>
     <ID>MatchingDeclarationName:NodeSshTarget.kt$NodeReportedAddress</ID>
@@ -1060,6 +1180,7 @@
     <ID>MaxLineLength:DexDashboardScreen.kt$is DetailPaneSelection.Guest -&gt; selectedDetail.node == res.node &amp;&amp; selectedDetail.vmid == res.vmid</ID>
     <ID>MaxLineLength:DexDashboardScreen.kt$is DetailPaneSelection.Storage -&gt; selectedDetail.node == res.node &amp;&amp; selectedDetail.storage == res.name &amp;&amp; res.type == "storage"</ID>
     <ID>MaxLineLength:DexDashboardScreen.kt$onSelectDetail(DetailPaneSelection.Guest(res.node, res.type, res.vmid, res.name))</ID>
+    <ID>MaxLineLength:DexDashboardScreen.kt$val</ID>
     <ID>MaxLineLength:FakeSharedPreferences.kt$FakeSharedPreferences$override fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?)</ID>
     <ID>MaxLineLength:FakeSharedPreferences.kt$FakeSharedPreferences$override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?)</ID>
     <ID>MaxLineLength:FakeSharedPreferences.kt$FakeSharedPreferences.FakeEditor$override fun putBoolean(key: String?, value: Boolean): SharedPreferences.Editor</ID>
@@ -1115,8 +1236,13 @@
     <ID>MaxLineLength:HardwareSection.kt$Text("${disk.key} · ${disk.label}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)</ID>
     <ID>MaxLineLength:HomeScreen.kt$com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.GUEST_CARD)</ID>
     <ID>MaxLineLength:HomeScreen.kt$onClick = { Toast.makeText(context, "Simulated data — no real server", Toast.LENGTH_SHORT).show() }</ID>
+    <ID>MaxLineLength:HomeScreen.kt$onOpenGuest(res.node, res.type, res.vmid, res.displayName)</ID>
     <ID>MaxLineLength:HomeScreen.kt$res.isGuest &amp;&amp; res.node != null &amp;&amp; res.vmid != null &amp;&amp; res.type != null</ID>
+    <ID>MaxLineLength:HomeScreen.kt$val</ID>
+    <ID>MaxLineLength:HomeScreen.kt$val key = ConsoleStillStore.stillKey(profileId, GuestType.QEMU, res.vmid)</ID>
+    <ID>MaxLineLength:HomeScreen.kt$val name = res.storage ?: res.name ?: return@ResourceCard</ID>
     <ID>MaxLineLength:HomeScreen.kt$val nodes = state.resources.mapNotNull { if (it.type == "node") it.node else null }.distinct().ifEmpty { listOf("alpha") }</ID>
+    <ID>MaxLineLength:HomeScreen.kt$val raw = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return@remember null</ID>
     <ID>MaxLineLength:HomeScreen.kt$val url = state.session?.config?.let { "https://${it.displayHost}" } ?: return@TechMenuItem</ID>
     <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$_ui.update { it.copy(deploying = false, showDeployDialog = false, message = "Deploying $name (VMID $newId)") }</ID>
     <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$previous.find { it.id == resource.id }?.copy(status = "unknown", readErrors = resource.readErrors) ?: resource</ID>
@@ -1142,6 +1268,9 @@
     <ID>MaxLineLength:LoginViewModel.kt$LoginViewModel$val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = latency, failed = false))</ID>
     <ID>MaxLineLength:LoginViewModel.kt$LoginViewModel$val updated = state.scanState.hostPings + (key to HostPingUi(running = false, latencyMs = null, failed = true))</ID>
     <ID>MaxLineLength:LoginViewModelTest.kt$LoginViewModelTest$com.pxmx.app.data.api.AppJson.encodeToString(com.pxmx.app.data.model.SessionResumeInfo.serializer(), resumeInfo)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$color = if (backdropBitmap != null) Color.Transparent else MaterialTheme.colorScheme.background</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$if (isDark) Color.Black.copy(alpha = dimAlpha) else Color.White.copy(alpha = dimAlpha)</ID>
+    <ID>MaxLineLength:NavGraph.kt$Routes.console(sel.node, GuestType.NODE.path, 0L, sel.node, cmd ?: "shell")</ID>
     <ID>MaxLineLength:NavGraph.kt$Text("Console not available for storage.", color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
     <ID>MaxLineLength:NavGraph.kt$factory = GuestDetailViewModel.Factory(app.repository, sel.node, guestType, sel.vmid, sel.name)</ID>
     <ID>MaxLineLength:NavGraph.kt$is DetailPaneSelection.Guest -&gt; navController.navigate(Routes.guest(sel.node, sel.type, sel.vmid, sel.name))</ID>
@@ -1155,12 +1284,27 @@
     <ID>MaxLineLength:NewGuestSheet.kt$trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = osTemplateDropdownOpen) }</ID>
     <ID>MaxLineLength:NewGuestSheet.kt$trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = templateDropdownOpen) }</ID>
     <ID>MaxLineLength:NodeDetailScreen.kt$"Shut down this hypervisor. Guests on ${state.node} will stop. The node stays off until you power it on at the machine."</ID>
+    <ID>MaxLineLength:NodeDetailScreen.kt$TechPlate</ID>
     <ID>MaxLineLength:NodeDetailScreen.kt$color = if (state.isTokenSession) TechColors.Amber else MaterialTheme.colorScheme.onSurfaceVariant</ID>
     <ID>MaxLineLength:NodeDetailScreen.kt$imageVector = if (isEmbeddedInPane) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack</ID>
     <ID>MaxLineLength:NodeRepository.kt$NodeRepository$if (retryResult.isSuccess || retryResult.exceptionOrNull()?.let { !isTimeout(it) } == true) return retryResult</ID>
     <ID>MaxLineLength:NodeRepository.kt$NodeRepository$message = "HTTP 596: Inter-node proxy timed out for node '$node'. Target node did not respond within the 30-second Proxmox cluster proxy window."</ID>
     <ID>MaxLineLength:NodeRepository.kt$NodeRepository$suspend</ID>
     <ID>MaxLineLength:NotificationSettingsScreen.kt$if</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "lxc/200", type = "lxc", node = "pve-solo", vmid = 200L, name = "dns-ct", status = "running")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "lxc/201", type = "lxc", node = "pve-solo", vmid = 201L, name = "frozen-ct", status = "frozen")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "lxc/202", type = "lxc", node = "beta", vmid = 202L, name = "pulsar", status = "running")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "node/pve-solo", type = "node", node = "pve-solo", name = "pve-solo", status = "online")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "qemu/100", type = "qemu", node = "alpha", vmid = 100L, name = "nova", status = "running")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "qemu/100", type = "qemu", node = "pve-solo", vmid = 100L, name = "web-vm", status = "running")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "qemu/101", type = "qemu", node = "beta", vmid = 101L, name = "meteor", status = "stopped")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "qemu/101", type = "qemu", node = "pve-solo", vmid = 101L, name = "stopped-vm", status = "stopped")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "qemu/9000", type = "qemu", node = "pve-solo", vmid = 9000L, name = "tmpl", status = "running", template = 1)</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$ClusterResource(id = "storage/local", type = "storage", node = "pve-solo", storage = "local", status = "available")</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$val g1 = NucleusGuest("pve1/qemu/100", 100L, "nova", "qemu", "pve1", Vec3(1f, 0f, 0f), Vec3(0f, 0f, 0f), 1.65f, 0f)</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$val g2 = NucleusGuest("pve1/qemu/101", 101L, "quasar", "qemu", "pve1", Vec3(1f, 0f, -1f), Vec3(0f, 0f, 0f), 1.65f, 0f)</ID>
+    <ID>MaxLineLength:NucleusLayoutTest.kt$NucleusLayoutTest$val guestRes = ClusterResource(id = "qemu/100", type = "qemu", node = "pve1", vmid = 100L, name = "nova", status = "running")</ID>
+    <ID>MaxLineLength:NucleusScreen.kt$val boxTop = (ey - boxH * 0.5f).coerceIn(6.dp.toPx(), (size.height - boxH - 6.dp.toPx()).coerceAtLeast(6.dp.toPx()))</ID>
     <ID>MaxLineLength:OperationSessionLeaseTest.kt$OperationSessionLeaseTest$return SessionState(config.copy(password = ""), ticket = "original-ticket", username = "root@pam").also(store::setSession)</ID>
     <ID>MaxLineLength:OperationSessionLeaseTest.kt$OperationSessionLeaseTest$store.saveProfileFromLogin(config.copy(password = "synthetic-password-b"), saveCredentials = true, forceNewProfile = true)</ID>
     <ID>MaxLineLength:OperationSessionLeaseTest.kt$OperationSessionLeaseTest.&lt;no name provided&gt;$override suspend</ID>
@@ -1197,6 +1341,7 @@
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$PveResponse&lt;Map&lt;String, Any&gt;&gt;(data = mapOf("name" to if (fail) "fresh" else "old", "memory" to if (fail) 2048 else 1024))</ID>
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$override suspend</ID>
     <ID>MaxLineLength:PartialAvailabilityTest.kt$PartialAvailabilityTest.&lt;no name provided&gt;$return PveResponse(data = listOf(StorageContentItem(volid = "$storage:backup/${if (fail) "fresh" else "old"}", vmid = vmid)))</ID>
+    <ID>MaxLineLength:PermissionsScreen.kt$reason = "Task alerts, watched guests and nodes, and optional external guest events. Requested at runtime on Android 13+."</ID>
     <ID>MaxLineLength:ProxmoxClientFactory.kt$ProxmoxClientFactory$return ProbeApi(build(config, preferBoundConfig = true, probeAuthSlot = slot, fingerprintSlot = fingerprint), slot, fingerprint)</ID>
     <ID>MaxLineLength:ProxmoxClientFactory.kt$ProxmoxClientFactory.Companion$private val QUERY_SECRET_REGEX = Regex("([?&amp;](?:vncticket|ticket|token|password)=)[^&amp;\\s]+", RegexOption.IGNORE_CASE)</ID>
     <ID>MaxLineLength:ProxmoxRepository.kt$ProxmoxRepository$reAuthHandler = { profileId, expected -&gt; authRepo.loginWithProfile(profileId, silent = true, renewalOf = expected) }</ID>
@@ -1213,6 +1358,8 @@
     <ID>MaxLineLength:PveTaskLiveUpdateTest.kt$PveTaskLiveUpdateTest$sessionStore.setSession(SessionState(ServerConfig(host = "demo", username = "root"), ticket = "demo", username = "root@pam"))</ID>
     <ID>MaxLineLength:PveTaskLiveUpdateTest.kt$PveTaskLiveUpdateTest$sessionStore.setSession(SessionState(ServerConfig(host = "pve.example.com", username = "root"), ticket = "ticket", username = "root@pam"))</ID>
     <ID>MaxLineLength:RecentActionRegistryTest.kt$RecentActionRegistryTest$val differentCtEntry = vzStartEntry.copy(msg = "starting CT 205", id = "UPID:alpha:00001006:00000000:66D1B006:vzstart:205:root@pam:")</ID>
+    <ID>MaxLineLength:RefreshStyleTest.kt$RefreshStyleTest$assertEquals("Falling edge after ignored rise must not move idle baseline", 1000L, fallAfterIgnoredGap.lastIdleMillis)</ID>
+    <ID>MaxLineLength:RefreshStyleTest.kt$RefreshStyleTest$assertEquals("Falling edge after unarmed rise must not move idle baseline", 1000L, fallAfterUnarmed.lastIdleMillis)</ID>
     <ID>MaxLineLength:SdnScreen.kt$BackHandler</ID>
     <ID>MaxLineLength:SdnScreen.kt$BackHandler(enabled = !(showApplyConfirm || showAddZone || showAddVnet || zoneToDelete != null || vnetToDelete != null), onBack = onBack)</ID>
     <ID>MaxLineLength:SdnScreen.kt$Icon(Icons.Default.Delete, contentDescription = "Delete VNet", tint = MaterialTheme.colorScheme.error)</ID>
@@ -1234,9 +1381,10 @@
     <ID>MaxLineLength:SettingsClusterOpsTest.kt$SettingsClusterOpsTest$val inMacroWebAdmin = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "tcp", dport = null, macro = "PVEWebAdmin")</ID>
     <ID>MaxLineLength:SettingsClusterOpsTest.kt$SettingsClusterOpsTest$val outcome = repository.awaitTask("alpha", "UPID:alpha:00003001:00000000:66D1B010:sdnreload::root@pam:", timeoutMs = 5000L, intervalMs = 10L)</ID>
     <ID>MaxLineLength:SettingsClusterOpsTest.kt$SettingsClusterOpsTest$val udpMacro = makeRule(type = "in", action = "ACCEPT", enable = true, proto = "udp", dport = null, macro = "PVEWebAdmin")</ID>
-    <ID>MaxLineLength:SettingsScreen.kt$(context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$(context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator</ID>
     <ID>MaxLineLength:SettingsScreen.kt$subtitle = if (notificationPrefs.masterEnabled) "Master ON · ${notificationPrefs.activeTriggersCount} triggers" else "Disabled"</ID>
     <ID>MaxLineLength:SettingsScreen.kt$text = "Erases every profile, credential, and setting. The app closes and returns to a first-run state."</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$text = "Last console frame on a running VM card. Image background turns off while this is on."</ID>
     <ID>MaxLineLength:SettingsViewModel.kt$SettingsViewModel.Companion$msg.contains("501") || msg.contains("not implemented") || msg.contains("not configured") -&gt; "not configured"</ID>
     <ID>MaxLineLength:SftpDownloader.kt$SftpDownloader.&lt;no name provided&gt;$throw RuntimeException("Host key changed — possible MITM attack detected!\nStored: $stored\nServer: $fingerprint")</ID>
     <ID>MaxLineLength:SftpDownloader.kt$SftpDownloader.&lt;no name provided&gt;$val fingerprint = "SHA256:" + Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(key.encoded), Base64.NO_WRAP)</ID>
@@ -1253,7 +1401,6 @@
     <ID>MaxLineLength:StorageDetailViewModelTest.kt$StorageDetailViewModelTest.&lt;no name provided&gt;$override suspend</ID>
     <ID>MaxLineLength:StorageRepository.kt$StorageRepository$?:</ID>
     <ID>MaxLineLength:StorageRepository.kt$StorageRepository$context.contentResolver?.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)</ID>
-    <ID>MaxLineLength:StorageRepository.kt$StorageRepository$if (!status.isOk) throw PveException("Deletion task failed: ${status.exitstatus ?: "unknown exit status"}")</ID>
     <ID>MaxLineLength:StorageRepository.kt$StorageRepository$private suspend</ID>
     <ID>MaxLineLength:StorageRepository.kt$StorageRepository$templates += items.filter { (it.content == "vztmpl" || it.volid?.contains("vztmpl") == true) &amp;&amp; !it.volid.isNullOrBlank() }</ID>
     <ID>MaxLineLength:StorageRepository.kt$StorageRepository$throw PveException("Backup created on server but download failed: ${e.message}. The backup remains on the server.", e)</ID>
@@ -1269,6 +1416,7 @@
     <ID>MaxLineLength:TagUtilsTest.kt$TagUtilsTest$val noneFiltered = all.filter { TagUtils.splitTags(it.tags).any { t -&gt; t.equals("storage", ignoreCase = true) } }</ID>
     <ID>MaxLineLength:TasksScreen.kt$val isTaskErr = line.contains("TASK ERROR") || line.contains("error", ignoreCase = true)</ID>
     <ID>MaxLineLength:TechHistoryGraph.kt$color = if (selected) TechColors.LinkGreen else MaterialTheme.colorScheme.onSurfaceVariant</ID>
+    <ID>MaxLineLength:TechPlate.kt$.</ID>
     <ID>MaxLineLength:TourOverlay.kt$color = if (visibleStep == TourStep.SUMMARY) TechColors.LinkGreen else TechColors.Amber</ID>
     <ID>MaxLineLength:TourState.kt$TourStep.SERVER_LAMPS$instruction = "One lamp per host. Solid green is idle. Pulse is load. Amber is high. Set the percents in Settings."</ID>
     <ID>MaxLineLength:TourState.kt$TourStep.SUMMARY$instruction = "Hidden extras: long-press PWR for shutdown, reboot, suspend. Five taps on the PXMX title at login unlocks demo mode. Creator link lives at the bottom of Settings."</ID>
@@ -1300,6 +1448,8 @@
     <ID>MaxLineLength:VaultPreferences.kt$VaultPreferences$private val listeners = Collections.newSetFromMap(WeakHashMap&lt;SharedPreferences.OnSharedPreferenceChangeListener, Boolean&gt;())</ID>
     <ID>MaxLineLength:VaultPreferences.kt$VaultPreferences.VaultEditor$(base.strings.keys + base.booleans.keys + base.ints.keys + base.longs.keys + base.floats.keys + base.stringSets.keys + modifications.keys).distinct()</ID>
     <ID>MaxLineLength:VaultTest.kt$VaultTest$val scope1 = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())</ID>
+    <ID>MaxLineLength:WatchCopy.kt$lines += "DISK ${formatBytes(resource.disk)} / ${formatBytes(resource.maxdisk)} (${formatPercent(resource.diskPercent)})"</ID>
+    <ID>MaxLineLength:WatchCopy.kt$lines += "MEM ${formatBytes(resource.mem)} / ${formatBytes(resource.maxmem)} (${formatPercent(resource.memPercent)})"</ID>
     <ID>NestedBlockDepth:AuthInterceptor.kt$AuthInterceptor$private fun applyConfig(builder: Request.Builder, config: ServerConfig, request: Request)</ID>
     <ID>NestedBlockDepth:AuthRepository.kt$AuthRepository$suspend fun login( config: ServerConfig, saveCredentials: Boolean = true, profileId: String? = null, enableAutoConnect: Boolean? = null, label: String = "", forceNewProfile: Boolean = false, silent: Boolean = false, renewalOf: SessionSnapshot? = null, ): LoginOutcome</ID>
     <ID>NestedBlockDepth:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$fun onClusterTasks(tasks: List&lt;Map&lt;String, Any&gt;&gt;)</ID>
@@ -1320,6 +1470,7 @@
     <ID>ReturnCount:AuthRepository.kt$AuthRepository$suspend fun login( config: ServerConfig, saveCredentials: Boolean = true, profileId: String? = null, enableAutoConnect: Boolean? = null, label: String = "", forceNewProfile: Boolean = false, silent: Boolean = false, renewalOf: SessionSnapshot? = null, ): LoginOutcome</ID>
     <ID>ReturnCount:AuthRepository.kt$AuthRepository$suspend fun loginWithProfile(profileId: String, silent: Boolean = false, renewalOf: SessionSnapshot? = null): LoginOutcome</ID>
     <ID>ReturnCount:AuthRepository.kt$AuthRepository$suspend fun tryAutoConnect(): Result&lt;SessionState&gt;</ID>
+    <ID>ReturnCount:BezelScrub.kt$fun bezelScrubIndex(xPx: Float, spans: List&lt;ClosedFloatingPointRange&lt;Float&gt;&gt;): Int</ID>
     <ID>ReturnCount:ClusterTaskNotificationWatcher.kt$ClusterTaskNotificationWatcher$fun onClusterTasks(tasks: List&lt;Map&lt;String, Any&gt;&gt;)</ID>
     <ID>ReturnCount:ConsoleHelpers.kt$ConsoleMimeUtils$fun coerceMimeType(url: String, contentTypeHeader: String?): String</ID>
     <ID>ReturnCount:ConsoleHelpers.kt$ConsoleMimeUtils$fun parseDataUrlJpeg(rawResult: String?): ByteArray?</ID>
@@ -1357,9 +1508,8 @@
     <ID>ReturnCount:NodeSshTarget.kt$fun chooseNodeSshHost( corosyncIp: String?, isLocal: Boolean, sessionHost: String?, reportedAddresses: List&lt;NodeReportedAddress&gt; = emptyList(), ): String?</ID>
     <ID>ReturnCount:NodeSshTarget.kt$fun isIpAddress(s: String): Boolean</ID>
     <ID>ReturnCount:NodeSshTarget.kt$fun parseIpv4(ip: String): Long?</ID>
-    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun moveClipDown(clipId: String): OpsBoard</ID>
-    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun moveClipUp(clipId: String): OpsBoard</ID>
     <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun pinSection(section: GuestSection): OpsBoard</ID>
+    <ID>ReturnCount:OpsBoardStore.kt$OpsBoard$fun reorderVisibleClip(clipId: String, direction: Int): OpsBoard</ID>
     <ID>ReturnCount:OpsModels.kt$FirewallRule$fun coversInbound8006(): Boolean</ID>
     <ID>ReturnCount:OpsModels.kt$private fun portMatchesOrCovers8006(ports: String): Boolean</ID>
     <ID>ReturnCount:ProxmoxClientFactory.kt$ProxmoxClientFactory$@Synchronized override fun apiForSession(session: SessionSnapshot): ProxmoxApi</ID>
@@ -1381,6 +1531,9 @@
     <ID>ReturnCount:StorageRepository.kt$StorageRepository$suspend fun deleteBackup( node: String, volid: String, ): Result&lt;String&gt;</ID>
     <ID>ReturnCount:StorageRepository.kt$StorageRepository$suspend fun uploadIso( node: String, storage: String, uri: Uri?, displayName: String, onProgress: (String) -&gt; Unit = {}, ): Result&lt;String&gt;</ID>
     <ID>ReturnCount:TagUtils.kt$TagUtils$fun addTag(raw: String?, newTag: String): String</ID>
+    <ID>ReturnCount:ThemeBackdrop.kt$fun backdropSampleSize(srcW: Int, srcH: Int, maxEdge: Int = 2048): Int</ID>
+    <ID>ReturnCount:ThemeBackdrop.kt$fun blurBackdropBitmap(source: Bitmap, radiusPx: Int = 22): Bitmap</ID>
+    <ID>ReturnCount:ThemeBackdrop.kt$fun loadBackdropBitmap(file: File, blurRadius: Int = 22): ImageBitmap?</ID>
     <ID>ReturnCount:TlsHelpers.kt$CertUtils$fun getX509Certificate(sslCert: SslCertificate): X509Certificate?</ID>
     <ID>ReturnCount:TlsHelpers.kt$TofuDecision$fun evaluate(trustSelfSigned: Boolean, pinnedFp: String?, presentedFp: String): TofuVerdict</ID>
     <ID>ReturnCount:UpdateRepository.kt$UpdateRepository$suspend fun sshUpgrade( node: String, onOutputLine: (String) -&gt; Unit = {}, ): Result&lt;Int&gt;</ID>
@@ -1389,6 +1542,7 @@
     <ID>ReturnCount:UpdatesViewModel.kt$fun isHttp501(e: Throwable?): Boolean</ID>
     <ID>ReturnCount:UpdatesViewModel.kt$fun isHttp501Message(msg: String?): Boolean</ID>
     <ID>ReturnCount:UpidLiveTask.kt$UpidLiveTask.Companion$fun parse(upid: String?): UpidLiveTask?</ID>
+    <ID>ReturnCount:WatchCopy.kt$fun watchNotice(resource: ClusterResource): WatchNotice?</ID>
     <ID>SwallowedException:DeXUtils.kt$DeXUtils$e2: Exception</ID>
     <ID>SwallowedException:DeXUtils.kt$DeXUtils$e: Exception</ID>
     <ID>SwallowedException:LocalNet.kt$LocalNet$e: IOException</ID>
@@ -1399,6 +1553,7 @@
     <ID>SwallowedException:VaultTest.kt$VaultTest$e: GeneralSecurityException</ID>
     <ID>ThrowsCount:AuthRepository.kt$AuthRepository$suspend fun probeProfile(profile: SavedProfile): Result&lt;ServerProbe&gt;</ID>
     <ID>ThrowsCount:NodeSshTarget.kt$suspend fun resolveNodeSshHost( api: ProxmoxApi, node: String, sessionHost: String = "", ): String</ID>
+    <ID>ThrowsCount:NucleusViewModel.kt$NucleusViewModel$fun refresh(initial: Boolean = false)</ID>
     <ID>ThrowsCount:PveClient.kt$PveClient$private suspend fun &lt;T&gt; executeCall( getApi: (SessionSnapshot) -&gt; ProxmoxApi, block: suspend (ProxmoxApi) -&gt; T, ): Result&lt;T&gt;</ID>
     <ID>ThrowsCount:RepositoryErrors.kt$internal fun Throwable.rethrowAuthOrCancellation()</ID>
     <ID>ThrowsCount:SdnViewModel.kt$SdnViewModel$fun applySdn(): Job?</ID>
@@ -1421,6 +1576,7 @@
     <ID>TooGenericExceptionCaught:LogViewModel.kt$LogViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:LoginViewModel.kt$LoginViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:NodeSshTarget.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NucleusViewModel.kt$NucleusViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PveClient.kt$PveClient$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PveClient.kt$PveClient$renewE: Exception</ID>
     <ID>TooGenericExceptionCaught:PveClient.kt$PveClient$retryE: Exception</ID>
@@ -1444,16 +1600,21 @@
     <ID>TooManyFunctions:LoginViewModel.kt$LoginViewModel : ViewModel</ID>
     <ID>TooManyFunctions:NetworkRepository.kt$NetworkRepository</ID>
     <ID>TooManyFunctions:NodeRepository.kt$NodeRepository</ID>
+    <ID>TooManyFunctions:NucleusLayout.kt$com.pxmx.app.ui.nucleus.NucleusLayout.kt</ID>
     <ID>TooManyFunctions:ProxmoxApi.kt$ProxmoxApi</ID>
     <ID>TooManyFunctions:ProxmoxRepository.kt$ProxmoxRepository</ID>
     <ID>TooManyFunctions:SecurePrefs.kt$SecurePrefs</ID>
     <ID>TooManyFunctions:ServerLamp.kt$com.pxmx.app.ui.components.ServerLamp.kt</ID>
     <ID>TooManyFunctions:SessionStore.kt$SessionStore</ID>
     <ID>TooManyFunctions:StorageRepository.kt$StorageRepository</ID>
+    <ID>TooManyFunctions:StupidAnimations.kt$com.pxmx.app.ui.extras.StupidAnimations.kt</ID>
     <ID>TooManyFunctions:TechHistoryGraph.kt$com.pxmx.app.ui.components.TechHistoryGraph.kt</ID>
     <ID>TooManyFunctions:TechPlate.kt$com.pxmx.app.ui.components.TechPlate.kt</ID>
+    <ID>TooManyFunctions:ThemeBackdrop.kt$com.pxmx.app.ui.theme.ThemeBackdrop.kt</ID>
     <ID>TooManyFunctions:VaultPreferences.kt$VaultPreferences : SharedPreferences</ID>
     <ID>TooManyFunctions:VaultPreferences.kt$VaultPreferences$VaultEditor : Editor</ID>
+    <ID>TopLevelPropertyNaming:RefreshStyle.kt$private const val rocketChargeMs = 180</ID>
+    <ID>TopLevelPropertyNaming:RefreshStyle.kt$private const val rocketLaunchMs = 460</ID>
     <ID>UnusedParameter:AdaptiveLayout.kt$consoleIsNode: Boolean = false</ID>
     <ID>UnusedParameter:StorageRepository.kt$StorageRepository$type: String</ID>
     <ID>UnusedParameter:UpdateRepository.kt$UpdateRepository.Companion$sessionUsername: String? = null</ID>
@@ -1499,8 +1660,6 @@
     <ID>WildcardImport:PartialAvailabilityTest.kt$import com.pxmx.app.data.model.*</ID>
     <ID>WildcardImport:PartialAvailabilityTest.kt$import kotlinx.coroutines.test.*</ID>
     <ID>WildcardImport:PartialAvailabilityTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:PermissionsScreen.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:PermissionsScreen.kt$import androidx.compose.material3.*</ID>
     <ID>WildcardImport:PveTaskLiveUpdateTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:ServersScreen.kt$import androidx.compose.foundation.layout.*</ID>
     <ID>WildcardImport:ServersScreen.kt$import androidx.compose.material3.*</ID>
