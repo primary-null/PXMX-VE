@@ -1580,7 +1580,7 @@ private fun guestKeyToClipId(key: String): String = when (key) {
 }
 
 @Composable
-@Suppress("LongParameterList")
+@Suppress("FunctionNaming", "LongParameterList")
 private fun MovableDeckItem(
     key: String,
     index: Int,
@@ -1620,7 +1620,7 @@ private const val DRAG_SCALE_ARMED = 1.04f
 private const val DRAG_SHADOW_ELEVATION = 8f
 
 @Composable
-@Suppress("LongParameterList")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 private fun Modifier.deckCardWiggleDrag(
     isEditing: Boolean,
     index: Int,
@@ -1764,7 +1764,7 @@ private fun Modifier.deckCardWiggleDrag(
 }
 
 @Composable
-@Suppress("LongParameterList")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 private fun EditBoardCard(
     board: OpsBoard,
     onMoveUp: (String) -> Boolean,
