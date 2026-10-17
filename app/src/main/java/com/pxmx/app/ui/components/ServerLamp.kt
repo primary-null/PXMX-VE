@@ -39,6 +39,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pxmx.app.data.model.ClusterLogEntry
@@ -295,9 +298,29 @@ fun ServerLamp(
     val description = contentDescription ?: serverLampDescription(null, state)
     Box(
         modifier = modifier
-            .size(6.dp)
+            .size(7.dp)
             .semantics { this.contentDescription = description }
-            .background(color.copy(alpha = alpha), CircleShape),
+            .drawBehind {
+                val c = color.copy(alpha = alpha)
+                val centerOffset = Offset(size.width / 2f, size.height / 2f)
+                val outerRadius = size.minDimension / 2f - 0.5.dp.toPx()
+                val innerRadius = (outerRadius * 0.42f).coerceAtLeast(1f)
+
+                // Outer lens ring
+                drawCircle(
+                    color = c,
+                    radius = outerRadius,
+                    center = centerOffset,
+                    style = Stroke(width = 1.dp.toPx()),
+                )
+
+                // Steady center core
+                drawCircle(
+                    color = c,
+                    radius = innerRadius,
+                    center = centerOffset,
+                )
+            },
     )
 }
 

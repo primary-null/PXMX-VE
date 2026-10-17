@@ -14,6 +14,7 @@ import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.SessionState
 import com.pxmx.app.data.model.SiteInfo
 import com.pxmx.app.data.model.ThemeMode
+import com.pxmx.app.data.model.WatchIds
 import com.pxmx.app.data.LivePoll
 import com.pxmx.app.data.model.ClusterLogEntry
 import com.pxmx.app.data.repo.AuthRepository
@@ -22,11 +23,15 @@ import com.pxmx.app.data.repo.GuestRepository
 import com.pxmx.app.data.repo.NodeRepository
 import com.pxmx.app.data.repo.ProxmoxRepository
 import com.pxmx.app.data.repo.StorageRepository
+import com.pxmx.app.data.notify.PlatformWatchPoster
+import com.pxmx.app.data.notify.WatchPoster
 import com.pxmx.app.data.session.SessionStore
 import com.pxmx.app.data.util.TagUtils
+import com.pxmx.app.ui.permissions.RuntimeNotifyPermission
 import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.ui.util.Toasts
 import com.pxmx.app.ui.util.tickerFlow
+import com.pxmx.app.ui.watch.watchNotice
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -39,6 +44,8 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import com.pxmx.app.data.repo.recentBackupChip
+import com.pxmx.app.data.repo.recentBackupDetail
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -49,13 +56,19 @@ data class RecentBackupTask(
     val node: String,
     val status: String,
     val startTime: Long,
-)
+) {
+    val chip: String get() = recentBackupChip(status)
+    val detail: String? get() = recentBackupDetail(status)
+}
+
 
 enum class ResourceFilter(val label: String, val type: String?) {
     ALL("All", null),
     GUESTS("Guests", null),
     NODES("Nodes", "node"),
-    STORAGE("Storage", "storage"),
+    STORAGE("Storage", "storage");
+
+    fun showsRecentBackups(): Boolean = this == ALL || this == GUESTS
 }
 
 /**
@@ -295,6 +308,18 @@ class HomeViewModel(
     private val taskNotificationWatcher: ClusterTaskNotificationWatcher? = null,
 ) : ViewModel() {
 
+    private val watchPoster: WatchPoster = PlatformWatchPoster(context)
+    private var lastSilentRefreshMs = 0L
+
+    val watchedIds: StateFlow<Set<String>> = sessionStore.watchedIds
+    val consoleCardFace: StateFlow<Boolean> = sessionStore.consoleCardFace
+
+    fun currentProfileId(): String = sessionStore.currentProfileId()
+
+    fun setWatched(id: String, watched: Boolean) {
+        sessionStore.setWatched(id, watched)
+    }
+
     private val _ui = MutableStateFlow(
         HomeUiState(
             session = sessionStore.session.value,
@@ -348,9 +373,37 @@ class HomeViewModel(
         viewModelScope.launch {
             sessionStore.session.collect { s ->
                 _ui.update { it.copy(session = s) }
+                if (s == null) watchPoster.retainOnly(emptySet())
+            }
+        }
+        viewModelScope.launch {
+            sessionStore.watchedIds.collect {
+                syncWatches(_ui.value.resources)
+            }
+        }
+        viewModelScope.launch {
+            tickerFlow(LivePoll.HOME_MS, emitImmediately = false).collect {
+                if (sessionStore.watchedIds.value.isEmpty()) return@collect
+                if (sessionStore.session.value == null) return@collect
+                if (_ui.value.loading || _ui.value.refreshing) return@collect
+                silentRefresh()
             }
         }
         refresh(initial = true)
+    }
+
+    /** Quiet drawer update. Leaves a row alone when its resource is missing. */
+    private fun syncWatches(resources: List<ClusterResource>) {
+        val wanted = sessionStore.watchedIds.value
+        watchPoster.retainOnly(wanted)
+        if (wanted.isEmpty()) return
+        if (!runCatching { RuntimeNotifyPermission.isGranted(context) }.getOrDefault(false)) return
+        for (resource in resources) {
+            val id = WatchIds.of(resource) ?: continue
+            if (id !in wanted) continue
+            val notice = watchNotice(resource) ?: continue
+            watchPoster.upsert(id, notice)
+        }
     }
 
     private fun sortFromStore(key: String, default: ResourceSort): ResourceSort {
@@ -358,41 +411,52 @@ class HomeViewModel(
         return ResourceSort.entries.find { it.name == raw } ?: default
     }
 
-    private fun parseVzdumpTasks(raw: List<Map<String, Any>>): List<RecentBackupTask> {
-        return raw.mapNotNull { map ->
-            val upid = map["upid"] as? String ?: return@mapNotNull null
-            val type = map["type"] as? String ?: upid.split(':').getOrNull(5) ?: ""
-            if (type != "vzdump") return@mapNotNull null
-            val guestId = map["id"]?.toString()?.takeIf { it.isNotBlank() }
-                ?: upid.split(':').getOrNull(6)?.takeIf { it.isNotBlank() }
-                ?: "—"
-            val node = map["node"] as? String ?: upid.split(':').getOrNull(1) ?: "—"
-            val status = map["status"] as? String ?: "running"
-            val startTime = (map["starttime"] as? Number)?.toLong() ?: 0L
-            RecentBackupTask(
-                upid = upid,
-                guestId = guestId,
-                node = node,
-                status = status,
-                startTime = startTime,
-            )
-        }.sortedByDescending { it.startTime }
+    companion object {
+        private const val UPID_NODE_INDEX = 1
+        private const val UPID_TYPE_INDEX = 5
+        private const val UPID_ID_INDEX = 6
+
+        internal fun parseVzdumpTasks(raw: List<Map<String, Any>>): List<RecentBackupTask> {
+            return raw.mapNotNull { map ->
+                val upid = map["upid"] as? String ?: return@mapNotNull null
+                val type = map["type"] as? String ?: upid.split(':').getOrNull(UPID_TYPE_INDEX) ?: ""
+                if (type != "vzdump") return@mapNotNull null
+                val guestId = map["id"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: upid.split(':').getOrNull(UPID_ID_INDEX)?.takeIf { it.isNotBlank() }
+                    ?: "—"
+                val node = map["node"] as? String ?: upid.split(':').getOrNull(UPID_NODE_INDEX) ?: "—"
+                val status = map["status"] as? String ?: "running"
+                val startTime = (map["starttime"] as? Number)?.toLong() ?: 0L
+                RecentBackupTask(
+                    upid = upid,
+                    guestId = guestId,
+                    node = node,
+                    status = status,
+                    startTime = startTime,
+                )
+            }.sortedByDescending { it.startTime }
+        }
     }
 
     /** Refresh metrics without spinners or error flash. */
     private suspend fun silentRefresh() {
+        val now = System.currentTimeMillis()
+        if (now - lastSilentRefreshMs < LivePoll.HOME_MS - 400L) return
+        lastSilentRefreshMs = now
         val listResult = nodeRepo.listResources()
         val rawTasks = nodeRepo.clusterTasks().getOrNull().orEmpty()
         taskNotificationWatcher?.onClusterTasks(rawTasks)
         val vzdumpTasks = parseVzdumpTasks(rawTasks)
         listResult.onSuccess { list ->
+            val merged = mergeResourceSections(_ui.value.resources, list)
             _ui.update {
                 it.copy(
-                    resources = mergeResourceSections(it.resources, list),
+                    resources = merged,
                     recentBackups = vzdumpTasks,
                     error = resourceReadError(list),
                 )
             }
+            syncWatches(merged)
         }
     }
 
@@ -480,16 +544,18 @@ class HomeViewModel(
                 val vzdumpTasks = parseVzdumpTasks(rawTasks)
                 listResult.fold(
                     onSuccess = { list ->
+                        val merged = mergeResourceSections(_ui.value.resources, list)
                         _ui.update {
                             it.copy(
                                 site = site ?: it.site,
-                                resources = mergeResourceSections(it.resources, list),
+                                resources = merged,
                                 recentBackups = vzdumpTasks,
                                 loading = false,
                                 refreshing = false,
                                 error = resourceReadError(list),
                             )
                         }
+                        syncWatches(merged)
                     },
                     onFailure = { e ->
                         _ui.update {
@@ -778,6 +844,7 @@ class HomeViewModel(
                 },
             )
         }
+        syncWatches(_ui.value.resources)
     }
 
     constructor(

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -160,7 +161,7 @@ fun FirewallScreen(
                         onClick = { viewModel.refresh() },
                         enabled = !state.loading && !state.isApplying,
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                 },
             )

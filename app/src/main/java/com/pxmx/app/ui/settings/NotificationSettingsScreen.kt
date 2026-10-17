@@ -23,11 +23,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import com.pxmx.app.ui.components.TechSwitch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +46,7 @@ import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
 import com.pxmx.app.ui.components.techTopAppBarColors
+import com.pxmx.app.ui.permissions.RequestPostNotificationsOnUse
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +74,12 @@ fun NotificationSettingsContent(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var armOnEnter by rememberSaveable { mutableStateOf(prefs.masterEnabled) }
+
+    RequestPostNotificationsOnUse(
+        armed = armOnEnter,
+        onPrompted = { armOnEnter = false },
+    )
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -154,7 +164,7 @@ fun NotificationSettingsContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Switch(
+                            TechSwitch(
                                 checked = prefs.masterEnabled,
                                 onCheckedChange = { handleMasterToggle(it) },
                             )
@@ -251,7 +261,7 @@ private fun NotificationToggleRow(
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
             )
         }
-        Switch(
+        TechSwitch(
             checked = checked,
             enabled = enabled,
             onCheckedChange = onCheckedChange,

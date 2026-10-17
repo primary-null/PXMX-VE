@@ -20,13 +20,26 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.platform.LocalConfiguration
 import com.pxmx.app.data.util.TagUtils
 import com.pxmx.app.ui.adaptive.isOperatorTwoPane
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.pxmx.app.data.console.ConsoleStill
+import com.pxmx.app.data.console.ConsoleStillStore
+import com.pxmx.app.ui.theme.blurBackdropBitmap
+import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.foundation.BorderStroke
 import com.pxmx.app.ui.components.TagChip
 import com.pxmx.app.ui.components.TechSectionLabel
@@ -35,6 +48,7 @@ import com.pxmx.app.ui.util.formatEpoch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,6 +75,12 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import com.pxmx.app.ui.adaptive.AdaptiveAlertDialog
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.pxmx.app.ui.extras.HomeScreenPullRefreshIndicator
+import com.pxmx.app.ui.extras.LocalRefreshCog
+import com.pxmx.app.ui.extras.RefreshEggSample
+import com.pxmx.app.ui.extras.stepRefreshEgg
+import android.os.SystemClock
 import com.pxmx.app.ui.components.SystemLogStrip
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,10 +94,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +110,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.ui.util.AppToast
 import com.pxmx.app.data.model.ClusterResource
 import com.pxmx.app.data.model.GuestAction
+import com.pxmx.app.data.model.WatchIds
 import com.pxmx.app.data.model.GuestType
 import com.pxmx.app.data.model.ServerLampThresholds
 import com.pxmx.app.data.model.ThemeMode
@@ -96,10 +119,17 @@ import com.pxmx.app.ui.components.ClusterBezel
 import com.pxmx.app.ui.components.TechActionPlate
 import com.pxmx.app.ui.components.TechColors
 import com.pxmx.app.ui.components.serverLampDescription
+import com.pxmx.app.ui.theme.ThemeBackdropSection
+import com.pxmx.app.ui.theme.themePageColor
 import com.pxmx.app.ui.components.clusterBezelNodes
 import com.pxmx.app.ui.components.lampForResource
 import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDropdownMenu
+import com.pxmx.app.ui.extras.StupidCardWrapper
+import com.pxmx.app.ui.extras.rememberStupidHeaderMotion
+import com.pxmx.app.ui.extras.stupidChipFlip
+import com.pxmx.app.ui.extras.stupidMenuSquash
+import com.pxmx.app.ui.extras.stupidSearchWobble
 import com.pxmx.app.ui.components.TechMenuHeader
 import com.pxmx.app.ui.components.TechMenuItem
 import com.pxmx.app.ui.components.TechPlate
@@ -109,6 +139,8 @@ import com.pxmx.app.ui.guest.detail.CreateBackupDialog
 import com.pxmx.app.ui.guest.detail.availableActions
 import com.pxmx.app.ui.icons.GuestIcons
 import com.pxmx.app.ui.util.formatBytes
+import com.pxmx.app.ui.watch.WatchEye
+import com.pxmx.app.ui.watch.rememberWatchToggle
 import com.pxmx.app.ui.util.formatEpoch
 import com.pxmx.app.ui.util.formatPercent
 import com.pxmx.app.ui.util.formatUptime
@@ -139,11 +171,20 @@ fun HomeScreen(
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val lampThresholds by viewModel.serverLampThresholds.collectAsStateWithLifecycle()
+    val watchedIds by viewModel.watchedIds.collectAsStateWithLifecycle()
+    val onWatchClick = rememberWatchToggle(viewModel::setWatched)
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
+    val consoleCardFace by viewModel.consoleCardFace.collectAsStateWithLifecycle()
     val version = state.session?.version?.display ?: "…"
     val host = state.session?.config?.displayHost ?: ""
     val site = state.site
     val context = LocalContext.current
+    val stillStore = (context.applicationContext as? com.pxmx.app.ProxmoxApp)?.consoleStillStore
+    val stillsFlow = remember(stillStore) {
+        stillStore?.stills ?: kotlinx.coroutines.flow.flowOf(emptyMap())
+    }
+    val stills by stillsFlow.collectAsStateWithLifecycle(emptyMap())
+    val profileId = remember(state.session) { viewModel.currentProfileId() }
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? com.pxmx.app.ProxmoxApp
         if (app != null) {
@@ -163,31 +204,12 @@ fun HomeScreen(
     }
 
     val siteTitle = site?.title ?: site?.nodeName ?: "Proxmox"
-    val expandedSubtitle = buildString {
-        append(siteTitle)
-        append(" · ")
-        append(host)
-        append(" · PVE ")
-        append(version)
-        site?.let {
-            if (it.isCluster && it.nodeCount > 1) {
-                append(" · ")
-                append(it.nodeCount)
-                append(" nodes")
-            } else {
-                append(" · ")
-                append(it.subtitleKind)
-            }
-        }
-    }
-    val collapsedSubtitle = "$siteTitle · PVE $version"
     val listState = rememberLazyListState()
     val collapseProgress = if (listState.firstVisibleItemIndex == 0) {
         (listState.firstVisibleItemScrollOffset / 180f).coerceIn(0f, 1f)
     } else {
         1f
     }
-    val wordmarkFontSize = (36f - 14f * collapseProgress).sp
 
     val configuration = LocalConfiguration.current
     val isDex = DeXUtils.isDeXMode(context)
@@ -239,7 +261,7 @@ fun HomeScreen(
 
     Scaffold(
         modifier = modifier,
-        containerColor = if (isTabletop) Color.Black else TechColors.Hull,
+        containerColor = themePageColor(if (isTabletop) Color.Black else TechColors.Hull),
         bottomBar = {
             SystemLogStrip(
                 entry = latestLog,
@@ -250,22 +272,33 @@ fun HomeScreen(
             )
         },
         topBar = {
-            TopAppBar(
-                colors = com.pxmx.app.ui.components.techTopAppBarColors(),
-                title = {
+            val mastheadKind = site?.let {
+                if (it.isCluster && it.nodeCount > 1) "${it.nodeCount} nodes" else it.subtitleKind
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(themePageColor(TechColors.Hull))
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 6.dp, bottom = 8.dp),
+            ) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    val paneWidthDp = maxWidth.value
+                    val wordmarkSp = homeWordmarkSp(paneWidthDp, collapseProgress)
+                    val includeHost = homeMastheadPrefersHost(paneWidthDp)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(onClick = onOpenServers),
-                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "PXMX",
-                                fontSize = wordmarkFontSize,
+                                fontSize = wordmarkSp.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                                 letterSpacing = 1.5.sp,
@@ -275,7 +308,7 @@ fun HomeScreen(
                                 Surface(
                                     shape = MaterialTheme.shapes.small,
                                     color = MaterialTheme.colorScheme.tertiaryContainer,
-                                    onClick = { Toast.makeText(context, "Simulated data — no real server", Toast.LENGTH_SHORT).show() }
+                                    onClick = { Toast.makeText(context, "Simulated data — no real server", Toast.LENGTH_SHORT).show() },
                                 ) {
                                     Text(
                                         text = "DEMO",
@@ -287,39 +320,34 @@ fun HomeScreen(
                             }
                         }
                         Text(
-                            text = if (collapseProgress > 0.5f) collapsedSubtitle else expandedSubtitle,
+                            text = homeMastheadLine(
+                                siteTitle = siteTitle,
+                                host = host,
+                                version = version,
+                                kind = mastheadKind,
+                                includeHost = includeHost,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.clickable(onClick = onOpenServers)
                         )
                     }
-                },
-                actions = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp),
-                    ) {
-                        TechActionPlate(
-                            label = "Sync",
-                            onClick = { viewModel.refresh() },
-                        )
-                        TechActionPlate(
-                            label = "Tasks",
-                            onClick = { onOpenTasks() },
-                        )
-                        TechActionPlate(
-                            label = "Menu",
-                            onClick = {
-                                menuOpen = true
-                            },
-                            emphasized = menuOpen,
-                        )
-                    }
-                    TechDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                }
+                Spacer(Modifier.height(8.dp))
+                HomeCommandStrip(
+                    refreshing = state.refreshing,
+                    menuOpen = menuOpen,
+                    onSync = { viewModel.refresh() },
+                    onTasks = onOpenTasks,
+                    onMenu = { menuOpen = true },
+                    menu = {
+                        TechDropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false },
+                            modifier = Modifier.stupidMenuSquash(menuOpen),
+                        ) {
                         TechMenuHeader("SORT · ${state.filter.label}")
                         ResourceSort.optionsFor(state.filter).forEach { mode ->
                             val selected = state.activeSort == mode
@@ -408,6 +436,7 @@ fun HomeScreen(
                     }
                 },
             )
+            }
         },
     ) { padding ->
         Column(
@@ -446,6 +475,7 @@ fun HomeScreen(
                 onValueChange = { viewModel.setSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .stupidSearchWobble()
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 singleLine = true,
                 placeholder = {
@@ -497,9 +527,41 @@ fun HomeScreen(
                 )
             }
 
+            val pullRefreshState = rememberPullToRefreshState()
+            val useCog = LocalRefreshCog.current
+            val pullFraction = pullRefreshState.distanceFraction
+            // Plain clock. A state write here would recompose on every pull frame.
+            val pullArmedAt = remember { longArrayOf(-1L) }
+            val nowMonotonic = SystemClock.uptimeMillis()
+            if (pullFraction >= 1f) {
+                pullArmedAt[0] = nowMonotonic
+            }
+            val isArmed = pullArmedAt[0] > 0L && (nowMonotonic - pullArmedAt[0]) <= 500L
+
+            val eggSampleState = remember { mutableStateOf(RefreshEggSample(useCog = useCog)) }
+            val currentEggSample = stepRefreshEgg(
+                sample = eggSampleState.value,
+                nowMillis = nowMonotonic,
+                isRefreshing = state.refreshing,
+                isArmed = isArmed,
+                useCog = useCog,
+            )
+            if (currentEggSample != eggSampleState.value) {
+                eggSampleState.value = currentEggSample
+            }
+
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = { viewModel.refresh() },
+                state = pullRefreshState,
+                indicator = {
+                    HomeScreenPullRefreshIndicator(
+                        state = pullRefreshState,
+                        isRefreshing = state.refreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        eggSample = currentEggSample,
+                    )
+                },
                 modifier = Modifier.fillMaxSize(),
             ) {
                 when {
@@ -620,57 +682,71 @@ fun HomeScreen(
                                         is HomeListRow.Item -> {
                                             val res = row.resource
                                             val id = res.id.orEmpty()
-                                            ResourceCard(
-                                                resource = res,
-                                                busy = id in state.busyGuestIds,
-                                                thresholds = lampThresholds,
-                                                selectedTag = state.selectedTag,
-                                                onTagClick = { tag -> viewModel.toggleTagFilter(tag) },
-                                                onClick = {
-                                                    when {
-                                                        res.isGuest && res.node != null && res.vmid != null && res.type != null -> {
-                                                            com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.GUEST_CARD)
-                                                            onOpenGuest(res.node, res.type, res.vmid, res.displayName)
+                                            val watchId = WatchIds.of(res)
+                                            val still = if (consoleCardFace && res.type == "qemu" && res.isRunning && res.vmid != null) {
+                                                val key = ConsoleStillStore.stillKey(profileId, GuestType.QEMU, res.vmid)
+                                                stills[key]
+                                            } else {
+                                                null
+                                            }
+                                            StupidCardWrapper {
+                                                ResourceCard(
+                                                    resource = res,
+                                                    busy = id in state.busyGuestIds,
+                                                    thresholds = lampThresholds,
+                                                    still = still,
+                                                    watched = watchId != null && watchId in watchedIds,
+                                                    onToggleWatch = watchId?.let { key ->
+                                                        { onWatchClick(key, key in watchedIds) }
+                                                    },
+                                                    selectedTag = state.selectedTag,
+                                                    onTagClick = { tag -> viewModel.toggleTagFilter(tag) },
+                                                    onClick = {
+                                                        when {
+                                                            res.isGuest && res.node != null && res.vmid != null && res.type != null -> {
+                                                                com.pxmx.app.ui.tour.TourController.advance(com.pxmx.app.ui.tour.TourStep.GUEST_CARD)
+                                                                onOpenGuest(res.node, res.type, res.vmid, res.displayName)
+                                                            }
+                                                            res.type == "storage" && res.node != null -> {
+                                                                val name = res.storage ?: res.name ?: return@ResourceCard
+                                                                onOpenStorage(res.node, name)
+                                                            }
+                                                            res.type == "node" && res.node != null ->
+                                                                onOpenNode(res.node)
                                                         }
-                                                        res.type == "storage" && res.node != null -> {
-                                                            val name = res.storage ?: res.name ?: return@ResourceCard
-                                                            onOpenStorage(res.node, name)
+                                                    },
+                                                    onPowerToggle = { on ->
+                                                        viewModel.quickPowerToggle(res, on)
+                                                    },
+                                                    onGuestAction = { action ->
+                                                        viewModel.triggerGuestAction(res, action)
+                                                    },
+                                                    onBackupOnServer = {
+                                                        scope.launch {
+                                                            backupStorages = viewModel.getNodeStorage(res.node ?: "")
+                                                            backupTarget = res
+                                                            backupToDeviceMode = false
                                                         }
-                                                        res.type == "node" && res.node != null ->
-                                                            onOpenNode(res.node)
-                                                    }
-                                                },
-                                                onPowerToggle = { on ->
-                                                    viewModel.quickPowerToggle(res, on)
-                                                },
-                                                onGuestAction = { action ->
-                                                    viewModel.triggerGuestAction(res, action)
-                                                },
-                                                onBackupOnServer = {
-                                                    scope.launch {
-                                                        backupStorages = viewModel.getNodeStorage(res.node ?: "")
-                                                        backupTarget = res
-                                                        backupToDeviceMode = false
-                                                    }
-                                                },
-                                                onBackupToDevice = {
-                                                    scope.launch {
-                                                        backupStorages = viewModel.getNodeStorage(res.node ?: "")
-                                                        backupTarget = res
-                                                        backupToDeviceMode = true
-                                                    }
-                                                },
-                                                onReboot = { viewModel.quickReboot(res) },
-                                                onOnbootToggle = { on ->
-                                                    viewModel.quickOnbootToggle(res, on)
-                                                },
-                                            )
+                                                    },
+                                                    onBackupToDevice = {
+                                                        scope.launch {
+                                                            backupStorages = viewModel.getNodeStorage(res.node ?: "")
+                                                            backupTarget = res
+                                                            backupToDeviceMode = true
+                                                        }
+                                                    },
+                                                    onReboot = { viewModel.quickReboot(res) },
+                                                    onOnbootToggle = { on ->
+                                                        viewModel.quickOnbootToggle(res, on)
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
 
-                            if (state.recentBackups.isNotEmpty()) {
+                            if (state.filter.showsRecentBackups() && state.recentBackups.isNotEmpty()) {
                                 item(key = "recent-backups-section") {
                                     Spacer(Modifier.height(12.dp))
                                     RecentBackupsSection(tasks = state.recentBackups)
@@ -720,6 +796,7 @@ fun HomeScreen(
                             Text(mode.label)
                         }
                     }
+                    ThemeBackdropSection()
                 }
             },
             confirmButton = {
@@ -893,6 +970,7 @@ private fun CategoryRail(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .weight(1f)
+                    .stupidChipFlip(isOn)
                     .clip(shape)
                     .background(if (isOn) TechColors.Deck else TechColors.Hull)
                     .border(
@@ -956,10 +1034,16 @@ fun StatusSectionHeader(
         animationSpec = tween(180),
         label = "chevron"
     )
+    val headerMotion = rememberStupidHeaderMotion(collapsed)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                if (headerMotion.scaleY != 1f) {
+                    scaleY = headerMotion.scaleY
+                }
+            }
             .clickable { onToggle() }
             .padding(top = 4.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -968,7 +1052,7 @@ fun StatusSectionHeader(
             imageVector = Icons.Default.KeyboardArrowDown,
             contentDescription = null,
             tint = accent,
-            modifier = Modifier.size(20.dp).rotate(rotation)
+            modifier = Modifier.size(20.dp).rotate(rotation + headerMotion.extraSpin)
         )
         Spacer(Modifier.width(4.dp))
         Box(
@@ -1028,6 +1112,7 @@ private fun ResourceFillBackground(
     )
 }
 
+@Suppress("FunctionNaming", "LongParameterList")
 @Composable
 fun ResourceCard(
     resource: ClusterResource,
@@ -1035,6 +1120,8 @@ fun ResourceCard(
     selectedTag: String? = null,
     onTagClick: ((String) -> Unit)? = null,
     onClick: () -> Unit,
+    watched: Boolean = false,
+    onToggleWatch: (() -> Unit)? = null,
     onPowerToggle: (Boolean) -> Unit = {},
     onGuestAction: (GuestAction) -> Unit = {},
     onBackupOnServer: () -> Unit = {},
@@ -1042,6 +1129,7 @@ fun ResourceCard(
     onReboot: () -> Unit = {},
     onOnbootToggle: (Boolean) -> Unit = {},
     thresholds: ServerLampThresholds = ServerLampThresholds(),
+    still: ConsoleStill? = null,
 ) {
     val clickable = resource.isGuest || resource.type == "storage" || resource.type == "node"
     val reduceMotion = rememberReduceMotion()
@@ -1050,6 +1138,42 @@ fun ResourceCard(
     }
     val isGuest = resource.isGuest
     val showQuick = isGuest && resource.template != 1
+    val stillBitmap = remember(still?.jpegBytes) {
+        still?.jpegBytes?.let { bytes ->
+            try {
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                val raw = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return@remember null
+                val longer = maxOf(raw.width, raw.height)
+                val scaled = if (longer > 480) {
+                    val scale = 480f / longer
+                    val targetW = (raw.width * scale).toInt().coerceAtLeast(1)
+                    val targetH = (raw.height * scale).toInt().coerceAtLeast(1)
+                    val s = android.graphics.Bitmap.createScaledBitmap(raw, targetW, targetH, true)
+                    if (s != raw) raw.recycle()
+                    s
+                } else {
+                    raw
+                }
+                val blurred = try {
+                    blurBackdropBitmap(scaled, 6)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    scaled
+                }
+                if (blurred != scaled) {
+                    scaled.recycle()
+                }
+                blurred
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }
     val railColor by animateColorAsState(
         targetValue = when {
             busy -> TechColors.LinkGreen.copy(alpha = 0.55f)
@@ -1109,32 +1233,55 @@ fun ResourceCard(
                 modifier = Modifier.matchParentSize(),
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-        ) {
-            // Status spine — LCARS-ish vertical rail
+        if (stillBitmap != null) {
+            Image(
+                bitmap = stillBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
             Box(
                 modifier = Modifier
-                    .width(5.dp)
-                    .fillMaxHeight()
-                    .background(railColor),
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.50f))
+                    .drawBehind {
+                        val longerSide = maxOf(size.width, size.height)
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                0.0f to Color.Transparent,
+                                0.55f to Color.Transparent,
+                                1.0f to Color.Black.copy(alpha = 0.50f),
+                                center = center,
+                                radius = longerSide * 0.75f,
+                            ),
+                        )
+                    },
             )
-            Column(modifier = Modifier.weight(1f)) {
-                // Identity bay (dark)
+        }
+        // Rail is an overlay sized after content. Do not put FlowRow inside
+        // Row(height = IntrinsicSize.Min): FlowRow reports one-line min height
+        // (tokens fit at infinite width) and the wrap is clipped. Fold NODES
+        // dropped DISK + uptime that way.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 5.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (clickable) {
+                            Modifier.clickable(onClick = onClick)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (clickable) {
-                                Modifier.clickable(onClick = onClick)
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1178,33 +1325,14 @@ fun ResourceCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        val metrics = metricsLine(resource)
-                        if (metrics != "—") {
-                            Spacer(Modifier.height(5.dp))
-                            Text(
-                                text = metrics,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                        val tagsList = remember(resource.tags) { TagUtils.splitTags(resource.tags) }
-                        if (isGuest && tagsList.isNotEmpty()) {
-                            Spacer(Modifier.height(5.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                tagsList.forEach { tag ->
-                                    TagChip(
-                                        tag = tag,
-                                        isSelected = tag.equals(selectedTag, ignoreCase = true),
-                                        onClick = if (onTagClick != null) { { onTagClick(tag) } } else null,
-                                    )
-                                }
-                            }
-                        }
+                    }
+                    val toggleWatch = onToggleWatch
+                    if (toggleWatch != null && (isGuest || isNode)) {
+                        WatchEye(
+                            watched = watched,
+                            label = resource.displayName,
+                            onClick = toggleWatch,
+                        )
                     }
                     Spacer(Modifier.width(8.dp))
                     if (isGuest) {
@@ -1245,13 +1373,51 @@ fun ResourceCard(
                         TechStatusPlate(status = resource.status)
                     }
                 }
+                val metrics = metricsLine(resource)
+                if (metrics.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        metrics.forEachIndexed { index, token ->
+                            Text(
+                                text = if (index < metrics.lastIndex) "$token  ·" else token,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                val tagsList = remember(resource.tags) { TagUtils.splitTags(resource.tags) }
+                if (isGuest && tagsList.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        tagsList.forEach { tag ->
+                            TagChip(
+                                tag = tag,
+                                isSelected = tag.equals(selectedTag, ignoreCase = true),
+                                onClick = if (onTagClick != null) { { onTagClick(tag) } } else null,
+                            )
+                        }
+                    }
+                }
+            }
 
-                if (showQuick) {
+            if (showQuick) {
                     // Raised control deck — INVERTED: lighter gray over dark hull
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(deck)
+                            .background(if (stillBitmap != null) Color.Transparent else deck)
                             .border(width = 0.dp, color = Color.Transparent)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                     ) {
@@ -1274,8 +1440,16 @@ fun ResourceCard(
                             )
                         }
                     }
-                }
             }
+        }
+        Box(Modifier.matchParentSize()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(railColor),
+            )
         }
     }
 }
@@ -1537,36 +1711,50 @@ private fun subtitle(r: ClusterResource, kindLabel: String? = null): String = bu
     }
 }
 
-private fun metricsLine(r: ClusterResource): String {
+private fun storageMetricsTokens(r: ClusterResource): List<String> {
     val parts = mutableListOf<String>()
-    when (r.type) {
-        "storage" -> {
-            if (r.disk != null || r.maxdisk != null) {
-                parts += "${formatBytes(r.disk)} / ${formatBytes(r.maxdisk)}"
-            }
-            // used fraction when both sides present
-            val used = r.disk
-            val total = r.maxdisk
-            if (used != null && total != null && total > 0) {
-                parts += formatPercent(used.toDouble() / total.toDouble() * 100.0)
-            }
-        }
-        "node" -> {
-            r.cpuPercent?.let { parts += "CPU ${formatPercent(it)}" }
-            r.memPercent?.let { parts += "MEM ${formatPercent(it)}" }
-            if (r.disk != null || r.maxdisk != null) {
-                parts += "DISK ${formatBytes(r.disk)} / ${formatBytes(r.maxdisk)}"
-            }
-            r.uptime?.takeIf { it > 0 }?.let { parts += "up ${formatUptime(it)}" }
-        }
-        else -> {
-            r.cpuPercent?.let { parts += "CPU ${formatPercent(it)}" }
-            r.memPercent?.let { parts += "MEM ${formatPercent(it)}" }
-            r.vcpuCount?.takeIf { r.isGuest }?.let { parts += "${it} vCPU" }
-            r.uptime?.takeIf { it > 0 }?.let { parts += "up ${formatUptime(it)}" }
-        }
+    if (r.disk != null || r.maxdisk != null) {
+        parts += "${formatBytes(r.disk)} / ${formatBytes(r.maxdisk)}"
     }
-    return parts.joinToString("  ·  ").ifBlank { "—" }
+    val used = r.disk
+    val total = r.maxdisk
+    if (used != null && total != null && total > 0) {
+        parts += formatPercent(used.toDouble() / total.toDouble() * 100.0)
+    }
+    return parts
+}
+
+private fun nodeMetricsTokens(r: ClusterResource): List<String> {
+    val parts = mutableListOf<String>()
+    r.cpuPercent?.let { parts += "CPU ${formatPercent(it)}" }
+    r.memPercent?.let { parts += "MEM ${formatPercent(it)}" }
+    if (r.disk != null || r.maxdisk != null) {
+        parts += "DISK ${formatBytes(r.disk)} / ${formatBytes(r.maxdisk)}"
+    }
+    r.uptime?.takeIf { it > 0 }?.let { parts += "up ${formatUptime(it)}" }
+    return parts
+}
+
+private fun guestMetricsTokens(r: ClusterResource): List<String> {
+    val parts = mutableListOf<String>()
+    r.cpuPercent?.let { parts += "CPU ${formatPercent(it)}" }
+    r.memPercent?.let { parts += "MEM ${formatPercent(it)}" }
+    r.vcpuCount?.takeIf { r.isGuest }?.let { parts += "${it} vCPU" }
+    r.uptime?.takeIf { it > 0 }?.let { parts += "up ${formatUptime(it)}" }
+    return parts
+}
+
+internal fun metricsLine(r: ClusterResource): List<String> = when (r.type) {
+    "storage" -> storageMetricsTokens(r)
+    "node" -> nodeMetricsTokens(r)
+    else -> guestMetricsTokens(r)
+}
+
+@Composable
+private fun recentBackupColor(chip: String): Color = when (chip) {
+    "OK" -> TechColors.LinkGreen
+    "RUNNING" -> TechColors.Amber
+    else -> MaterialTheme.colorScheme.error
 }
 
 @Composable
@@ -1582,11 +1770,7 @@ private fun RecentBackupsSection(
         TechSectionLabel(title = "Recent Backups", count = tasks.size)
         Spacer(Modifier.height(6.dp))
         tasks.forEach { task ->
-            val statusColor = when (task.status.lowercase()) {
-                "ok" -> TechColors.LinkGreen
-                "running" -> TechColors.Amber
-                else -> MaterialTheme.colorScheme.error
-            }
+            val statusColor = recentBackupColor(task.chip)
             val cardShape = CutCornerShape(bottomEnd = 10.dp)
             Surface(
                 modifier = Modifier
@@ -1596,54 +1780,71 @@ private fun RecentBackupsSection(
                 color = TechColors.Hull,
                 border = BorderStroke(1.dp, TechColors.Edge),
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "GUEST ${task.guestId}",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "node: ${task.node}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (task.startTime > 0) {
                             Spacer(Modifier.height(2.dp))
+                            val metaText = if (task.startTime > 0) {
+                                "node: ${task.node} · ${formatEpoch(task.startTime)}"
+                            } else {
+                                "node: ${task.node}"
+                            }
                             Text(
-                                text = formatEpoch(task.startTime),
+                                text = metaText,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = CutCornerShape(bottomEnd = 4.dp),
+                            color = statusColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.widthIn(max = 96.dp),
+                        ) {
+                            Text(
+                                text = task.chip,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
                     }
-                    Surface(
-                        shape = CutCornerShape(bottomEnd = 4.dp),
-                        color = statusColor.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
-                    ) {
+                    val detail = task.detail
+                    if (detail != null) {
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            text = task.status.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = statusColor,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            text = detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }

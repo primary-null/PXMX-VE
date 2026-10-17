@@ -44,10 +44,14 @@ class PlatformNotificationPoster(private val context: Context) : TaskNotificatio
                 .setContentTitle(title)
                 .setContentText(text)
                 .setOngoing(true)
-                .setRequestPromotedOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setColorized(false)
                 .setStyle(progressStyle)
+
+            if (Build.VERSION.SDK_INT >= 36 &&
+                Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                builder.setRequestPromotedOngoing(true)
+            }
 
             nm.notify(id, builder.build())
         } else {
@@ -238,3 +242,24 @@ class PveTaskLiveUpdate(
         }
     }
 }
+
+fun taskStatusChip(status: String?): String {
+    val trimmed = status?.trim()
+    return when {
+        trimmed.equals("ok", ignoreCase = true) -> "OK"
+        trimmed.equals("running", ignoreCase = true) -> "RUNNING"
+        else -> "FAILED"
+    }
+}
+
+fun taskStatusDetail(status: String?): String? {
+    val chip = taskStatusChip(status)
+    return when (chip) {
+        "OK", "RUNNING" -> null
+        else -> PveTaskLiveUpdate.humanizeExitStatus(status)
+    }
+}
+
+fun recentBackupChip(status: String?): String = taskStatusChip(status)
+fun recentBackupDetail(status: String?): String? = taskStatusDetail(status)
+

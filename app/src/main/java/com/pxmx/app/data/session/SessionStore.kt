@@ -9,6 +9,8 @@ import com.pxmx.app.data.model.ClusterGrouping
 import com.pxmx.app.data.model.ClusterMember
 import com.pxmx.app.data.model.KnownCluster
 import com.pxmx.app.data.model.NotificationPrefs
+import com.pxmx.app.data.model.WatchIds
+import com.pxmx.app.data.notify.PlatformWatchPoster
 import com.pxmx.app.data.model.SavedProfile
 import com.pxmx.app.data.model.ServerConfig
 import com.pxmx.app.data.model.ServerLampThresholds
@@ -53,11 +55,41 @@ class SessionStore(
     private val _themeMode = MutableStateFlow(loadThemeMode())
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
+    private val _themeBackdrop = MutableStateFlow(prefs.getBoolean(KEY_THEME_BACKDROP, false))
+    val themeBackdrop: StateFlow<Boolean> = _themeBackdrop.asStateFlow()
+
+    private val _themeBackdropBlur = MutableStateFlow(
+        prefs.getInt(KEY_THEME_BACKDROP_BLUR, DEFAULT_THEME_BACKDROP_BLUR).coerceIn(0, 48)
+    )
+    val themeBackdropBlur: StateFlow<Int> = _themeBackdropBlur.asStateFlow()
+
+    private val _themeBackdropDim = MutableStateFlow(
+        prefs.getInt(KEY_THEME_BACKDROP_DIM, DEFAULT_THEME_BACKDROP_DIM).coerceIn(0, 80)
+    )
+    val themeBackdropDim: StateFlow<Int> = _themeBackdropDim.asStateFlow()
+
+    private val _themeBackdropVignette = MutableStateFlow(
+        prefs.getInt(KEY_THEME_BACKDROP_VIGNETTE, DEFAULT_THEME_BACKDROP_VIGNETTE).coerceIn(0, 80)
+    )
+    val themeBackdropVignette: StateFlow<Int> = _themeBackdropVignette.asStateFlow()
+
+    private val _consoleCardFace = MutableStateFlow(prefs.getBoolean(KEY_EXTRAS_CONSOLE_ON_CARDS, false))
+    val consoleCardFace: StateFlow<Boolean> = _consoleCardFace.asStateFlow()
+
+    private val _stupidAnimations = MutableStateFlow(prefs.getBoolean(KEY_EXTRAS_STUPID_ANIMATIONS, false))
+    val stupidAnimations: StateFlow<Boolean> = _stupidAnimations.asStateFlow()
+
+    private val _refreshCog = MutableStateFlow(prefs.getBoolean(KEY_EXTRAS_REFRESH_COG, false))
+    val refreshCog: StateFlow<Boolean> = _refreshCog.asStateFlow()
+
     private val _serverLampThresholds = MutableStateFlow(loadServerLampThresholds())
     val serverLampThresholds: StateFlow<ServerLampThresholds> = _serverLampThresholds.asStateFlow()
 
     private val _notificationPrefs = MutableStateFlow(loadNotificationPrefs())
     val notificationPrefs: StateFlow<NotificationPrefs> = _notificationPrefs.asStateFlow()
+
+    private val _watchedIds = MutableStateFlow(loadWatchedIds())
+    val watchedIds: StateFlow<Set<String>> = _watchedIds.asStateFlow()
 
     private val _autoConnect = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CONNECT, true))
     val autoConnect: StateFlow<Boolean> = _autoConnect.asStateFlow()
@@ -391,6 +423,70 @@ class SessionStore(
         _themeMode.value = mode
     }
 
+    fun setThemeBackdrop(enabled: Boolean) {
+        prefs.edit {
+            putBoolean(KEY_THEME_BACKDROP, enabled)
+            if (enabled) {
+                putBoolean(KEY_EXTRAS_CONSOLE_ON_CARDS, false)
+            }
+        }
+        _themeBackdrop.value = enabled
+        if (enabled) {
+            _consoleCardFace.value = false
+        }
+    }
+
+    fun setThemeBackdropBlur(value: Int) {
+        val clamped = value.coerceIn(0, 48)
+        prefs.edit { putInt(KEY_THEME_BACKDROP_BLUR, clamped) }
+        _themeBackdropBlur.value = clamped
+    }
+
+    fun setThemeBackdropDim(value: Int) {
+        val clamped = value.coerceIn(0, 80)
+        prefs.edit { putInt(KEY_THEME_BACKDROP_DIM, clamped) }
+        _themeBackdropDim.value = clamped
+    }
+
+    fun setThemeBackdropVignette(value: Int) {
+        val clamped = value.coerceIn(0, 80)
+        prefs.edit { putInt(KEY_THEME_BACKDROP_VIGNETTE, clamped) }
+        _themeBackdropVignette.value = clamped
+    }
+
+    fun setConsoleCardFace(enabled: Boolean) {
+        prefs.edit {
+            putBoolean(KEY_EXTRAS_CONSOLE_ON_CARDS, enabled)
+            if (enabled) {
+                putBoolean(KEY_THEME_BACKDROP, false)
+            }
+        }
+        _consoleCardFace.value = enabled
+        if (enabled) {
+            _themeBackdrop.value = false
+        }
+    }
+
+    fun setStupidAnimations(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_EXTRAS_STUPID_ANIMATIONS, enabled) }
+        _stupidAnimations.value = enabled
+    }
+
+    fun setRefreshCog(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_EXTRAS_REFRESH_COG, enabled) }
+        _refreshCog.value = enabled
+    }
+
+    fun currentProfileId(): String {
+        val host = _session.value?.config?.host
+        if (host != null && host.equals("demo", ignoreCase = true)) {
+            return "demo"
+        }
+        return snapshot()?.profileId
+            ?: lastProfileId()
+            ?: "session"
+    }
+
     private fun loadThemeMode(): ThemeMode {
         val raw = prefs.getString(KEY_THEME_MODE, ThemeMode.OLED_DARK.name)
         return ThemeMode.entries.find { it.name == raw } ?: ThemeMode.OLED_DARK
@@ -445,6 +541,20 @@ class SessionStore(
 
     fun updateNotificationPrefs(transform: (NotificationPrefs) -> NotificationPrefs) {
         setNotificationPrefs(transform(_notificationPrefs.value))
+    }
+
+    fun setWatched(id: String, watched: Boolean) {
+        if (!WatchIds.isValid(id)) return
+        val next = LinkedHashSet(_watchedIds.value)
+        val changed = if (watched) next.add(id) else next.remove(id)
+        if (!changed) return
+        prefs.edit { putStringSet(KEY_WATCHED_IDS, HashSet(next)) }
+        _watchedIds.value = next
+    }
+
+    private fun loadWatchedIds(): Set<String> {
+        val raw = prefs.getStringSet(KEY_WATCHED_IDS, emptySet()).orEmpty()
+        return raw.filter { WatchIds.isValid(it) }.toSet()
     }
 
     private fun loadNotificationPrefs(): NotificationPrefs {
@@ -532,15 +642,31 @@ class SessionStore(
         _profiles.value = emptyList()
         _knownClusters.value = emptyList()
         _themeMode.value = ThemeMode.OLED_DARK
+        _themeBackdrop.value = false
+        _themeBackdropBlur.value = DEFAULT_THEME_BACKDROP_BLUR
+        _themeBackdropDim.value = DEFAULT_THEME_BACKDROP_DIM
+        _themeBackdropVignette.value = DEFAULT_THEME_BACKDROP_VIGNETTE
+        _consoleCardFace.value = false
+        _stupidAnimations.value = false
+        _refreshCog.value = false
         _autoConnect.value = true
         _previousSession.value = null
         _tourCompleted.value = false
         _serverLampThresholds.value = ServerLampThresholds()
         _notificationPrefs.value = NotificationPrefs()
+        val watched = _watchedIds.value
+        _watchedIds.value = emptySet()
+        if (context != null && watched.isNotEmpty()) {
+            runCatching { PlatformWatchPoster(context).cancel(watched) }
+        }
 
         prefs.edit().clear().commit()
 
         if (context != null) {
+            runCatching {
+                val backdropFile = java.io.File(context.filesDir, "theme/theme-backdrop.jpg")
+                if (backdropFile.exists()) backdropFile.delete()
+            }
             runCatching { com.pxmx.app.data.ops.OpsBoardStore.purge(context) }
             runCatching { (context.applicationContext as? com.pxmx.app.ProxmoxApp)?.consoleStillStore?.clear() }
             // Clear and close the encrypted store BEFORE its key and files go away.
@@ -610,11 +736,22 @@ class SessionStore(
     }
 
     companion object {
+        const val DEFAULT_THEME_BACKDROP_BLUR = 22
+        const val DEFAULT_THEME_BACKDROP_DIM = 42
+        const val DEFAULT_THEME_BACKDROP_VIGNETTE = 55
+
         private const val KEY_PROFILES_JSON = "profiles_json"
         private const val KEY_CLUSTERS_JSON = "clusters_json"
         private const val KEY_LAST_PROFILE_ID = "last_profile_id"
         private const val KEY_AUTO_CONNECT = "auto_connect"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_THEME_BACKDROP = "theme_backdrop"
+        private const val KEY_THEME_BACKDROP_BLUR = "theme_backdrop_blur"
+        private const val KEY_THEME_BACKDROP_DIM = "theme_backdrop_dim"
+        private const val KEY_THEME_BACKDROP_VIGNETTE = "theme_backdrop_vignette"
+        private const val KEY_EXTRAS_CONSOLE_ON_CARDS = "extras_console_on_cards"
+        private const val KEY_EXTRAS_STUPID_ANIMATIONS = "extras_stupid_animations"
+        private const val KEY_EXTRAS_REFRESH_COG = "extras_refresh_cog"
         private const val KEY_PREVIOUS_SESSION = "previous_session_json"
         private const val KEY_VERSION_TOAST_SHOWN = "version_toast_shown"
         private const val KEY_TOUR_COMPLETED = "tour_completed"
@@ -627,6 +764,7 @@ class SessionStore(
         private const val KEY_NOTIF_MIGRATE = "notif_migrate"
         private const val KEY_NOTIF_PACKAGE_UPDATES = "notif_package_updates"
         private const val KEY_NOTIF_EXTERNAL_START_STOP = "notif_external_start_stop"
+        private const val KEY_WATCHED_IDS = "watched_resource_ids"
 
         private const val LEGACY_HOST = "host"
         private const val LEGACY_PORT = "port"

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.ui.graphics.Color
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,12 +51,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pxmx.app.data.model.NodePowerCommand
 import com.pxmx.app.data.model.NodeServiceInfo
 import com.pxmx.app.data.model.NodeTaskInfo
+import com.pxmx.app.data.repo.taskStatusChip
+import com.pxmx.app.data.repo.taskStatusDetail
 import com.pxmx.app.ui.guest.detail.ConfirmDialog
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.TechColors
@@ -64,7 +69,10 @@ import com.pxmx.app.ui.components.TechMetaLine
 import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechSectionLabel
 import com.pxmx.app.ui.components.TechStatusPlate
+import com.pxmx.app.data.model.WatchIds
 import com.pxmx.app.ui.util.formatBytes
+import com.pxmx.app.ui.watch.WatchEye
+import com.pxmx.app.ui.watch.rememberWatchToggle
 import com.pxmx.app.ui.util.formatEpoch
 import com.pxmx.app.ui.util.formatPercent
 import com.pxmx.app.ui.util.formatUptime
@@ -78,6 +86,8 @@ fun NodeDetailScreen(
     isEmbeddedInPane: Boolean = false,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    val watchedIds by viewModel.watchedIds.collectAsStateWithLifecycle()
+    val onWatchClick = rememberWatchToggle(viewModel::setWatched)
     val st = state.status
     val mem = st?.memory
     val memPct = if (mem?.used != null && mem.total != null && mem.total > 0) {
@@ -119,6 +129,14 @@ fun NodeDetailScreen(
                 },
                 actions = {
                     val context = LocalContext.current
+                    val watchId = WatchIds.node(state.node)
+                    if (WatchIds.isValid(watchId)) {
+                        WatchEye(
+                            watched = watchId in watchedIds,
+                            label = state.node,
+                            onClick = { onWatchClick(watchId, watchId in watchedIds) },
+                        )
+                    }
                     IconButton(onClick = { onOpenConsole("login") }) {
                         Icon(Icons.Default.Terminal, contentDescription = "Node shell")
                     }
@@ -131,7 +149,7 @@ fun NodeDetailScreen(
                         Icon(Icons.Default.Language, contentDescription = "Open in browser")
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                 },
             )
@@ -445,16 +463,31 @@ private fun ServiceRow(svc: NodeServiceInfo) {
 
 @Composable
 private fun TaskRow(task: NodeTaskInfo) {
-    TechPlate(railColor = if (task.isRunning) TechColors.Amber else TechColors.Edge) {
+    val chip = taskStatusChip(task.status)
+    val detail = taskStatusDetail(task.status)
+    TechPlate(railColor = if (chip == "RUNNING") TechColors.Amber else if (chip == "FAILED") MaterialTheme.colorScheme.error else TechColors.Edge) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     (task.type ?: "task").uppercase(),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                TechStatusPlate(status = task.status)
+                Spacer(Modifier.width(8.dp))
+                TechStatusPlate(status = chip)
+            }
+            if (detail != null) {
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             task.id?.takeIf { it.isNotBlank() }?.let {
                 Text(

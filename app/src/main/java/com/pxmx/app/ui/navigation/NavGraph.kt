@@ -27,6 +27,7 @@ import com.pxmx.app.ui.home.HomeViewModel
 import com.pxmx.app.ui.login.LoginScreen
 import com.pxmx.app.ui.login.LoginViewModel
 import com.pxmx.app.ui.splash.SplashScreen
+import com.pxmx.app.ui.theme.themePageColor
 import com.pxmx.app.ui.console.ConsoleScreen
 import com.pxmx.app.ui.console.ConsoleViewModel
 import com.pxmx.app.ui.servers.ServersScreen
@@ -45,6 +46,8 @@ import com.pxmx.app.ui.settings.NotificationSettingsScreen
 import com.pxmx.app.ui.settings.ServerLampSettingsScreen
 import com.pxmx.app.ui.settings.UpdatesScreen
 import com.pxmx.app.ui.settings.UpdatesViewModel
+import com.pxmx.app.ui.settings.buildRandomJumpRoutes
+import com.pxmx.app.ui.settings.pickRandomJumpRoute
 import com.pxmx.app.ui.permissions.PermissionsScreen
 import com.pxmx.app.ui.storage.StorageDetailScreen
 import com.pxmx.app.ui.storage.StorageDetailViewModel
@@ -52,6 +55,8 @@ import com.pxmx.app.ui.tasks.TasksScreen
 import com.pxmx.app.ui.tasks.TasksViewModel
 import com.pxmx.app.ui.log.LogScreen
 import com.pxmx.app.ui.log.LogViewModel
+import com.pxmx.app.ui.nucleus.NucleusScreen
+import com.pxmx.app.ui.nucleus.NucleusViewModel
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,6 +98,7 @@ import com.pxmx.app.ui.adaptive.DetailPaneSelection
 import com.pxmx.app.ui.adaptive.DetailPaneSelectionSaver
 import com.pxmx.app.ui.adaptive.restoreDetailPaneSelection
 import com.pxmx.app.ui.adaptive.redirectTwoPaneTool
+import com.pxmx.app.ui.extras.StupidDetailPane
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.collectFoldingFeaturesAsState
@@ -105,6 +111,8 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.sp
+import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 object Routes {
@@ -114,6 +122,7 @@ object Routes {
     const val TASKS = "tasks"
     const val SETTINGS = "settings"
     const val SERVERS = "servers"
+    const val NUCLEUS = "settings/nucleus"
     const val NETWORK = "settings/network"
     const val SDN = "settings/sdn"
     const val FIREWALL = "settings/firewall"
@@ -124,31 +133,34 @@ object Routes {
     const val LOG = "log"
     const val NODE = "node/{node}"
 
-    fun node(node: String): String = "node/${Uri.encode(node)}"
+    private fun encode(segment: String): String =
+        Uri.encode(segment) ?: java.net.URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
+
+    fun node(node: String): String = "node/${encode(node)}"
     const val GUEST = "guest/{node}/{type}/{vmid}/{name}"
     const val STORAGE = "storage/{node}/{storage}"
     const val CONSOLE = "console/{node}/{type}/{vmid}/{name}?cmd={cmd}"
 
     fun guest(node: String, type: String, vmid: Long, name: String): String {
-        val safeNode = Uri.encode(node)
-        val safeType = Uri.encode(type)
-        val safeName = Uri.encode(name)
+        val safeNode = encode(node)
+        val safeType = encode(type)
+        val safeName = encode(name)
         return "guest/$safeNode/$safeType/$vmid/$safeName"
     }
 
     fun storage(node: String, storage: String): String {
-        val safeNode = Uri.encode(node)
-        val safeStorage = Uri.encode(storage)
+        val safeNode = encode(node)
+        val safeStorage = encode(storage)
         return "storage/$safeNode/$safeStorage"
     }
 
     fun console(node: String, type: String, vmid: Long, name: String, cmd: String? = null): String {
-        val safeNode = Uri.encode(node)
-        val safeType = Uri.encode(type)
-        val safeName = Uri.encode(name)
+        val safeNode = encode(node)
+        val safeType = encode(type)
+        val safeName = encode(name)
         val base = "console/$safeNode/$safeType/$vmid/$safeName"
         return if (cmd != null) {
-            val safeCmd = Uri.encode(cmd)
+            val safeCmd = encode(cmd)
             "$base?cmd=$safeCmd"
         } else base
     }
@@ -210,6 +222,7 @@ fun ProxmoxNavGraph() {
             val pane = selectedSettingsPane
             selectedSettingsPane = null
             when (pane) {
+                SettingsPaneSelection.NUCLEUS -> navController.navigate(Routes.NUCLEUS)
                 SettingsPaneSelection.NETWORK -> navController.navigate(Routes.NETWORK)
                 SettingsPaneSelection.SDN -> navController.navigate(Routes.SDN)
                 SettingsPaneSelection.FIREWALL -> navController.navigate(Routes.FIREWALL)
@@ -306,45 +319,47 @@ fun ProxmoxNavGraph() {
                         navController.navigate(Routes.LOG)
                     },
                     detailPaneContent = { sel ->
-                        when (sel) {
-                            is DetailPaneSelection.Guest -> {
-                                val guestType = remember(sel.type) {
-                                    GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                        StupidDetailPane(identityKey = sel) {
+                            when (sel) {
+                                is DetailPaneSelection.Guest -> {
+                                    val guestType = remember(sel.type) {
+                                        GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                                    }
+                                    val detailVm: GuestDetailViewModel = viewModel(
+                                        key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
+                                        factory = GuestDetailViewModel.Factory(app.repository, sel.node, guestType, sel.vmid, sel.name),
+                                    )
+                                    GuestDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        onOpenConsole = { /* Console handled in other pane */ },
+                                        onOpenLogs = { navController.navigate(Routes.LOG) },
+                                        isEmbeddedInPane = true,
+                                    )
                                 }
-                                val detailVm: GuestDetailViewModel = viewModel(
-                                    key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
-                                    factory = GuestDetailViewModel.Factory(app.repository, sel.node, guestType, sel.vmid, sel.name),
-                                )
-                                GuestDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    onOpenConsole = { /* Console handled in other pane */ },
-                                    onOpenLogs = { navController.navigate(Routes.LOG) },
-                                    isEmbeddedInPane = true,
-                                )
-                            }
-                            is DetailPaneSelection.Node -> {
-                                val detailVm: NodeDetailViewModel = viewModel(
-                                    key = "pane-node-${sel.node}",
-                                    factory = NodeDetailViewModel.Factory(app.repository, sel.node),
-                                )
-                                NodeDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    onOpenConsole = { /* Console handled in other pane */ },
-                                    isEmbeddedInPane = true,
-                                )
-                            }
-                            is DetailPaneSelection.Storage -> {
-                                val detailVm: StorageDetailViewModel = viewModel(
-                                    key = "pane-storage-${sel.node}-${sel.storage}",
-                                    factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
-                                )
-                                StorageDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    isEmbeddedInPane = true,
-                                )
+                                is DetailPaneSelection.Node -> {
+                                    val detailVm: NodeDetailViewModel = viewModel(
+                                        key = "pane-node-${sel.node}",
+                                        factory = NodeDetailViewModel.Factory(app.repository, sel.node),
+                                    )
+                                    NodeDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        onOpenConsole = { /* Console handled in other pane */ },
+                                        isEmbeddedInPane = true,
+                                    )
+                                }
+                                is DetailPaneSelection.Storage -> {
+                                    val detailVm: StorageDetailViewModel = viewModel(
+                                        key = "pane-storage-${sel.node}-${sel.storage}",
+                                        factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
+                                    )
+                                    StorageDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        isEmbeddedInPane = true,
+                                    )
+                                }
                             }
                         }
                     },
@@ -491,92 +506,94 @@ fun ProxmoxNavGraph() {
                             LocalDialogPane provides DialogPane.DETAIL,
                             LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
                         ) {
-                            when (val sel = selectedDetail) {
-                            is DetailPaneSelection.Guest -> {
-                                val guestType = remember(sel.type) {
-                                    GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                            StupidDetailPane(identityKey = selectedDetail) {
+                                when (val sel = selectedDetail) {
+                                is DetailPaneSelection.Guest -> {
+                                    val guestType = remember(sel.type) {
+                                        GuestType.fromResourceType(sel.type) ?: GuestType.QEMU
+                                    }
+                                    val detailVm: GuestDetailViewModel = viewModel(
+                                        key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
+                                        factory = GuestDetailViewModel.Factory(
+                                            app.repository,
+                                            sel.node,
+                                            guestType,
+                                            sel.vmid,
+                                            sel.name,
+                                        ),
+                                    )
+                                    GuestDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        onOpenConsole = {
+                                            navController.navigate(
+                                                Routes.console(sel.node, sel.type, sel.vmid, sel.name),
+                                            )
+                                        },
+                                        onOpenLogs = {
+                                            navController.navigate(Routes.LOG)
+                                        },
+                                        isEmbeddedInPane = true,
+                                    )
                                 }
-                                val detailVm: GuestDetailViewModel = viewModel(
-                                    key = "pane-guest-${sel.node}-${sel.type}-${sel.vmid}",
-                                    factory = GuestDetailViewModel.Factory(
-                                        app.repository,
-                                        sel.node,
-                                        guestType,
-                                        sel.vmid,
-                                        sel.name,
-                                    ),
-                                )
-                                GuestDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    onOpenConsole = {
-                                        navController.navigate(
-                                            Routes.console(sel.node, sel.type, sel.vmid, sel.name),
-                                        )
-                                    },
-                                    onOpenLogs = {
-                                        navController.navigate(Routes.LOG)
-                                    },
-                                    isEmbeddedInPane = true,
-                                )
-                            }
-                            is DetailPaneSelection.Node -> {
-                                val detailVm: NodeDetailViewModel = viewModel(
-                                    key = "pane-node-${sel.node}",
-                                    factory = NodeDetailViewModel.Factory(app.repository, sel.node),
-                                )
-                                NodeDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    onOpenConsole = { cmd ->
-                                        navController.navigate(
-                                            Routes.console(sel.node, GuestType.NODE.path, 0L, sel.node, cmd ?: "shell"),
-                                        )
-                                    },
-                                    isEmbeddedInPane = true,
-                                )
-                            }
-                            is DetailPaneSelection.Storage -> {
-                                val detailVm: StorageDetailViewModel = viewModel(
-                                    key = "pane-storage-${sel.node}-${sel.storage}",
-                                    factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
-                                )
-                                StorageDetailScreen(
-                                    viewModel = detailVm,
-                                    onBack = { selectedDetail = null },
-                                    isEmbeddedInPane = true,
-                                )
-                            }
-                            null -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(TechColors.Hull)
-                                        .padding(24.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    TechPlate(
-                                        railColor = MaterialTheme.colorScheme.primary,
+                                is DetailPaneSelection.Node -> {
+                                    val detailVm: NodeDetailViewModel = viewModel(
+                                        key = "pane-node-${sel.node}",
+                                        factory = NodeDetailViewModel.Factory(app.repository, sel.node),
+                                    )
+                                    NodeDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        onOpenConsole = { cmd ->
+                                            navController.navigate(
+                                                Routes.console(sel.node, GuestType.NODE.path, 0L, sel.node, cmd ?: "shell"),
+                                            )
+                                        },
+                                        isEmbeddedInPane = true,
+                                    )
+                                }
+                                is DetailPaneSelection.Storage -> {
+                                    val detailVm: StorageDetailViewModel = viewModel(
+                                        key = "pane-storage-${sel.node}-${sel.storage}",
+                                        factory = StorageDetailViewModel.Factory(app.repository, sel.node, sel.storage),
+                                    )
+                                    StorageDetailScreen(
+                                        viewModel = detailVm,
+                                        onBack = { selectedDetail = null },
+                                        isEmbeddedInPane = true,
+                                    )
+                                }
+                                null -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(themePageColor(TechColors.Hull))
+                                            .padding(24.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Column(
-                                            modifier = Modifier.padding(24.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        TechPlate(
+                                            railColor = MaterialTheme.colorScheme.primary,
                                         ) {
-                                            Text(
-                                                text = "OPERATOR PANE",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 1.sp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                            Spacer(Modifier.height(8.dp))
-                                            Text(
-                                                text = "Select a guest, node, or storage to view details.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
+                                            Column(
+                                                modifier = Modifier.padding(24.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                            ) {
+                                                Text(
+                                                    text = "OPERATOR PANE",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                Text(
+                                                    text = "Select a guest, node, or storage to view details.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -642,6 +659,22 @@ fun ProxmoxNavGraph() {
             val themeMode by app.sessionStore.themeMode.collectAsStateWithLifecycle()
             val lampThresholds by app.sessionStore.serverLampThresholds.collectAsStateWithLifecycle()
             val notificationPrefs by app.sessionStore.notificationPrefs.collectAsStateWithLifecycle()
+            val consoleCardFace by app.sessionStore.consoleCardFace.collectAsStateWithLifecycle()
+            val randomJumpScope = rememberCoroutineScope()
+            val onRandomJump: () -> Unit = {
+                randomJumpScope.launch {
+                    val resources = try {
+                        app.repository.listResources().getOrElse { emptyList() }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {
+                        emptyList()
+                    }
+                    val candidates = buildRandomJumpRoutes(resources)
+                    val route = pickRandomJumpRoute(candidates, Random.Default)
+                    navController.navigate(route)
+                }
+            }
 
             if (isTwoPane) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -656,10 +689,13 @@ fun ProxmoxNavGraph() {
                             uiState = uiState,
                             lampThresholds = lampThresholds,
                             notificationPrefs = notificationPrefs,
+                            consoleCardFace = consoleCardFace,
+                            onConsoleCardFace = { app.sessionStore.setConsoleCardFace(it) },
                             onBack = {
                                 if (selectedSettingsPane != null) selectedSettingsPane = null
                                 else navController.popBackStack()
                             },
+                            onOpenNucleus = { selectedSettingsPane = SettingsPaneSelection.NUCLEUS },
                             onOpenNetwork = { selectedSettingsPane = SettingsPaneSelection.NETWORK },
                             onOpenSdn = { selectedSettingsPane = SettingsPaneSelection.SDN },
                             onOpenFirewall = { selectedSettingsPane = SettingsPaneSelection.FIREWALL },
@@ -679,6 +715,7 @@ fun ProxmoxNavGraph() {
                                 app.sessionStore.purgeAll(app)
                                 android.os.Process.killProcess(android.os.Process.myPid())
                             },
+                            onRandomJump = onRandomJump,
                             modifier = Modifier.width(primaryPaneWidthDp.dp).fillMaxHeight(),
                         )
                     }
@@ -702,6 +739,16 @@ fun ProxmoxNavGraph() {
                             LocalPrimaryPaneWidth provides primaryPaneWidthDp.dp,
                         ) {
                             when (selectedSettingsPane) {
+                            SettingsPaneSelection.NUCLEUS -> {
+                                val nucleusVm: NucleusViewModel = viewModel(
+                                    key = "pane-nucleus",
+                                    factory = NucleusViewModel.Factory(app.repository),
+                                )
+                                NucleusScreen(
+                                    viewModel = nucleusVm,
+                                    onBack = { selectedSettingsPane = null },
+                                )
+                            }
                             SettingsPaneSelection.NETWORK -> {
                                 val netVm: NetworkViewModel = viewModel(
                                     key = "pane-network",
@@ -776,7 +823,7 @@ fun ProxmoxNavGraph() {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(TechColors.Hull)
+                                        .background(themePageColor(TechColors.Hull))
                                         .padding(24.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -817,14 +864,17 @@ fun ProxmoxNavGraph() {
                     themeMode = themeMode,
                     uiState = uiState,
                     lampThresholds = lampThresholds,
+                    notificationPrefs = notificationPrefs,
+                    consoleCardFace = consoleCardFace,
+                    onConsoleCardFace = { app.sessionStore.setConsoleCardFace(it) },
                     onBack = { navController.popBackStack() },
+                    onOpenNucleus = { navController.navigate(Routes.NUCLEUS) },
                     onOpenNetwork = { navController.navigate(Routes.NETWORK) },
                     onOpenSdn = { navController.navigate(Routes.SDN) },
                     onOpenFirewall = { navController.navigate(Routes.FIREWALL) },
                     onOpenUpdates = { navController.navigate(Routes.UPDATES) },
                     onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
                     onOpenServerLamps = { navController.navigate(Routes.SERVER_LAMPS) },
-                    notificationPrefs = notificationPrefs,
                     onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onOpenLogs = { navController.navigate(Routes.LOG) },
                     onThemeMode = { app.sessionStore.setThemeMode(it) },
@@ -838,6 +888,7 @@ fun ProxmoxNavGraph() {
                         app.sessionStore.purgeAll(app)
                         android.os.Process.killProcess(android.os.Process.myPid())
                     },
+                    onRandomJump = onRandomJump,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -905,6 +956,24 @@ fun ProxmoxNavGraph() {
                         popUpTo(0) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Routes.NUCLEUS) {
+            LaunchedEffect(isTwoPane) {
+                if (isTwoPane) {
+                    selectedSettingsPane = SettingsPaneSelection.NUCLEUS
+                    navController.redirectTwoPaneTool(Routes.NUCLEUS)
+                }
+            }
+            if (isTwoPane) return@composable
+
+            val vm: NucleusViewModel = viewModel(
+                factory = NucleusViewModel.Factory(app.repository),
+            )
+            NucleusScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -1051,15 +1120,17 @@ fun ProxmoxNavGraph() {
             val vm: NodeDetailViewModel = viewModel(
                 factory = NodeDetailViewModel.Factory(app.repository, node),
             )
-            NodeDetailScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() },
-                onOpenConsole = { cmd ->
-                    navController.navigate(
-                        Routes.console(node, GuestType.NODE.path, 0L, node, cmd ?: "shell"),
-                    )
-                },
-            )
+            StupidDetailPane(identityKey = node) {
+                NodeDetailScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onOpenConsole = { cmd ->
+                        navController.navigate(
+                            Routes.console(node, GuestType.NODE.path, 0L, node, cmd ?: "shell"),
+                        )
+                    },
+                )
+            }
         }
 
         composable(
@@ -1087,10 +1158,12 @@ fun ProxmoxNavGraph() {
             val vm: StorageDetailViewModel = viewModel(
                 factory = StorageDetailViewModel.Factory(app.repository, node, storage),
             )
-            StorageDetailScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() },
-            )
+            StupidDetailPane(identityKey = "$node/$storage") {
+                StorageDetailScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
 
         composable(
@@ -1131,18 +1204,20 @@ fun ProxmoxNavGraph() {
                     name,
                 ),
             )
-            GuestDetailScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() },
-                onOpenConsole = {
-                    navController.navigate(
-                        Routes.console(node, type, vmid, name),
-                    )
-                },
-                onOpenLogs = {
-                    navController.navigate(Routes.LOG)
-                },
-            )
+            StupidDetailPane(identityKey = "$node/$type/$vmid") {
+                GuestDetailScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onOpenConsole = {
+                        navController.navigate(
+                            Routes.console(node, type, vmid, name),
+                        )
+                    },
+                    onOpenLogs = {
+                        navController.navigate(Routes.LOG)
+                    },
+                )
+            }
         }
 
         composable(

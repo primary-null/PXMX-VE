@@ -184,4 +184,36 @@ class OpsBoardStoreTest {
         assertEquals(appliedSnapIdx, notEditingKeys.indexOf("snapshots"))
         assertEquals(appliedSnapIdx + 1, editingKeys.indexOf("snapshots"))
     }
+
+    @Test
+    fun reorderVisibleClip_swapHwBelowNet_persistsOrderAndPreservesInvariants() {
+        val board = OpsBoard.DEFAULT.toggleConsole(false)
+        val reordered = board.reorderVisibleClip("HW", 1)
+        val keys = computeAppliedKeys(reordered, isTourActive = false)
+        val hwIdx = keys.indexOf("hardware")
+        val netIdx = keys.indexOf("network")
+        assertTrue("hardware should be present", hwIdx >= 0)
+        assertTrue("network should be present", netIdx >= 0)
+        assertTrue("HW should be below NET (netIdx < hwIdx)", netIdx < hwIdx)
+        assertEquals("hero", keys.first())
+        assertEquals(0, keys.indexOf("hero"))
+        assertEquals("raw", keys.last())
+        assertFalse("hidden CONSOLE stays hidden", keys.contains("console"))
+
+        // Attempting to move VITALS or RAW is refused
+        assertEquals(reordered, reordered.reorderVisibleClip("VITALS", 1))
+        assertEquals(reordered, reordered.reorderVisibleClip("VITALS", -1))
+        assertEquals(reordered, reordered.reorderVisibleClip("RAW", -1))
+        assertEquals(reordered, reordered.reorderVisibleClip("RAW", 1))
+
+        // Movable clip cannot pass VITALS
+        val atTop = reordered.reorderVisibleClip("NET", -1)
+        assertEquals("Cannot move past VITALS", reordered, atTop)
+
+        // Movable clip cannot pass RAW
+        val bottomMovable = keys[keys.size - 2]
+        val atBottom = reordered.reorderVisibleClip(bottomMovable, 1)
+        assertEquals("Cannot move past RAW", reordered, atBottom)
+    }
 }
+

@@ -89,6 +89,8 @@ class AdaptiveLayoutTest {
 
     @Test
     fun testParseSettingsPaneSelection() {
+        assertEquals(SettingsPaneSelection.NUCLEUS, parseSettingsPaneSelection("nucleus"))
+        assertEquals(SettingsPaneSelection.NUCLEUS, parseSettingsPaneSelection("NUCLEUS"))
         assertEquals(SettingsPaneSelection.NETWORK, parseSettingsPaneSelection("network"))
         assertEquals(SettingsPaneSelection.NETWORK, parseSettingsPaneSelection("NETWORK"))
         assertEquals(SettingsPaneSelection.SDN, parseSettingsPaneSelection("sdn"))

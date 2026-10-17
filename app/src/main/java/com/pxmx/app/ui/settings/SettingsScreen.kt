@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -41,11 +42,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import com.pxmx.app.ui.components.TechSwitch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +71,11 @@ import com.pxmx.app.ui.components.TechPlate
 import com.pxmx.app.ui.components.TechPlateShape
 import com.pxmx.app.ui.components.TechSectionLabel
 import com.pxmx.app.ui.components.techTopAppBarColors
-import kotlinx.coroutines.delay
+import com.pxmx.app.ui.theme.LocalThemeBackdrop
+import com.pxmx.app.ui.theme.LocalThemeBackdropEnabled
+import com.pxmx.app.ui.theme.ThemeBackdropSection
+import com.pxmx.app.ui.extras.StupidAnimationsRow
+import com.pxmx.app.ui.extras.RefreshCogRow
 import kotlinx.coroutines.launch
 
 /**
@@ -83,6 +90,7 @@ fun SettingsScreen(
     themeMode: ThemeMode,
     uiState: SettingsUiState = SettingsUiState(),
     onBack: () -> Unit,
+    onOpenNucleus: () -> Unit = {},
     onOpenNetwork: () -> Unit,
     onOpenSdn: () -> Unit,
     onOpenFirewall: () -> Unit,
@@ -96,6 +104,9 @@ fun SettingsScreen(
     onThemeMode: (ThemeMode) -> Unit,
     onSwitchAccount: () -> Unit,
     onCleanSlate: () -> Unit = {},
+    onRandomJump: () -> Unit = {},
+    consoleCardFace: Boolean = false,
+    onConsoleCardFace: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showTheme by remember { mutableStateOf(false) }
@@ -142,6 +153,13 @@ fun SettingsScreen(
         ) {
             item {
                 TechSectionLabel("Cluster tools")
+            }
+            item {
+                SettingsRow(
+                    title = "Nucleus",
+                    subtitle = "3D map of this server",
+                    onClick = onOpenNucleus,
+                )
             }
             item {
                 SettingsRow(
@@ -205,9 +223,10 @@ fun SettingsScreen(
                 )
             }
             item {
+                val hasBackdrop = LocalThemeBackdropEnabled.current || LocalThemeBackdrop.current != null
                 SettingsRow(
                     title = "Appearance",
-                    subtitle = "Current · ${themeMode.label}",
+                    subtitle = "Current · ${themeMode.label}${if (hasBackdrop) " · Image" else ""}",
                     onClick = { showTheme = true },
                 )
             }
@@ -217,6 +236,48 @@ fun SettingsScreen(
                     subtitle = "End session · pick another profile",
                     onClick = onSwitchAccount,
                 )
+            }
+
+            item {
+                Spacer(Modifier.height(4.dp))
+                TechSectionLabel("Extras")
+            }
+            item {
+                TechPlate(
+                    railColor = TechColors.Edge,
+                    showRail = true,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "CONSOLE ON CARDS",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Last console frame on a running VM card. Image background turns off while this is on.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TechSwitch(
+                            checked = consoleCardFace,
+                            onCheckedChange = onConsoleCardFace,
+                        )
+                    }
+                    StupidAnimationsRow()
+                    RefreshCogRow()
+                }
             }
 
             item {
@@ -262,18 +323,77 @@ fun SettingsScreen(
             // Creator bracket — static public repo link, no user data, always resolves the same way.
             item {
                 val context = LocalContext.current
+                val haptic = LocalHapticFeedback.current
+                val creatorScope = rememberCoroutineScope()
+                val creatorProgress = remember { Animatable(0f) }
+                val currentOnRandomJump by rememberUpdatedState(onRandomJump)
+                val amberColor = TechColors.Amber
                 TechPlate(
                     railColor = TechColors.Mute,
                     showRail = true,
-                    modifier = Modifier.clickable {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/primary-null/PXMX-VE"))
+                    modifier = Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                var completedHold = false
+                                val pressStartMs = SystemClock.elapsedRealtime()
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val animJob = creatorScope.launch {
+                                    creatorProgress.snapTo(0f)
+                                    creatorProgress.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = tween(durationMillis = 10000, easing = LinearEasing),
+                                    )
+                                    completedHold = true
+                                    currentOnRandomJump()
+                                }
+                                val released = tryAwaitRelease()
+                                val heldMs = SystemClock.elapsedRealtime() - pressStartMs
+                                animJob.cancel()
+                                creatorScope.launch {
+                                    creatorProgress.snapTo(0f)
+                                }
+                                if (released && !completedHold && heldMs < 400L) {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/primary-null/PXMX-VE"))
+                                    )
+                                }
+                            },
                         )
                     },
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .drawWithContent {
+                                if (creatorProgress.value > 0f) {
+                                    val edges = creatorBarEdges(size.width, creatorProgress.value)
+                                    val fillColor = amberColor.copy(alpha = 0.22f)
+                                    val strokePx = 2.dp.toPx()
+                                    drawRect(
+                                        color = fillColor,
+                                        topLeft = Offset.Zero,
+                                        size = size.copy(width = edges.leftWidth),
+                                    )
+                                    drawLine(
+                                        color = amberColor,
+                                        start = Offset(edges.leftWidth, 0f),
+                                        end = Offset(edges.leftWidth, size.height),
+                                        strokeWidth = strokePx,
+                                    )
+                                    drawRect(
+                                        color = fillColor,
+                                        topLeft = Offset(edges.rightStart, 0f),
+                                        size = size.copy(width = size.width - edges.rightStart),
+                                    )
+                                    drawLine(
+                                        color = amberColor,
+                                        start = Offset(edges.rightStart, 0f),
+                                        end = Offset(edges.rightStart, size.height),
+                                        strokeWidth = strokePx,
+                                    )
+                                }
+                                drawContent()
+                            }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Text(
@@ -331,6 +451,7 @@ fun SettingsScreen(
                             Text(mode.label)
                         }
                     }
+                    ThemeBackdropSection()
                 }
             },
             confirmButton = {
@@ -363,10 +484,25 @@ private fun CleanSlatePlate(
                         isHolding = true
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
                         } else {
                             @Suppress("DEPRECATION")
-                            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                        }
+                        if (vibrator != null) {
+                            val waveform = cleanSlateWaveform()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                vibrator.vibrate(
+                                    VibrationEffect.createWaveform(
+                                        waveform.timings,
+                                        waveform.amplitudes,
+                                        -1,
+                                    )
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vibrator.vibrate(10000L)
+                            }
                         }
                         val animJob = scope.launch {
                             progress.animateTo(
@@ -376,31 +512,10 @@ private fun CleanSlatePlate(
                             // 10s completed exactly
                             onPurgeAndExit()
                         }
-                        // Continuous escalating vibration: one strong pulse per second,
-                        // ramping in amplitude across all ten seconds. Stops on release.
-                        val buzzJob = scope.launch {
-                            for (s in 1..10) {
-                                val amp = (60 + s * 19).coerceAtMost(255)
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    vibrator.vibrate(
-                                        VibrationEffect.createWaveform(
-                                            longArrayOf(0, 900),
-                                            intArrayOf(amp, 0),
-                                            0,
-                                        )
-                                    )
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    vibrator.vibrate(900)
-                                }
-                                delay(1000)
-                            }
-                        }
                         tryAwaitRelease()
                         isHolding = false
                         animJob.cancel()
-                        buzzJob.cancel()
-                        vibrator.cancel()
+                        vibrator?.cancel()
                         scope.launch {
                             progress.snapTo(0f)
                         }

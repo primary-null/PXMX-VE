@@ -116,6 +116,12 @@ class GuestDetailViewModel(
     private val opsBoardStore: OpsBoardStore = (context.applicationContext as? ProxmoxApp)?.opsBoardStore ?: OpsBoardStore.create(context),
 ) : ViewModel() {
 
+    val watchedIds: StateFlow<Set<String>> = sessionStore.watchedIds
+
+    fun setWatched(id: String, watched: Boolean) {
+        sessionStore.setWatched(id, watched)
+    }
+
     private val _ui = MutableStateFlow(
         GuestDetailUiState(
             node = node,
@@ -191,15 +197,7 @@ class GuestDetailViewModel(
         refresh()
     }
 
-    fun currentProfileId(): String {
-        val host = sessionStore.session.value?.config?.host
-        if (host != null && host.equals("demo", ignoreCase = true)) {
-            return "demo"
-        }
-        return sessionStore.snapshot()?.profileId
-            ?: sessionStore.lastProfileId()
-            ?: "session"
-    }
+    fun currentProfileId(): String = sessionStore.currentProfileId()
 
     fun toggleEditBoard() {
         _ui.update { it.copy(isEditingBoard = !it.isEditingBoard) }
@@ -323,9 +321,10 @@ class GuestDetailViewModel(
         }
     }
 
-    fun moveClipUp(clipId: String) {
+    fun reorderVisibleClip(clipId: String, direction: Int): Boolean {
         val currentBoard = _ui.value.board
-        val newBoard = currentBoard.moveClipUp(clipId)
+        val newBoard = currentBoard.reorderVisibleClip(clipId, direction)
+        if (newBoard == currentBoard) return false
         val profileId = currentProfileId()
         _ui.update {
             it.copy(
@@ -337,22 +336,15 @@ class GuestDetailViewModel(
         viewModelScope.launch {
             opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
         }
+        return true
+    }
+
+    fun moveClipUp(clipId: String) {
+        reorderVisibleClip(clipId, -1)
     }
 
     fun moveClipDown(clipId: String) {
-        val currentBoard = _ui.value.board
-        val newBoard = currentBoard.moveClipDown(clipId)
-        val profileId = currentProfileId()
-        _ui.update {
-            it.copy(
-                board = newBoard,
-                appliedClips = computeAppliedClips(newBoard),
-                appliedKeys = computeAppliedKeys(newBoard),
-            )
-        }
-        viewModelScope.launch {
-            opsBoardStore.saveGuestBoard(profileId, guestType, vmid, newBoard)
-        }
+        reorderVisibleClip(clipId, 1)
     }
 
     fun saveBoardAsProfileDefault() {

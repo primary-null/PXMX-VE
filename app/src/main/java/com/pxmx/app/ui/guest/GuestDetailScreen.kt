@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,19 +120,46 @@ import com.pxmx.app.ProxmoxApp
 import com.pxmx.app.data.console.ConsoleStill
 import com.pxmx.app.data.console.ConsoleStillStore
 import com.pxmx.app.ui.components.TechActionPlate
+import com.pxmx.app.ui.components.neonSelectionHalo
+import com.pxmx.app.ui.extras.stupidChipFlip
+import com.pxmx.app.ui.extras.stupidTabDeckYaw
+import com.pxmx.app.ui.icons.InstrumentGlyphs
 import com.pxmx.app.ui.util.Toasts
 import com.pxmx.app.ui.util.ToastKind
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.sin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.pxmx.app.data.model.WatchIds
+import com.pxmx.app.ui.permissions.RequestPostNotificationsOnUse
+import com.pxmx.app.ui.watch.WatchEye
+import com.pxmx.app.ui.watch.rememberWatchToggle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -151,6 +180,7 @@ import com.pxmx.app.data.model.SnapshotInfo
 import com.pxmx.app.ui.components.MetricBar
 import com.pxmx.app.ui.components.SystemLogStrip
 import com.pxmx.app.ui.components.TechColors
+import com.pxmx.app.ui.components.rememberReduceMotion
 import com.pxmx.app.ui.components.TechDeck
 import com.pxmx.app.ui.components.TechDropdownMenu
 import com.pxmx.app.ui.components.TechMenuHeader
@@ -197,6 +227,8 @@ fun GuestDetailScreen(
     isEmbeddedInPane: Boolean = false,
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    val watchedIds by viewModel.watchedIds.collectAsStateWithLifecycle()
+    val onWatchClick = rememberWatchToggle(viewModel::setWatched)
     val latestLog by viewModel.latestLog.collectAsStateWithLifecycle()
     val st = state.status
     val cfg = state.config
@@ -204,8 +236,16 @@ fun GuestDetailScreen(
     val busy = state.actionInProgress != null
     var powerMenu by remember { mutableStateOf(false) }
     var pendingDanger by remember { mutableStateOf<GuestAction?>(null) }
+    var armNotificationPrompt by rememberSaveable { mutableStateOf(false) }
+
+    RequestPostNotificationsOnUse(
+        armed = armNotificationPrompt,
+        onPrompted = { armNotificationPrompt = false },
+    )
+
     val haptic = LocalHapticFeedback.current
     val dispatchPower: (GuestAction) -> Unit = { action ->
+        armNotificationPrompt = true
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         viewModel.runPowerAction(action)
     }
@@ -334,14 +374,22 @@ fun GuestDetailScreen(
                     }
                 },
                 actions = {
+                    val watchId = WatchIds.guest(state.node, state.vmid)
+                    if (WatchIds.isValid(watchId)) {
+                        WatchEye(
+                            watched = watchId in watchedIds,
+                            label = state.name,
+                            onClick = { onWatchClick(watchId, watchId in watchedIds) },
+                        )
+                    }
                     IconButton(
                         onClick = onOpenConsole,
                         enabled = running && !busy,
                     ) {
-                        Icon(Icons.Default.Computer, contentDescription = "Console")
+                        Icon(InstrumentGlyphs.Console, contentDescription = "Console", tint = Color.Unspecified)
                     }
                     IconButton(onClick = { viewModel.refresh() }, enabled = !busy) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(InstrumentGlyphs.Refresh, contentDescription = "Refresh", tint = Color.Unspecified)
                     }
                     Box {
                         IconButton(
@@ -443,7 +491,8 @@ fun GuestDetailScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .stupidTabDeckYaw(state.expanded?.name ?: "ops"),
                 contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 4.dp, bottom = 15.dp),
                 verticalArrangement = Arrangement.spacedBy(11.dp),
             ) {
@@ -661,14 +710,20 @@ fun GuestDetailScreen(
         CreateSnapshotDialog(
             isQemu = state.guestType == GuestType.QEMU,
             onDismiss = { viewModel.openCreateSnapshot(false) },
-            onConfirm = { n, d, r -> viewModel.createSnapshot(n, d, r) },
+            onConfirm = { n, d, r ->
+                armNotificationPrompt = true
+                viewModel.createSnapshot(n, d, r)
+            },
         )
     }
     if (state.showCreateBackup) {
         CreateBackupDialog(
             storages = state.backupStorages,
             onDismiss = { viewModel.openCreateBackup(false) },
-            onConfirm = { s, m -> viewModel.createBackup(s, m) },
+            onConfirm = { s, m ->
+                armNotificationPrompt = true
+                viewModel.createBackup(s, m)
+            },
         )
     }
     state.confirmDeleteSnap?.let { snap ->
@@ -686,7 +741,10 @@ fun GuestDetailScreen(
             body = "Roll back to “$snap”? Guest should usually be stopped first.",
             confirm = "Rollback",
             onDismiss = { viewModel.confirmRollback(null) },
-            onConfirm = { viewModel.rollbackSnapshot(snap) },
+            onConfirm = {
+                armNotificationPrompt = true
+                viewModel.rollbackSnapshot(snap)
+            },
         )
     }
     state.confirmDeleteBackup?.let { vol ->
@@ -711,6 +769,7 @@ fun GuestDetailScreen(
             onConfirm = {
                 val run = action
                 pendingDanger = null
+                armNotificationPrompt = true
                 dispatchPower(run)
             },
         )
@@ -754,53 +813,180 @@ private fun BezelStamps(
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
+    val reduceMotion = rememberReduceMotion()
+    val haptic = LocalHapticFeedback.current
+    val peakPx = with(density) { 8.dp.toPx() }
+    val stampCount = 1 + BEZEL_TABS.size
+    val spans = remember(stampCount) { Array(stampCount) { 0f..1f } }
+    var scrubIndex by remember { mutableStateOf(-1) }
+    val latestKeys = rememberUpdatedState(keysInLazyColumn)
+    val jumpTo = rememberUpdatedState<(Int) -> Unit> { index ->
+        if (index <= 0) {
+            viewModel.selectSection(null)
+            coroutineScope.launch {
+                val heroIndex = latestKeys.value.indexOf("hero").coerceAtLeast(0)
+                listState.animateScrollToItem(heroIndex)
+            }
+        } else {
+            val tab = BEZEL_TABS.getOrNull(index - 1) ?: return@rememberUpdatedState
+            viewModel.selectSection(tab.section)
+            coroutineScope.launch {
+                val targetIndex = latestKeys.value.indexOf(tab.section.itemKey())
+                if (targetIndex >= 0) {
+                    listState.animateScrollToItem(targetIndex)
+                }
+            }
+        }
+    }
+
     Row(
         modifier = modifier
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .padding(end = 28.dp),
+            .padding(end = 28.dp)
+            .pointerInput(state.isEditingBoard) {
+                if (state.isEditingBoard) return@pointerInput
+                val slopPx = 12.dp.toPx()
+                val escapePx = 24.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = PointerEventPass.Initial,
+                    )
+                    val origin = down.position
+                    val pointerId = down.id
+                    var scrubbing = false
+                    var cancelled = false
+                    var armed = bezelScrubIndex(origin.x, spans.asList())
+                    var armedHaptic = false
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.find { it.id == pointerId }
+                            if (change == null) {
+                                cancelled = true
+                                break
+                            }
+                            val dx = change.position.x - origin.x
+                            val dy = change.position.y - origin.y
+                            val held = change.uptimeMillis - down.uptimeMillis
+                            if (!scrubbing) {
+                                val slide = kotlin.math.abs(dx)
+                                if (bezelScrubShouldYieldToScroll(held, slide, slopPx) ||
+                                    kotlin.math.abs(dy) >= slopPx
+                                ) {
+                                    cancelled = true
+                                    break
+                                }
+                                if (bezelScrubShouldArm(held, slide, slopPx)) {
+                                    scrubbing = true
+                                    armed = bezelScrubIndex(change.position.x, spans.asList())
+                                    scrubIndex = armed
+                                    if (!armedHaptic) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        armedHaptic = true
+                                    }
+                                }
+                            }
+                            if (scrubbing) {
+                                if (bezelScrubShouldCancel(dx, dy, escapePx)) {
+                                    cancelled = true
+                                    change.consume()
+                                    break
+                                }
+                                change.consume()
+                                val next = bezelScrubIndex(change.position.x, spans.asList())
+                                if (next != armed) {
+                                    armed = next
+                                    scrubIndex = next
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            }
+                            if (!change.pressed) break
+                        }
+                    } finally {
+                        scrubIndex = -1
+                    }
+                    if (scrubbing && !cancelled) {
+                        jumpTo.value.invoke(armed)
+                    }
+                }
+            },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        WeakTab(
+        BezelStamp(
+            index = 0,
+            scrubIndex = scrubIndex,
+            reduceMotion = reduceMotion,
+            peakPx = peakPx,
+            spans = spans,
             label = "OPS",
             fullLabel = "OPS",
             selected = state.expanded == null && !state.isEditingBoard,
-            onClick = {
-                viewModel.selectSection(null)
-                coroutineScope.launch {
-                    val heroIndex = keysInLazyColumn.indexOf("hero").coerceAtLeast(0)
-                    listState.animateScrollToItem(heroIndex)
-                }
-            },
+            onClick = { jumpTo.value.invoke(0) },
             modifier = Modifier.testTag("guest_bezel_ops"),
-            embedded = true,
         )
-        BEZEL_TABS.forEach { tab ->
-            WeakTab(
+        BEZEL_TABS.forEachIndexed { tabIndex, tab ->
+            val index = tabIndex + 1
+            BezelStamp(
+                index = index,
+                scrubIndex = scrubIndex,
+                reduceMotion = reduceMotion,
+                peakPx = peakPx,
+                spans = spans,
                 label = tab.label,
                 fullLabel = tab.fullLabel,
                 selected = state.expanded == tab.section && !state.isEditingBoard,
                 onClick = {
                     if (state.expanded == tab.section) {
-                        viewModel.selectSection(null)
-                        coroutineScope.launch {
-                            val heroIndex = keysInLazyColumn.indexOf("hero").coerceAtLeast(0)
-                            listState.animateScrollToItem(heroIndex)
-                        }
+                        jumpTo.value.invoke(0)
                     } else {
-                        viewModel.selectSection(tab.section)
-                        coroutineScope.launch {
-                            val targetIndex = keysInLazyColumn.indexOf(tab.section.itemKey())
-                            if (targetIndex >= 0) {
-                                listState.animateScrollToItem(targetIndex)
-                            }
-                        }
+                        jumpTo.value.invoke(index)
                     }
                 },
                 modifier = Modifier.testTag("guest_bezel_${tab.slug}"),
-                embedded = true,
             )
         }
+    }
+}
+
+@Composable
+private fun BezelStamp(
+    index: Int,
+    scrubIndex: Int,
+    reduceMotion: Boolean,
+    peakPx: Float,
+    spans: Array<ClosedFloatingPointRange<Float>>,
+    label: String,
+    fullLabel: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scale = bezelScrubScale(index, scrubIndex, reduceMotion)
+    val bow = if (reduceMotion) 0f else bezelScrubBowPx(index, scrubIndex, peakPx)
+    Box(
+        modifier = Modifier
+            .onGloballyPositioned { coords ->
+                val bounds = coords.boundsInParent()
+                spans[index] = bounds.left..bounds.right
+            }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationY = bow
+            },
+    ) {
+        WeakTab(
+            label = label,
+            fullLabel = fullLabel,
+            selected = selected,
+            armed = scrubIndex == index && !selected,
+            onClick = onClick,
+            modifier = modifier,
+            embedded = true,
+        )
     }
 }
 
@@ -886,6 +1072,17 @@ private fun BezelEditButton(
     Box(
         modifier = modifier
             .zIndex(1f)
+            .then(
+                if (state.isEditingBoard) {
+                    Modifier.neonSelectionHalo(
+                        enabled = true,
+                        color = editBorder,
+                        pathProvider = { s -> editStrokePath(s, cutPx, strokePx) },
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .drawBehind {
                 val fillPath = editJoinPath(size, cutPx, bleedPx)
                 drawPath(fillPath, color = editBg)
@@ -1072,6 +1269,7 @@ private fun WeakTab(
     modifier: Modifier = Modifier,
     fullLabel: String = label,
     embedded: Boolean = false,
+    armed: Boolean = false,
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(selected) {
@@ -1083,7 +1281,7 @@ private fun WeakTab(
     }
     val shape = CutCornerShape(bottomEnd = if (selected) 16.dp else 10.dp)
     val border = when {
-        selected -> MaterialTheme.colorScheme.primary
+        selected || armed -> MaterialTheme.colorScheme.primary
         embedded -> TechColors.Divider
         else -> TechColors.Edge
     }
@@ -1093,18 +1291,21 @@ private fun WeakTab(
         else -> TechColors.Hull
     }
     val textColor = when {
-        selected -> MaterialTheme.colorScheme.primary
+        selected || armed -> MaterialTheme.colorScheme.primary
         embedded -> TechColors.Mute
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    // Armed keeps the short label so the row does not reflow under the finger.
     val textToDisplay = if (selected) fullLabel else label
     val letterSpacing = if (selected) 0.4.sp else 1.0.sp
     val horizontalPadding = if (selected) 12.dp else 10.dp
 
     Box(
         modifier = modifier
+            .stupidChipFlip(selected)
             .bringIntoViewRequester(bringIntoViewRequester)
             .animateContentSize(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing))
+            .then(if (selected) Modifier.neonSelectionHalo(enabled = true, color = border, shape = shape) else Modifier)
             .clip(shape)
             .border(1.dp, border, shape)
             .background(bg, shape)
