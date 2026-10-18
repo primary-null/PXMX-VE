@@ -118,6 +118,10 @@ class ProxmoxClientFactory(
         val hostnameVerifier = createTofuHostnameVerifier(config.host, config.trustSelfSigned)
 
         val builder = OkHttpClient.Builder()
+            // Application interceptors do not rerun on redirect follow-ups.
+            // Keep cookies and CSRF headers on the configured API endpoint.
+            .followRedirects(false)
+            .followSslRedirects(false)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
             .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)

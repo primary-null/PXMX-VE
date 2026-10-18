@@ -229,6 +229,14 @@ class TourTest {
         // SubcomposeLayout also measures an unplaced copy of the bezel.
         // Require a visible control without confusing it with that measurement copy.
         listOf("hw", "net", "opt", "snap", "bkp").forEach { slug ->
+            val scrollable = composeTestRule.onAllNodes(
+                hasTestTag("guest_bezel_$slug") and hasAnyAncestor(hasScrollAction())
+            )
+            if (scrollable.fetchSemanticsNodes().isNotEmpty()) {
+                // Narrow screens intentionally scroll the bezel horizontally.
+                scrollable.onFirst().performScrollTo().assertIsDisplayed()
+                return@forEach
+            }
             val nodes = composeTestRule.onAllNodesWithTag("guest_bezel_$slug")
             val count = nodes.fetchSemanticsNodes().size
             org.junit.Assert.assertTrue("Visible $slug bezel is missing", (0 until count).any { nodes[it].isDisplayed() })

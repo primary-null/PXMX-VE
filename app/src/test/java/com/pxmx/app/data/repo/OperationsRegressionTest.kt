@@ -14,10 +14,68 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class OperationsRegressionTest {
+    @Test fun nicTogglePreservesFreshOptionsAndUsesConfigurationDigest() = runBlocking {
+        var submitted: Map<String, String>? = null
+        val api = object : ProxmoxApi by demo {
+            override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
+                PveResponse(data = mapOf<String, Any>(
+                    "digest" to "fresh-version",
+                    "net0" to "virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr2,tag=22,firewall=0",
+                ))
+            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                submitted = fields
+                return PveResponse(data = "OK")
+            }
+        }
+        val stale = ConfigNet("net0", "virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0,firewall=0")
+        val repo = guestRepository(api)
+        assertTrue(repo.updateNicOption("alpha", GuestType.QEMU, 100, stale, toggleFirewall = true).isSuccess)
+        assertEquals("fresh-version", submitted?.get("digest"))
+        assertEquals("virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr2,tag=22,firewall=1", submitted?.get("net0"))
+    }
+
+    @Test fun nicMissingDigestOrRemovedInterfaceRefusesMutation() = runBlocking {
+        for (config in listOf(mapOf<String, Any>("net0" to "virtio=AA:BB:CC:DD:EE:FF"), mapOf("digest" to "fresh"))) {
+            var writes = 0
+            val api = object : ProxmoxApi by demo {
+                override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
+                    PveResponse(data = config)
+                override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                    writes++
+                    return PveResponse(data = "OK")
+                }
+            }
+            assertTrue(guestRepository(api).updateNicOption(
+                "alpha", GuestType.QEMU, 100, ConfigNet("net0", "virtio=old"), toggleFirewall = true,
+            ).isFailure)
+            assertEquals(0, writes)
+        }
+    }
+
+    @Test fun nicAlreadyAtRequestedStateIsNotToggledBackAndConflictIsReported() = runBlocking {
+        var submitted: Map<String, String>? = null
+        val api = object : ProxmoxApi by demo {
+            override suspend fun guestConfig(node: String, type: String, vmid: Long, current: Int?) =
+                PveResponse(data = mapOf<String, Any>("digest" to "fresh", "net0" to "virtio=mac,firewall=1"))
+            override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+                submitted = fields
+                throw PveHttpException(409, null, "configuration changed")
+            }
+        }
+        val result = guestRepository(api).updateNicOption(
+            "alpha", GuestType.QEMU, 100, ConfigNet("net0", "virtio=mac,firewall=0"), toggleFirewall = true,
+        )
+        assertTrue(result.isFailure)
+        assertEquals("virtio=mac,firewall=1", submitted?.get("net0"))
+        assertEquals("fresh", submitted?.get("digest"))
+    }
+
     private val demo = DemoApi()
     private val store = SessionStore(injectedPrefs = FakeSharedPreferences()).apply {
         setSession(SessionState(ServerConfig(host = "entry.example"), ticket = "test-ticket", username = "root@pam"))
     }
+    private fun guestRepository(api: ProxmoxApi) =
+        GuestRepository(client(api), RecentActionRegistry()) { _, _, _, _ -> emptyList() }
     private fun client(api: ProxmoxApi) = PveClient(ContextWrapper(null), store, provider(api))
     private fun provider(api: ProxmoxApi) = object : ProxmoxApiProvider {
         override fun apiFor(config: ServerConfig) = api

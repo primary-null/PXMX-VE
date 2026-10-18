@@ -2,7 +2,7 @@ name: Security & Anonymity Audit
 
 on:
   push:
-    branches: [main]
+    branches: [main, "security/**"]
   pull_request:
     branches: [main]
 

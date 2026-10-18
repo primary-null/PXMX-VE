@@ -334,12 +334,22 @@ class GuestRepository(
         toggleFirewall: Boolean = false,
         toggleLinkDown: Boolean = false,
     ): Result<String> = pveClient.apiCall { api ->
-        val updatedValue = buildUpdatedNicValue(net, toggleFirewall, toggleLinkDown)
+        val config = GuestConfigParser.parse(api.guestConfig(node, guestType.path, vmid, current = 0).data.orEmpty())
+        val digest = config.digest?.takeIf { it.isNotBlank() }
+            ?: throw PveException("Cannot update NIC without a configuration digest; refresh and retry")
+        val currentNet = config.nets.firstOrNull { it.key == net.key }
+            ?: throw PveException("NIC no longer exists; refresh and retry")
+        // Preserve the user's intended state while retaining newly changed NIC options.
+        val updatedValue = buildUpdatedNicValue(
+            currentNet,
+            toggleFirewall = toggleFirewall && currentNet.firewall == net.firewall,
+            toggleLinkDown = toggleLinkDown && currentNet.linkDown == net.linkDown,
+        )
         val res = api.updateGuestConfig(
             node,
             guestType.path,
             vmid,
-            mapOf(net.key to updatedValue),
+            mapOf(net.key to updatedValue, "digest" to digest),
         ).data ?: "OK"
         res
     }

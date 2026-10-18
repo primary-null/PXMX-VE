@@ -57,6 +57,7 @@ androidx-datastore = { group = "androidx.datastore", name = "datastore", version
 sshj = { group = "com.hierynomus", name = "sshj", version.ref = "sshj" }
 bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastleUtil = { group = "org.bouncycastle", name = "bcutil-jdk18on", version.ref = "bouncycastle" }
+bouncycastlePkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }
 androidx-testcore = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }

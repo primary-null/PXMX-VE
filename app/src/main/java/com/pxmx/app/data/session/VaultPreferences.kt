@@ -217,14 +217,16 @@ class VaultPreferences(
         }
 
         override fun commit(): Boolean {
-            val (snapshot, changedKeys) = applyModificationsToMemory()
+            val (_, changedKeys) = applyModificationsToMemory()
             notifyListeners(changedKeys)
             return try {
                 // Park the caller; DataStore's own scope does the file IO.
                 // Do not runBlocking(Dispatchers.IO) here — that shares the
                 // DataStore actor's dispatcher and can skip/deadlock the write.
                 runBlocking {
-                    dataStore.updateData { snapshot }
+                    // Resolve inside DataStore's serialized transform so an older
+                    // queued apply cannot restore data after a committed clear.
+                    dataStore.updateData { synchronized(lock) { inMemory } }
                 }
                 true
             } catch (e: CancellationException) {
@@ -235,11 +237,11 @@ class VaultPreferences(
         }
 
         override fun apply() {
-            val (snapshot, changedKeys) = applyModificationsToMemory()
+            val (_, changedKeys) = applyModificationsToMemory()
             notifyListeners(changedKeys)
             persistScope.launch {
                 try {
-                    dataStore.updateData { snapshot }
+                    dataStore.updateData { synchronized(lock) { inMemory } }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {

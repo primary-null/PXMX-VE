@@ -16,6 +16,7 @@ import com.pxmx.app.data.model.StorageStatus
 import com.pxmx.app.data.model.TaskStatus
 import com.pxmx.app.data.model.TicketData
 import com.pxmx.app.data.model.VersionInfo
+import com.pxmx.app.data.repo.PveHttpException
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -551,6 +552,7 @@ class DemoApi : ProxmoxApi {
         deletedConfigKeys[vmid]?.forEach { key ->
             merged.remove(key)
         }
+        merged["digest"] = merged.hashCode().toString()
         return PveResponse(data = merged)
     }
 
@@ -1203,6 +1205,13 @@ class DemoApi : ProxmoxApi {
 
     override suspend fun nodeUsb(node: String): PveResponse<List<HostUsbDevice>> = PveResponse()
     override suspend fun updateGuestConfig(node: String, type: String, vmid: Long, fields: Map<String, String>): PveResponse<String?> {
+        fields["digest"]?.let { expected ->
+            if (guestConfig(node, type, vmid, current = 0).data?.get("digest") != expected) {
+                throw PveHttpException(
+                    java.net.HttpURLConnection.HTTP_CONFLICT, null, "Configuration changed; refresh and retry",
+                )
+            }
+        }
         // Persist config changes in the simulation (e.g. the AUTO/onboot toggle).
         val store = configOverride.getOrPut(vmid) { mutableMapOf() }
         val delSet = deletedConfigKeys.getOrPut(vmid) { ConcurrentHashMap.newKeySet() }
@@ -1215,7 +1224,7 @@ class DemoApi : ProxmoxApi {
             }
         }
         fields.forEach { (key, value) ->
-            if (key != "delete") {
+            if (key != "delete" && key != "digest") {
                 delSet.remove(key)
                 if (key == "onboot") store[key] = value.toIntOrNull() ?: 0 else store[key] = value
             }

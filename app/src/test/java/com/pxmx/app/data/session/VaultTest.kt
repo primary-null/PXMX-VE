@@ -216,6 +216,43 @@ class VaultTest {
     }
 
     @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun queuedApplyCannotRestoreDataAfterCommittedClear() = kotlinx.coroutines.test.runTest {
+        var persisted = VaultPayload()
+        val store = object : DataStore<VaultPayload> {
+            override val data get() = flowOf(persisted)
+            override suspend fun updateData(transform: suspend (t: VaultPayload) -> VaultPayload): VaultPayload {
+                persisted = transform(persisted)
+                return persisted
+            }
+        }
+        val prefs = VaultPreferences(store, persisted, this)
+        prefs.edit().putString("ticket", "synthetic-ticket").apply()
+        assertTrue(prefs.edit().clear().commit())
+        testScheduler.runCurrent()
+        assertTrue(persisted.strings.isEmpty())
+        assertNull(prefs.getString("ticket", null))
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun queuedApplyCannotOverwriteNewerCommit() = kotlinx.coroutines.test.runTest {
+        var persisted = VaultPayload()
+        val store = object : DataStore<VaultPayload> {
+            override val data get() = flowOf(persisted)
+            override suspend fun updateData(transform: suspend (t: VaultPayload) -> VaultPayload): VaultPayload {
+                persisted = transform(persisted)
+                return persisted
+            }
+        }
+        val prefs = VaultPreferences(store, persisted, this)
+        prefs.edit().putString("value", "old").apply()
+        assertTrue(prefs.edit().putString("value", "new").commit())
+        testScheduler.runCurrent()
+        assertEquals("new", persisted.strings["value"])
+    }
+
+    @Test
     fun testCommitInvokesDataStoreUpdate() {
         var updated = false
         val store = object : DataStore<VaultPayload> {

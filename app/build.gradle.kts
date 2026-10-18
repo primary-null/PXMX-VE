@@ -42,6 +42,11 @@ android {
                 storePassword = props.getProperty("storePassword")
                 keyAlias = props.getProperty("keyAlias")
                 keyPassword = props.getProperty("keyPassword")
+            } else {
+                storeFile = providers.environmentVariable("RELEASE_KEYSTORE_PATH").orNull?.let { file(it) }
+                storePassword = providers.environmentVariable("RELEASE_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").orNull
             }
         }
     }
@@ -49,7 +54,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -77,6 +83,22 @@ android {
             )
         }
     }
+}
+
+val validateReleaseSigning by tasks.registering {
+    doLast {
+        val signing = android.signingConfigs.getByName("release")
+        check(signing.storeFile?.isFile == true &&
+            !signing.storePassword.isNullOrBlank() &&
+            !signing.keyAlias.isNullOrBlank() &&
+            !signing.keyPassword.isNullOrBlank()) {
+            "Release signing is required. Configure the release keystore and signing credentials."
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validateReleaseSigning)
 }
 
 kotlin {
@@ -114,6 +136,8 @@ dependencies {
     implementation(libs.sshj)
     implementation(libs.bouncycastle)
     implementation(libs.bouncycastleUtil)
+    // Keep SSH's transitive PKIX parser on the same patched crypto family.
+    implementation(libs.bouncycastlePkix)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.chucker)
     releaseImplementation(libs.chucker.no.op)
