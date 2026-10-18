@@ -125,10 +125,12 @@ class TourTest {
     @Test
     fun loginReachesDashboard() {
         performFakeLogin()
+        dismissTour()
 
         // Check header wordmark and subtitle connection context
         composeTestRule.onNodeWithText("PXMX").assertIsDisplayed()
-        composeTestRule.onNodeWithText("fake.local:8006 · PVE 8.3.0", substring = true).assertIsDisplayed()
+        // Compact mastheads intentionally omit the host while retaining version context.
+        composeTestRule.onNodeWithText("PVE 8.3.0", substring = true).assertIsDisplayed()
 
         // Check tabs
         composeTestRule.onNodeWithText("ALL").assertIsDisplayed()
@@ -224,12 +226,13 @@ class TourTest {
         composeTestRule.onAllNodesWithText("nova").onFirst().assertIsDisplayed()
         composeTestRule.onNodeWithText("RUNNING").assertIsDisplayed()
 
-        // Bezel stamps (OPS deck also repeats HW/NET clips as text)
-        composeTestRule.onNodeWithTag("guest_bezel_hw").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("guest_bezel_net").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("guest_bezel_opt").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("guest_bezel_snap").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("guest_bezel_bkp").assertIsDisplayed()
+        // SubcomposeLayout also measures an unplaced copy of the bezel.
+        // Require a visible control without confusing it with that measurement copy.
+        listOf("hw", "net", "opt", "snap", "bkp").forEach { slug ->
+            val nodes = composeTestRule.onAllNodesWithTag("guest_bezel_$slug")
+            val count = nodes.fetchSemanticsNodes().size
+            org.junit.Assert.assertTrue("Visible $slug bezel is missing", (0 until count).any { nodes[it].isDisplayed() })
+        }
 
         // Power actions (check presence after opening Actions menu)
         composeTestRule.onNodeWithContentDescription("Actions").performClick()
